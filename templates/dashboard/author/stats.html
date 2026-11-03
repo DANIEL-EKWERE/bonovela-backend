@@ -1,0 +1,37 @@
+{% extends 'dashboard/base.html' %}{% load bv %}
+{% block title %}Statistics{% endblock %}
+{% block back %}<a class="back" href="{% url 'dashboard:author_chapters' story.pk %}"><i class="ph ph-caret-left"></i></a>{% endblock %}
+{% block heading %}Statistics{% endblock %}
+{% block content_class %}narrow{% endblock %}
+{% block content %}
+<div class="tips">Tips: for a more precise outcome, data displayed here compares yesterday with the day before.</div>
+<p class="muted small" style="margin:12px 2px 0">{{ story.display_title }}</p>
+
+<div class="section-title"><h2>Release Statistics</h2></div>
+<div class="card"><div class="grid cols-3">{% for l, v, p in release %}<div class="stat"><div class="l">{{ l }}</div><div class="v">{{ v|compact }}</div><div class="p">{{ p }}</div></div>{% endfor %}</div></div>
+
+<div class="section-title"><h2>Reading Statistics</h2></div>
+<div class="card"><div class="grid cols-3">{% for l, v, p in reading %}<div class="stat"><div class="l">{{ l }}</div><div class="v">{{ v|compact }}</div><div class="p">{{ p }}</div></div>{% endfor %}</div></div>
+
+<div class="section-title"><h2>Interactive Statistics</h2></div>
+<div class="card"><div class="grid cols-3">{% for l, v, p in interactive %}<div class="stat"><div class="l">{{ l }}</div><div class="v">{{ v|compact }}</div><div class="p">{{ p }}</div></div>{% endfor %}</div></div>
+
+<div class="section-title"><h2>Promotion</h2><span class="chip solid">How to get my book promoted?</span></div>
+<div class="card">
+  {% for p in promotions %}
+    <div class="row between" style="padding:6px 0"><span>{{ p.get_section_display }}</span><span class="small muted">{{ p.starts_at|date:"M d" }} – {{ p.ends_at|date:"M d" }} {% if p.is_active %}<span class="chip green">Live</span>{% endif %}</span></div>
+  {% empty %}
+    <p class="small muted"><i class="ph ph-info"></i> No promotions yet. Signed books that update steadily, keep chapters 600–1,000 words and get good reviews are picked by our editors.</p>
+  {% endfor %}
+</div>
+
+<div class="section-title"><h2>Reader Gender</h2></div>
+<div class="card">
+  {% for label, pct in gender %}
+    <div class="row" style="margin:8px 0"><span style="width:120px" class="small">{{ label }}</span>
+      <div class="grow" style="background:var(--surface);border-radius:6px;height:10px;overflow:hidden"><div style="width:{{ pct }}%;height:100%;background:var(--grad)"></div></div>
+      <span class="small" style="width:40px;text-align:right">{{ pct }}%</span></div>
+  {% endfor %}
+  <p class="hint">Readers who added this book to their library.</p>
+</div>
+{% endblock %}

@@ -1,0 +1,36 @@
+{% extends 'dashboard/base.html' %}{% load bv %}
+{% block title %}Revenue{% endblock %}
+{% block heading %}Revenue{% endblock %}
+{% block content %}
+<div class="grid cols-4">
+  <div class="kpi"><div class="l">Last 30 days</div><div class="v">{{ month|money }}</div></div>
+  <div class="kpi"><div class="l">Coin top-ups</div><div class="v">{{ top_ups|money }}</div><div class="d">all time</div></div>
+  <div class="kpi"><div class="l">Plus subscriptions</div><div class="v">{{ subs|money }}</div><div class="d">all time</div></div>
+  <div class="kpi"><div class="l">Author earnings</div><div class="v">{{ owed|money }}</div><div class="d">{{ coins_spent|compact }} coins spent by readers</div></div>
+</div>
+
+<div class="grid" style="grid-template-columns:minmax(0,2fr) minmax(0,1fr);margin-top:12px" id="moneyGrid">
+  <div>
+    <div class="section-title" style="margin-top:0"><h2>Transactions</h2>
+      <form method="get"><select name="kind" style="width:auto" onchange="this.form.submit()"><option value="">All kinds</option>{% for k, l in kinds %}<option value="{{ k }}" {% if k == kind %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></form>
+    </div>
+    <div class="table-wrap"><table class="table">
+      <tr><th>When</th><th>User</th><th>What</th><th>Coins</th><th>USD</th></tr>
+      {% for t in tx %}
+      <tr><td class="nowrap small">{{ t.created_at|date:"M d H:i" }}</td><td class="small"><span class="truncate" style="display:block;max-width:160px">{{ t.user.display_name }}</span></td>
+        <td class="small"><span class="chip grey">{{ t.get_kind_display }}</span> <span class="hide-mobile">{{ t.title }}</span></td>
+        <td class="nowrap {% if t.coins < 0 %}muted{% else %}pink{% endif %}">{% if t.coins > 0 %}+{% endif %}{{ t.coins }}{% if t.bonus_used %} <span class="hint">(+{{ t.bonus_used }} bonus)</span>{% endif %}</td>
+        <td class="nowrap">{% if t.price_cents %}{{ t.price_cents|money }}{% else %}—{% endif %}</td></tr>
+      {% empty %}<tr><td colspan="5" class="muted">No transactions yet.</td></tr>{% endfor %}
+    </table></div>
+  </div>
+  <div>
+    <div class="section-title" style="margin-top:0"><h2>Top earning authors</h2></div>
+    <div class="card flush">
+      {% for a in top_authors %}<div class="list-item"><span class="avatar">{{ a.author__pen_name|default:a.author__email|first|upper }}</span><div class="grow"><b class="truncate" style="display:block">{{ a.author__pen_name|default:a.author__email }}</b></div><b>{{ a.total|money }}</b></div>
+      {% empty %}<div style="padding:20px" class="muted">No earnings yet.</div>{% endfor %}
+    </div>
+  </div>
+</div>
+<style>@media (max-width: 860px) { #moneyGrid { grid-template-columns: 1fr !important; } }</style>
+{% endblock %}

@@ -1,0 +1,67 @@
+{% extends 'dashboard/base.html' %}{% load bv %}
+{% block title %}Promotions{% endblock %}
+{% block heading %}Promotions{% endblock %}
+{% block actions %}{% if role == 'se' %}<button class="btn sm" data-open="newReq"><i class="ph ph-plus"></i>Request</button>{% elif role == 'ce' %}<button class="btn sm" data-open="newPromo"><i class="ph ph-plus"></i>Promote</button>{% endif %}{% endblock %}
+{% block content %}
+<div class="notice" style="margin-bottom:12px">Senior Editors request promotions; the Chief Editor approves them and they go live in the app's sections. Promotions end automatically after their set number of days.</div>
+
+<div class="section-title" style="margin-top:4px"><h2>Pending requests</h2><span class="badge">{{ pending|length }}</span></div>
+<div class="card flush">
+  {% for r in pending %}
+    <div class="list-item" style="align-items:flex-start">
+      {% cover r.story 44 %}
+      <div class="grow">
+        <b>{{ r.story.display_title }}</b>
+        <div class="hint">by {{ r.requested_by.display_name }} · {{ r.days }} days · {{ r.created_at|date:"M d" }}</div>
+        <p class="small" style="margin:4px 0">{{ r.reason }}</p>
+        {% if role == 'ce' %}
+        <form method="post" style="margin-top:8px">{% csrf_token %}<input type="hidden" name="request" value="{{ r.pk }}">
+          <div class="row wrap" style="gap:6px;margin-bottom:8px">
+            {% for key, label in sections %}<label class="pill"><input type="checkbox" name="sections" value="{{ key }}" {% if key in r.sections %}checked{% endif %}><span class="small">{{ label }}</span></label>{% endfor %}
+          </div>
+          <div class="row"><input type="text" name="note" placeholder="Note (optional)"><button class="btn sm ghost" name="action" value="reject">Reject</button><button class="btn sm" name="action" value="approve">Approve</button></div>
+        </form>
+        {% else %}
+          <div class="row wrap" style="gap:6px">{% for l in r.section_labels %}<span class="tag on">{{ l }}</span>{% endfor %}</div>
+        {% endif %}
+      </div>
+    </div>
+  {% empty %}<div style="padding:24px;text-align:center" class="muted">No pending requests.</div>{% endfor %}
+</div>
+
+<div class="section-title"><h2>Live &amp; scheduled</h2></div>
+<div class="table-wrap"><table class="table">
+  <tr><th>Book</th><th>Section</th><th>Ends</th><th class="hide-mobile">By</th><th></th></tr>
+  {% for p in live %}
+    <tr><td>{{ p.story.display_title }}</td><td>{{ p.get_section_display }}</td><td class="nowrap">{{ p.ends_at|date:"M d" }} <span class="hint">({{ p.ends_at|timeuntil }})</span></td>
+      <td class="hide-mobile">{{ p.created_by.display_name }}</td>
+      <td>{% if role == 'ce' %}<form method="post">{% csrf_token %}<input type="hidden" name="promotion" value="{{ p.pk }}"><button class="btn sm ghost" name="action" value="end">End</button></form>{% endif %}</td></tr>
+  {% empty %}<tr><td colspan="5" class="muted">Nothing promoted right now.</td></tr>{% endfor %}
+</table></div>
+
+<div class="section-title"><h2>Recently decided</h2></div>
+<div class="card flush">
+  {% for r in recent %}<div class="list-item"><div class="grow"><b>{{ r.story.display_title }}</b><div class="hint">{{ r.section_labels|join:", " }} · {{ r.requested_by.display_name }}</div></div><span class="chip {% if r.status == 'approved' %}green{% else %}grey{% endif %}">{{ r.get_status_display }}</span></div>
+  {% empty %}<div style="padding:20px" class="muted">None yet.</div>{% endfor %}
+</div>
+
+<div class="sheet" id="newReq"><div class="panel">
+  <div class="row between" style="margin-bottom:12px"><h2>Request a promotion</h2><button class="icon-btn" data-close><i class="ph ph-x"></i></button></div>
+  <form method="post">{% csrf_token %}
+    <label class="field"><span class="label">Book (signed)</span><select name="story" required>{% for s in signed %}<option value="{{ s.pk }}">{{ s.display_title }}</option>{% endfor %}</select></label>
+    <div class="field"><span class="label">Sections</span><div class="row wrap" style="gap:6px">{% for key, label in sections %}<label class="pill"><input type="checkbox" name="sections" value="{{ key }}"><span class="small">{{ label }}</span></label>{% endfor %}</div></div>
+    <label class="field"><span class="label">Days</span><input type="number" name="days" value="7" min="1" max="30"></label>
+    <label class="field"><span class="label">Why this book?</span><textarea name="reason" rows="3" required></textarea></label>
+    <button class="btn block" name="action" value="request">Send to Chief Editor</button>
+  </form>
+</div></div>
+<div class="sheet" id="newPromo"><div class="panel">
+  <div class="row between" style="margin-bottom:12px"><h2>Promote a book</h2><button class="icon-btn" data-close><i class="ph ph-x"></i></button></div>
+  <form method="post">{% csrf_token %}
+    <label class="field"><span class="label">Book (signed)</span><select name="story" required>{% for s in signed %}<option value="{{ s.pk }}">{{ s.display_title }}</option>{% endfor %}</select></label>
+    <div class="field"><span class="label">Sections</span><div class="row wrap" style="gap:6px">{% for key, label in sections %}<label class="pill"><input type="checkbox" name="sections" value="{{ key }}"><span class="small">{{ label }}</span></label>{% endfor %}</div></div>
+    <label class="field"><span class="label">Days</span><input type="number" name="days" value="7" min="1" max="30"></label>
+    <button class="btn block" name="action" value="promote">Go live</button>
+  </form>
+</div></div>
+{% endblock %}

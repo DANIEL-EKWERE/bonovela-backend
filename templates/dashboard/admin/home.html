@@ -1,0 +1,38 @@
+{% extends 'dashboard/base.html' %}{% load bv %}
+{% block title %}Admin{% endblock %}
+{% block heading %}Overview{% endblock %}
+{% block actions %}<a class="btn sm ghost hide-mobile" href="/bv-admin/database/"><i class="ph ph-database"></i>Database</a>{% endblock %}
+{% block content %}
+<div class="grid cols-4">
+  <a class="kpi" href="{% url 'dashboard:admin_users' %}"><div class="l">Users</div><div class="v">{{ users_total|compact }}</div><div class="d">+{{ users_week }} this week · {{ authors }} authors</div></a>
+  <a class="kpi" href="{% url 'dashboard:admin_books' %}?f=live"><div class="l">Books in app</div><div class="v">{{ books_live }}</div><div class="d">{{ books_total }} total · {{ chapters_week }} chapters this week</div></a>
+  <a class="kpi" href="{% url 'dashboard:admin_money' %}"><div class="l">Revenue (30 days)</div><div class="v">{{ revenue_month|money }}</div><div class="d">{{ revenue_total|money }} all time</div></a>
+  <a class="kpi" href="{% url 'dashboard:admin_reports' %}"><div class="l">Open reports</div><div class="v">{{ open_reports }}</div><div class="d">{{ subs_active }} active Plus members</div></a>
+</div>
+
+<div class="section-title"><h2>Revenue · last 14 days</h2></div>
+<div class="card">
+  <div class="bars">
+    {% for d in days %}<div class="bar" title="{{ d.label }}: {{ d.cents|money }}"><span style="height:{{ d.pct }}%"></span><small>{{ d.label|slice:"4:" }}</small></div>{% endfor %}
+  </div>
+</div>
+
+<div class="grid cols-2 stack-sm" style="margin-top:12px">
+  <div>
+    <div class="section-title" style="margin-top:0"><h2>Most read</h2><a class="small pink" href="{% url 'dashboard:admin_books' %}">All books ›</a></div>
+    <div class="card flush">
+      {% for s in top_books %}
+        <div class="list-item">{% cover s 40 %}<div class="grow"><b class="truncate" style="display:block">{{ s.display_title }}</b><div class="hint">{{ s.author.display_name }}</div></div><span class="small muted"><i class="ph ph-eye"></i> {{ s.views|compact }}</span></div>
+      {% empty %}<div style="padding:20px" class="muted">No books yet.</div>{% endfor %}
+    </div>
+  </div>
+  <div>
+    <div class="section-title" style="margin-top:0"><h2>New users</h2><a class="small pink" href="{% url 'dashboard:admin_users' %}">All users ›</a></div>
+    <div class="card flush">
+      {% for u in recent_users %}
+        <div class="list-item"><span class="avatar">{{ u.display_name|first|upper }}</span><div class="grow"><b class="truncate" style="display:block">{{ u.display_name }}</b><div class="hint truncate">{{ u.email }}</div></div><span class="chip grey">{{ u.get_role_display }}</span></div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endblock %}

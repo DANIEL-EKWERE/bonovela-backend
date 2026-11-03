@@ -1,0 +1,7 @@
+{% if story.cover %}
+<div class="cover" style="--w: {{ width }}px"><img src="{{ story.cover.url }}" alt=""></div>
+{% elif story.cover_index >= 0 %}
+<div class="cover pal-{{ story.cover_index }}" style="--w: {{ width }}px"><span class="clamp-3">{{ title }}</span><small>BONOVELA</small></div>
+{% else %}
+<div class="cover empty" style="--w: {{ width }}px"><i class="ph ph-plus"></i><span class="tiny">New Story</span></div>
+{% endif %}

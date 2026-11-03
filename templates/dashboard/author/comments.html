@@ -1,0 +1,34 @@
+{% extends 'dashboard/base.html' %}{% load bv %}
+{% block title %}Comment Management{% endblock %}
+{% block heading %}Comment Management{% endblock %}
+{% block content_class %}narrow{% endblock %}
+{% block content %}
+<form class="grid cols-2" method="get" style="margin-bottom:12px">
+  <select name="book" onchange="this.form.submit()"><option value="">All books</option>{% for s in stories %}<option value="{{ s.pk }}" {% if book == s.pk|stringformat:'s' %}selected{% endif %}>{{ s.display_title }}</option>{% endfor %}</select>
+  <select name="stars" onchange="this.form.submit()"><option value="">All ratings</option>{% for n in '54321' %}<option value="{{ n }}" {% if stars == n %}selected{% endif %}>{{ n }} stars</option>{% endfor %}</select>
+</form>
+<div class="row" style="margin:0 2px 10px"><h2>Comments</h2><span class="hint">{{ reviews|length }}</span></div>
+<div class="card flush">
+{% for r in reviews %}
+  <div class="list-item" style="align-items:flex-start">
+    <span class="avatar soft">{{ r.user.display_name|first|upper }}</span>
+    <div class="grow">
+      <div class="row between"><b>{{ r.user.display_name }}</b><span class="hint">{{ r.created_at|date:"Y-m-d H:i" }}</span></div>
+      {{ r.stars|stars }}
+      <div class="hint">{{ r.story.display_title }}{% if r.chapter %} / {{ r.chapter.display_title }}{% endif %}</div>
+      <p style="margin:6px 0">{{ r.text }}</p>
+      {% for rep in r.replies.all %}
+        <div style="background:var(--blush);border-radius:10px;padding:8px 12px;margin-top:6px" class="small"><b class="pink">{% if rep.user_id == request.user.id %}You{% else %}{{ rep.user.display_name }}{% endif %}:</b> {{ rep.text }}</div>
+      {% endfor %}
+      <form method="post" class="row" style="margin-top:8px">{% csrf_token %}
+        <input type="hidden" name="review" value="{{ r.pk }}">
+        <input type="text" name="text" placeholder="Leave a comment" maxlength="1000" required>
+        <button class="icon-btn pink" title="Reply"><i class="ph-fill ph-paper-plane-tilt"></i></button>
+      </form>
+    </div>
+  </div>
+{% empty %}
+  <div style="text-align:center;padding:48px 16px"><i class="ph ph-chat-circle-dots" style="font-size:52px;color:var(--blush-deep)"></i><p class="muted">No comments yet.</p></div>
+{% endfor %}
+</div>
+{% endblock %}

@@ -1,0 +1,22 @@
+{% extends 'dashboard/base.html' %}{% load static %}
+{% block title %}Sign in{% endblock %}
+{% block topbar %}{% endblock %}
+{% block content %}
+<div class="auth-page" style="margin:-20px -24px -40px">
+  <form class="auth-card" method="post">{% csrf_token %}
+    <img class="logo" src="{% static 'img/logo_wordmark.png' %}" alt="Bonovela">
+    <h1 style="text-align:center;margin-bottom:4px">Sign in</h1>
+    <p class="muted small" style="text-align:center;margin-bottom:22px">Author Center · Editorial · Admin</p>
+    {% if form.non_field_errors %}<div class="notice bad" style="margin-bottom:14px">{{ form.non_field_errors.0 }}</div>{% endif %}
+    <label class="field"><span class="label">Email address</span>
+      <input type="email" name="username" value="{{ form.username.value|default:'' }}" autocomplete="email" required autofocus>
+    </label>
+    <label class="field"><span class="label">Password</span>
+      <input type="password" name="password" autocomplete="current-password" required>
+    </label>
+    <input type="hidden" name="next" value="{{ next }}">
+    <button class="btn block lg">Sign in</button>
+    <p class="hint" style="text-align:center;margin-top:16px">Use the same email and password as the Bonovela app.</p>
+  </form>
+</div>
+{% endblock %}

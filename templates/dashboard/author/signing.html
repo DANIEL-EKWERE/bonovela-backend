@@ -1,0 +1,59 @@
+{% extends 'dashboard/base.html' %}{% load bv %}
+{% block title %}Signing{% endblock %}
+{% block back %}<a class="back" href="{% url 'dashboard:author_chapters' story.pk %}"><i class="ph ph-caret-left"></i></a>{% endblock %}
+{% block heading %}Signing · {{ story.display_title }}{% endblock %}
+{% block content_class %}narrow{% endblock %}
+{% block content %}
+<div class="card row top">
+  {% cover story 72 %}
+  <div class="grow">
+    <h3>{{ story.display_title }}</h3>
+    <p class="small muted">{{ published }} published chapter{{ published|pluralize }} · {{ story.total_words|compact }} words</p>
+    {% if story.is_signed %}<span class="chip green" style="margin-top:8px">Signed {{ story.signed_at|date:"M d, Y" }}</span>{% endif %}
+  </div>
+</div>
+
+{% if story.is_signed %}
+  <div class="notice ok" style="margin-top:12px">This book is signed and visible to readers in the app. You earn a share of every unlocked chapter and gift.</div>
+
+{% elif app and app.status == 'contract_sent' %}
+  <form class="card" method="post">{% csrf_token %}
+    <h2>Your contract</h2>
+    <p class="muted small" style="margin:6px 0 14px">{{ app.get_contract_type_display }} contract{% if app.signing_bonus_cents %} · signing bonus {{ app.signing_bonus_cents|money }}{% endif %}</p>
+    <div style="background:var(--surface);border-radius:10px;padding:14px;max-height:280px;overflow:auto" class="small">
+      <p><b>1. Rights.</b> You grant Bonovela the {% if app.contract_type == 'exclusive' %}exclusive{% else %}non-exclusive{% endif %} right to publish "{{ story.display_title }}" in the Bonovela apps and website.</p><br>
+      <p><b>2. Earnings.</b> You receive a profit share of coins spent unlocking your chapters and gifts sent to your book, paid monthly once your balance reaches the payout threshold.</p><br>
+      <p><b>3. Updates.</b> Ongoing books should update regularly. Monthly Attendance Bonus applies when you meet the update target.</p><br>
+      <p><b>4. Content.</b> The work is original and follows the Bonovela content guidelines.</p><br>
+      <p class="hint">Placeholder terms — replace with the reviewed contract before launch.</p>
+    </div>
+    <label class="check-row" style="margin-top:12px"><input type="checkbox" name="agree" value="1">I have read and accept the contract terms.</label>
+    <button class="btn block lg" name="action" value="sign" style="margin-top:8px">Sign contract</button>
+  </form>
+
+{% elif app and app.is_open %}
+  <div class="card">
+    <h2>Application status</h2>
+    <div class="stack" style="margin-top:14px">
+      {% for key, label in app.STATUS_CHOICES %}{% if key != 'revision' and key != 'rejected' and key != 'signed' %}
+        <div class="row"><i class="ph{% if key == app.status %}-fill ph-circle pink{% else %} ph-circle muted{% endif %}"></i><span {% if key == app.status %}style="font-weight:600"{% endif %}>{{ label }}</span></div>
+      {% endif %}{% endfor %}
+    </div>
+    <p class="hint" style="margin-top:12px">Applied {{ app.created_at|date:"M d, Y" }}. If you don't hear back within 30 business days, contact support@bonovela.app.</p>
+  </div>
+
+{% else %}
+  {% if app and app.feedback %}<div class="notice {% if app.status == 'rejected' %}bad{% else %}warn{% endif %}" style="margin-top:12px"><b>Editor feedback:</b> {{ app.feedback }}</div>{% endif %}
+  <form class="card" method="post">{% csrf_token %}
+    <h2>Apply for signing</h2>
+    <p class="muted small" style="margin:6px 0 14px">Signed books appear in the app, get promoted, and earn money.</p>
+    <div class="stack small" style="margin-bottom:14px">
+      <div class="row"><i class="ph{% if story.is_info_complete %}-fill ph-check-circle success-text{% else %} ph-circle muted{% endif %}"></i>Book information complete
+        {% if not story.is_info_complete %}<a class="pink" href="{% url 'dashboard:author_story_info' story.pk %}?step=1">Finish ›</a>{% endif %}</div>
+      <div class="row"><i class="ph{% if published >= 3 %}-fill ph-check-circle success-text{% else %} ph-circle muted{% endif %}"></i>At least 3 published chapters ({{ published }}/3)</div>
+    </div>
+    <label class="field"><span class="label">Message to the editors (optional)</span><textarea name="message" rows="4" placeholder="Where is the story going? How often will you update?"></textarea></label>
+    <button class="btn block lg" name="action" value="apply" {% if not ready %}disabled{% endif %}>Apply</button>
+  </form>
+{% endif %}
+{% endblock %}

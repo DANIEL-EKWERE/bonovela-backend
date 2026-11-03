@@ -1,0 +1,30 @@
+{% extends 'dashboard/base.html' %}
+{% block title %}Discover{% endblock %}
+{% block heading %}Discover{% endblock %}
+{% block content %}
+<div class="section-title" style="margin-top:4px"><h2>Writing Contests</h2></div>
+<div class="grid cols-2 stack-sm">
+{% for c in contests %}
+  <div class="card">
+    <div class="row"><i class="ph-fill ph-medal" style="color:var(--gold);font-size:24px"></i><h3 class="grow">{{ c.contest.title }}</h3></div>
+    <p class="muted small" style="margin:8px 0 12px">{{ c.contest.brief }}</p>
+    <div class="row">
+      <b style="color:var(--star)">Prize {{ c.contest.prize }}</b><span class="hint">Ends {{ c.contest.deadline|date:"M d, Y" }}</span>
+      <span class="grow"></span>
+      <a class="btn sm" href="{% if has_stories %}{% url 'dashboard:author_stories' %}{% else %}{% url 'dashboard:author_story_new' %}{% endif %}">Join</a>
+    </div>
+    {% if c.entries %}<p class="small success-text" style="margin-top:8px">Entered: {{ c.entries|join:", " }}</p>
+    {% else %}<p class="hint" style="margin-top:8px">Enter from a story's Novel Information → Participate.</p>{% endif %}
+  </div>
+{% empty %}
+  <div class="card muted">No contests right now.</div>
+{% endfor %}
+</div>
+
+<div class="section-title"><h2>Writing Tips</h2></div>
+<div class="card flush">
+  {% for title, body in tips %}
+    <div class="list-item"><i class="ph ph-lightbulb pink" style="font-size:24px"></i><div><b>{{ title }}</b><p class="small muted">{{ body }}</p></div></div>
+  {% endfor %}
+</div>
+{% endblock %}

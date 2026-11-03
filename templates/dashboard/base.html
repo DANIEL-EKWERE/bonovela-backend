@@ -1,0 +1,104 @@
+{% load static %}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#EC2A82">
+  <title>{% block title %}{{ area|default:brand_name }}{% endblock %} · {{ brand_name }}</title>
+  <link rel="icon" href="{% static 'img/app_icon.png' %}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Playfair+Display:wght@700&family=Lora&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/@phosphor-icons/web@2.1.1"></script>
+  <link rel="stylesheet" href="{% static 'css/bonovela.css' %}">
+  {% block head %}{% endblock %}
+</head>
+<body>
+<div class="shell">
+  {% if nav %}
+  <aside class="sidebar">
+    <a class="brand" href="{% url 'dashboard:home' %}"><img src="{% static 'img/logo_wordmark.png' %}" alt="Bonovela"></a>
+    <div class="area">{{ area }}</div>
+    {% for item in nav %}
+      <a class="side-link {% if item.active %}active{% endif %}" href="{{ item.url }}">
+        <i class="{% if item.active %}ph-fill{% else %}ph{% endif %} ph-{{ item.icon }}"></i>{{ item.label }}
+      </a>
+    {% endfor %}
+    {% if areas|length > 1 %}
+      <div class="area" style="margin-top:18px">Switch to</div>
+      {% for name, url in areas %}{% if name != area %}
+        <a class="side-link" href="{{ url }}"><i class="ph ph-arrows-left-right"></i>{{ name }}</a>
+      {% endif %}{% endfor %}
+    {% endif %}
+    <div class="spacer"></div>
+    <div class="who">
+      <span class="avatar">{{ user.display_name|first|upper }}</span>
+      <div class="grow">
+        <div class="truncate" style="font-weight:600">{{ user.display_name }}</div>
+        <div class="tiny muted">{{ user.get_role_display }}</div>
+      </div>
+      <form method="post" action="{% url 'dashboard:logout' %}">{% csrf_token %}
+        <button class="icon-btn" title="Log out"><i class="ph ph-sign-out"></i></button>
+      </form>
+    </div>
+  </aside>
+  {% endif %}
+
+  <main class="main" {% if not nav %}style="margin-left:0"{% endif %}>
+    {% block topbar %}
+    <header class="topbar">
+      {% block back %}{% endblock %}
+      <h1>{% block heading %}{{ area }}{% endblock %}</h1>
+      {% block actions %}{% endblock %}
+      {% if areas|length > 1 %}
+      <details class="hide-desktop" style="position:relative">
+        <summary class="icon-btn" style="list-style:none"><i class="ph ph-dots-three-outline"></i></summary>
+        <div class="card" style="position:absolute;right:0;top:44px;min-width:200px;box-shadow:0 8px 30px rgba(0,0,0,.12);z-index:40">
+          {% for name, url in areas %}<a class="side-link" href="{{ url }}">{{ name }}</a>{% endfor %}
+          <form method="post" action="{% url 'dashboard:logout' %}">{% csrf_token %}<button class="side-link" style="border:0;background:none;width:100%;cursor:pointer;font:inherit">Log out</button></form>
+        </div>
+      </details>
+      {% endif %}
+    </header>
+    {% endblock %}
+    <div class="content {% block content_class %}{% endblock %}">
+      {% block content %}{% endblock %}
+    </div>
+  </main>
+
+  {% if nav %}
+  <nav class="bottom-nav">
+    {% for item in nav %}
+      <a class="{% if item.active %}active{% endif %}" href="{{ item.url }}">
+        <i class="{% if item.active %}ph-fill{% else %}ph{% endif %} ph-{{ item.icon }}"></i>{{ item.label }}
+      </a>
+    {% endfor %}
+  </nav>
+  {% endif %}
+</div>
+
+{% if messages %}
+<div class="messages" id="messages">
+  {% for m in messages %}<div class="msg {% if m.tags == 'error' %}error{% endif %}">{{ m }}</div>{% endfor %}
+</div>
+<script>setTimeout(() => document.getElementById('messages')?.remove(), 3500);</script>
+{% endif %}
+
+<script>
+  // Sheets: data-open="id" opens, data-close / backdrop click closes.
+  document.addEventListener('click', (e) => {
+    const opener = e.target.closest('[data-open]');
+    if (opener) { document.getElementById(opener.dataset.open)?.classList.add('open'); e.preventDefault(); return; }
+    if (e.target.closest('[data-close]') || e.target.classList.contains('sheet')) {
+      e.target.closest('.sheet')?.classList.remove('open');
+    }
+  });
+  // Live word counters: <textarea data-words="#counter">
+  document.querySelectorAll('[data-words]').forEach((el) => {
+    const out = document.querySelector(el.dataset.words);
+    const update = () => { const n = el.value.trim() ? el.value.trim().split(/\s+/).length : 0; out.textContent = n.toLocaleString(); out.dispatchEvent(new Event('change')); };
+    el.addEventListener('input', update); update();
+  });
+</script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

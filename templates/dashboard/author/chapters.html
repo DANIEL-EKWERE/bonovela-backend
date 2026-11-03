@@ -1,0 +1,54 @@
+{% extends 'dashboard/base.html' %}{% load bv %}
+{% block title %}{{ story.display_title }}{% endblock %}
+{% block back %}<a class="back" href="{% url 'dashboard:author_stories' %}"><i class="ph ph-caret-left"></i></a>{% endblock %}
+{% block heading %}<span class="truncate" style="display:block">{{ story.display_title }}</span>{% endblock %}
+{% block actions %}
+  <a class="icon-btn" href="{% url 'dashboard:author_story_info' story.pk %}?step=1" title="Edit story"><i class="ph ph-pencil-simple"></i></a>
+  <a class="icon-btn" href="{% url 'dashboard:author_stats' story.pk %}" title="Statistics"><i class="ph-fill ph-chart-bar"></i></a>
+{% endblock %}
+{% block content %}
+{% if not story.is_signed %}
+  {% if application and application.is_open %}
+    <div class="notice warn" style="margin-bottom:12px"><b>Applied:</b> {{ application.get_status_display }}. If you don't hear back within 30 business days, contact support@bonovela.app. <a class="pink" href="{% url 'dashboard:author_signing' story.pk %}">Details ›</a></div>
+  {% else %}
+    <div class="notice" style="margin-bottom:12px">This book is unsigned, so it's visible on the web only. <a class="pink" href="{% url 'dashboard:author_signing' story.pk %}">Apply for signing ›</a></div>
+  {% endif %}
+{% endif %}
+
+<div class="card flush">
+  <div class="tabs fill">
+    <a class="{% if tab == 'draft' %}active{% endif %}" href="?tab=draft">Draft ({{ counts.draft }})</a>
+    <a class="{% if tab == 'published' %}active{% endif %}" href="?tab=published">Published ({{ counts.published }})</a>
+    <a class="{% if tab == 'trash' %}active{% endif %}" href="?tab=trash">Trash ({{ counts.trash }})</a>
+  </div>
+  {% for c in chapters %}
+    <div class="list-item">
+      <a class="grow" {% if tab != 'trash' %}href="{% url 'dashboard:author_chapter_edit' story.pk c.pk %}"{% endif %}>
+        <div class="row" style="gap:8px"><b>{{ c.label }}</b><span class="truncate">{{ c.title }}</span>
+          {% if c.status == 'scheduled' %}<span class="chip gold">Scheduled {{ c.scheduled_for|date:"M d, H:i" }}</span>{% endif %}
+          {% if c.status == 'revision' %}<span class="chip pink">Needs revision</span>{% endif %}
+        </div>
+        <div class="small muted">Words: {{ c.word_count|compact }} · {{ c.updated_at|date:"M d, Y H:i" }}</div>
+      </a>
+      <details style="position:relative">
+        <summary class="icon-btn" style="list-style:none"><i class="ph ph-dots-three"></i></summary>
+        <div class="card" style="position:absolute;right:0;z-index:5;min-width:180px;box-shadow:0 8px 30px rgba(0,0,0,.12)">
+          {% if tab != 'trash' %}<a class="side-link" href="{% url 'dashboard:author_chapter_edit' story.pk c.pk %}"><i class="ph ph-pencil-simple"></i>Edit</a>{% endif %}
+          {% if tab == 'draft' %}
+            <form method="post" action="{% url 'dashboard:author_chapter_action' story.pk c.pk 'publish' %}">{% csrf_token %}<button class="side-link" style="border:0;background:none;width:100%;cursor:pointer;font:inherit"><i class="ph ph-paper-plane-tilt"></i>Publish</button></form>
+          {% endif %}
+          {% if tab == 'trash' %}
+            <form method="post" action="{% url 'dashboard:author_chapter_action' story.pk c.pk 'restore' %}">{% csrf_token %}<input type="hidden" name="next" value="?tab=trash"><button class="side-link" style="border:0;background:none;width:100%;cursor:pointer;font:inherit"><i class="ph ph-arrow-counter-clockwise"></i>Restore</button></form>
+            <form method="post" action="{% url 'dashboard:author_chapter_action' story.pk c.pk 'delete' %}" onsubmit="return confirm('Delete forever?')">{% csrf_token %}<input type="hidden" name="next" value="?tab=trash"><button class="side-link" style="border:0;background:none;width:100%;cursor:pointer;font:inherit;color:var(--error)"><i class="ph ph-trash"></i>Delete forever</button></form>
+          {% else %}
+            <form method="post" action="{% url 'dashboard:author_chapter_action' story.pk c.pk 'trash' %}">{% csrf_token %}<input type="hidden" name="next" value="?tab={{ tab }}"><button class="side-link" style="border:0;background:none;width:100%;cursor:pointer;font:inherit;color:var(--error)"><i class="ph ph-trash"></i>Move to Trash</button></form>
+          {% endif %}
+        </div>
+      </details>
+    </div>
+  {% empty %}
+    <div style="text-align:center;padding:48px 16px"><i class="ph ph-book-open" style="font-size:52px;color:var(--blush-deep)"></i><p class="muted">Sorry! No data found.</p></div>
+  {% endfor %}
+</div>
+<a class="fab" href="{% url 'dashboard:author_chapter_new' story.pk %}" aria-label="New chapter"><i class="ph ph-plus"></i></a>
+{% endblock %}

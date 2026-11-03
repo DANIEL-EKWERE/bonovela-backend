@@ -1,0 +1,34 @@
+{% extends 'dashboard/base.html' %}{% load bv %}
+{% block title %}Update Calendar{% endblock %}
+{% block heading %}Update Calendar{% endblock %}
+{% block content_class %}narrow{% endblock %}
+{% block content %}
+{% if not story %}
+  <div class="card" style="text-align:center;padding:40px"><i class="ph ph-calendar-blank" style="font-size:52px;color:var(--blush-deep)"></i><p class="muted">Publish chapters to see your update calendar.</p></div>
+{% else %}
+<div class="card">
+  <form class="grid cols-2" method="get" style="margin-bottom:14px">
+    <select name="story" onchange="this.form.submit()">{% for s in stories %}<option value="{{ s.pk }}" {% if s.pk == story.pk %}selected{% endif %}>{{ s.display_title }}</option>{% endfor %}</select>
+    <div class="row">
+      <a class="icon-btn" href="?story={{ story.pk }}&month={{ prev_month }}"><i class="ph ph-caret-left"></i></a>
+      <b class="grow" style="text-align:center">{{ month|date:"F Y" }}</b>
+      {% if next_month %}<a class="icon-btn" href="?story={{ story.pk }}&month={{ next_month }}"><i class="ph ph-caret-right"></i></a>{% else %}<span class="icon-btn" style="opacity:.3"><i class="ph ph-caret-right"></i></span>{% endif %}
+    </div>
+  </form>
+  <p class="muted small" style="margin-bottom:12px"><b class="success-text">{{ total|compact }}</b> words updated this month</p>
+  <div class="cal">
+    {% for d in 'SMTWTFS' %}<div class="dow">{{ d }}</div>{% endfor %}
+    {% for c in cells %}
+      {% if not c %}<div></div>
+      {% elif c.words %}<div class="day on">{{ c.day }}<small>{{ c.words|compact }}</small></div>
+      {% elif c.future %}<div class="day future">{{ c.day }}</div>
+      {% else %}<div class="day">{{ c.day }}<span class="dot"></span></div>{% endif %}
+    {% endfor %}
+  </div>
+  <div class="row" style="gap:20px;margin-top:16px" class="small">
+    <span class="row small"><span class="dot" style="width:8px;height:8px;border-radius:50%;background:var(--error);display:inline-block"></span>Not update</span>
+    <span class="row small"><span style="width:8px;height:8px;border-radius:50%;background:var(--success);display:inline-block"></span>Update</span>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

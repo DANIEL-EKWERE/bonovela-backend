@@ -1,0 +1,38 @@
+{% extends 'dashboard/base.html' %}{% load bv %}
+{% block title %}Reports{% endblock %}
+{% block heading %}Reports{% endblock %}
+{% block content %}
+<div class="card flush">
+  <div class="tabs">
+    <a class="{% if tab == 'open' %}active{% endif %}" href="?tab=open">Open</a>
+    <a class="{% if tab != 'open' %}active{% endif %}" href="?tab=resolved">Resolved</a>
+  </div>
+  {% for r in reports %}
+    <div class="list-item" style="align-items:flex-start">
+      <i class="ph ph-flag" style="font-size:22px;color:var(--primary)"></i>
+      <div class="grow">
+        <b>{{ r.reason }}</b>
+        <div class="hint">by {{ r.reporter.display_name }} · {{ r.created_at|date:"M d H:i" }}</div>
+        <div class="small" style="margin-top:4px">
+          {% if r.story %}Book: <b>{{ r.story.display_title }}</b>{% if r.story.is_removed %} <span class="chip grey">removed</span>{% endif %}{% endif %}
+          {% if r.reported_user %} · User: <b>{{ r.reported_user.display_name }}</b>{% if r.reported_user.is_suspended %} <span class="chip grey">suspended</span>{% endif %}{% endif %}
+        </div>
+        {% if not r.is_resolved %}
+        <form method="post" action="{% url 'dashboard:admin_report_action' r.pk %}" class="row wrap" style="gap:6px;margin-top:8px">{% csrf_token %}
+          <button class="btn sm" name="action" value="resolve">Resolve</button>
+          {% if r.story and not r.story.is_removed %}<button class="btn sm ghost" name="action" value="remove_book" style="color:var(--error)">Remove book</button>{% endif %}
+          {% if r.reported_user and not r.reported_user.is_suspended %}<button class="btn sm ghost" name="action" value="suspend_user" style="color:var(--error)">Suspend user</button>{% endif %}
+        </form>
+        {% endif %}
+      </div>
+    </div>
+  {% empty %}<div style="padding:28px;text-align:center" class="muted">{% if tab == 'open' %}No open reports. 🎉{% else %}Nothing resolved yet.{% endif %}</div>{% endfor %}
+</div>
+
+{% if hidden %}
+<div class="section-title"><h2>Hidden reviews</h2></div>
+<div class="card flush">
+  {% for rv in hidden %}<div class="list-item"><div class="grow"><b>{{ rv.user.display_name }}</b> on {{ rv.story.display_title }} {{ rv.stars|stars }}<p class="small muted clamp-2">{{ rv.text }}</p></div></div>{% endfor %}
+</div>
+{% endif %}
+{% endblock %}

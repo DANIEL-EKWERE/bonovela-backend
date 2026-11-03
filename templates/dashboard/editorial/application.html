@@ -1,0 +1,65 @@
+{% extends 'dashboard/base.html' %}{% load bv %}
+{% block title %}{{ story.display_title }}{% endblock %}
+{% block back %}<a class="back" href="{% url 'dashboard:editorial_queue' %}"><i class="ph ph-caret-left"></i></a>{% endblock %}
+{% block heading %}<span class="truncate" style="display:block">{{ story.display_title }}</span>{% endblock %}
+{% block actions %}<span class="chip gold">{{ app.get_status_display }}</span>{% endblock %}
+{% block content %}
+<div class="grid" style="grid-template-columns:minmax(0,1fr) minmax(0,1.3fr)" id="appGrid">
+  <div class="stack">
+    <div class="card row top">
+      {% cover story 88 %}
+      <div class="grow">
+        <h3>{{ story.display_title }}</h3>
+        <p class="small muted">by <b>{{ story.author.display_name }}</b> · {{ story.author.email }}</p>
+        <div class="row wrap" style="gap:6px;margin-top:8px">
+          <span class="tag">{{ story.genre|default:'—' }}</span><span class="tag">{{ story.content_rating }}</span>
+          <span class="tag">{{ story.get_audience_display }}</span><span class="tag">{{ story.get_novel_type_display }}</span>
+          {% for t in story.tags.all %}<span class="tag on">{{ t.name }}</span>{% endfor %}
+        </div>
+      </div>
+    </div>
+    <div class="card"><div class="hint">Synopsis</div><p style="white-space:pre-line">{{ story.synopsis }}</p></div>
+    {% if app.message %}<div class="card"><div class="hint">Author's message</div><p style="white-space:pre-line">{{ app.message }}</p></div>{% endif %}
+
+    {% if can_act %}
+    <form class="card" method="post">{% csrf_token %}
+      <h3 style="margin-bottom:10px">Decision</h3>
+      <label class="field"><span class="label">Feedback to the author</span><textarea name="feedback" rows="3" placeholder="What works, what to change…">{{ app.feedback }}</textarea></label>
+      {% if app.status == 'pending' %}
+        <div class="grid cols-2"><button class="btn outline" name="action" value="ae_revise">Request revision</button><button class="btn" name="action" value="ae_approve">Approve → SE</button></div>
+      {% elif app.status == 'ae_approved' %}
+        {% if role == 'se' or role == 'ce' or role == 'admin' %}
+        <div class="grid cols-3"><button class="btn danger" name="action" value="se_reject">Reject</button><button class="btn outline" name="action" value="se_revise">Revise</button><button class="btn" name="action" value="se_approve">Approve</button></div>
+        {% endif %}
+      {% elif app.status == 'se_approved' %}
+        {% if role == 'ce' %}
+        <div class="grid cols-2 stack-sm">
+          <label class="field"><span class="label">Contract</span><select name="contract_type"><option value="non_exclusive">Non-exclusive</option><option value="exclusive">Exclusive</option></select></label>
+          <label class="field"><span class="label">Signing bonus (USD)</span><input type="number" name="signing_bonus" min="0" step="0.01" placeholder="0.00"></label>
+        </div>
+        <button class="btn block" name="action" value="ce_contract">Send contract</button>
+        {% else %}<p class="muted small">Waiting for the Chief Editor to send the contract.</p>{% endif %}
+      {% endif %}
+    </form>
+    {% endif %}
+
+    <form class="card" method="post">{% csrf_token %}
+      <h3 style="margin-bottom:10px">Editor notes <span class="hint">(internal)</span></h3>
+      {% for n in notes %}<div style="padding:8px 0;border-bottom:1px solid var(--divider)" class="small"><b>{{ n.editor.display_name }}</b> <span class="hint">{{ n.created_at|date:"M d H:i" }}</span><p>{{ n.text }}</p></div>{% endfor %}
+      <div class="row" style="margin-top:10px"><input type="text" name="feedback" placeholder="Add a note for other editors"><button class="btn sm" name="action" value="note">Add</button></div>
+    </form>
+  </div>
+
+  <div class="card">
+    <div class="row between" style="margin-bottom:10px">
+      <h3>Read</h3>
+      <form method="get"><select name="chapter" onchange="this.form.submit()" style="width:auto">{% for c in chapters %}<option value="{{ c.number }}" {% if reading and c.pk == reading.pk %}selected{% endif %}>Ch. {{ c.number }} · {{ c.word_count|compact }} words</option>{% endfor %}</select></form>
+    </div>
+    {% if reading %}
+      <h2 style="font-family:'Lora',serif">{{ reading.display_title }}</h2>
+      <div style="font-family:'Lora',Georgia,serif;font-size:16px;line-height:1.75;white-space:pre-line;margin-top:12px;max-height:70vh;overflow:auto">{{ reading.content }}</div>
+    {% else %}<p class="muted">No published chapters.</p>{% endif %}
+  </div>
+</div>
+<style>@media (max-width: 860px) { #appGrid { grid-template-columns: 1fr !important; } }</style>
+{% endblock %}

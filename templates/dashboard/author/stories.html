@@ -1,0 +1,66 @@
+{% extends 'dashboard/base.html' %}{% load bv %}
+{% block title %}Stories{% endblock %}
+{% block heading %}Author Center{% endblock %}
+{% block actions %}<a class="btn sm" href="{% url 'dashboard:author_story_new' %}"><i class="ph ph-plus"></i><span class="hide-mobile">New story</span></a>{% endblock %}
+{% block content %}
+<details class="tips" style="margin-bottom:14px">
+  <summary style="cursor:pointer">TIPS: Unsigned books can't show in the app but can still show on the web…</summary>
+  <p style="margin-top:6px">Once a book is signed it's promoted to readers in the app and you earn from every unlocked chapter. Publish at least 3 chapters, then apply for signing from the story's page.</p>
+</details>
+
+{% if not cards %}
+<div class="card" style="text-align:center;padding:40px 20px">
+  <i class="ph ph-pencil-simple-line" style="font-size:56px;color:var(--blush-deep)"></i>
+  <p class="muted" style="margin:8px 0 18px">You haven't started a story yet.</p>
+  <a class="btn" href="{% url 'dashboard:author_story_new' %}">Create a story</a>
+</div>
+{% endif %}
+
+<div class="grid cols-2 stack-sm">
+{% for c in cards %}{% with s=c.story %}
+  <div class="card">
+    <div class="row between">
+      <span class="hint">Last update: {{ s.updated_at|date:"Y-m-d H:i" }}</span>
+      <details style="position:relative">
+        <summary class="icon-btn" style="list-style:none"><i class="ph ph-dots-three"></i></summary>
+        <div class="card" style="position:absolute;right:0;z-index:5;min-width:180px;box-shadow:0 8px 30px rgba(0,0,0,.12)">
+          <a class="side-link" href="{% url 'dashboard:author_story_info' s.pk %}?step=1"><i class="ph ph-pencil-simple"></i>Edit story</a>
+          <a class="side-link" href="{% url 'dashboard:author_stats' s.pk %}"><i class="ph ph-chart-bar"></i>Statistics</a>
+          <form method="post" action="{% url 'dashboard:author_story_delete' s.pk %}" onsubmit="return confirm('Delete “{{ s.display_title|escapejs }}” and all its chapters?')">{% csrf_token %}
+            <button class="side-link" style="border:0;background:none;width:100%;cursor:pointer;font:inherit;color:var(--error)"><i class="ph ph-trash"></i>Delete story</button>
+          </form>
+        </div>
+      </details>
+    </div>
+    <a class="row top" href="{% url 'dashboard:author_chapters' s.pk %}" style="margin-top:6px">
+      {% cover s 76 %}
+      <div class="grow">
+        <h3 class="truncate">{{ s.display_title }}</h3>
+        <div class="row wrap" style="gap:6px;margin:6px 0 10px">
+          <span class="chip pink">{{ s.get_status_display }}</span>
+          {% if s.is_signed %}<span class="chip green">Signed</span>{% else %}<span class="chip grey">Unsigned</span>{% endif %}
+          {% if c.application and c.application.is_open %}<span class="chip gold">{{ c.application.get_status_display }}</span>{% endif %}
+        </div>
+        <div class="row wrap small muted" style="gap:16px">
+          <span><i class="ph ph-eye"></i> {{ s.views|compact }}</span>
+          <span><i class="ph ph-text-aa"></i> {{ c.words|compact }}</span>
+          <span><i class="ph-fill ph-bookmark-simple"></i> {{ c.chapters }}</span>
+          <span><i class="ph ph-chat-circle-dots"></i> {{ c.comments }}</span>
+        </div>
+      </div>
+    </a>
+    <div class="divider"></div>
+    {% if s.is_info_complete %}
+      <div class="row between">
+        {% if not s.is_signed %}<a class="small pink" href="{% url 'dashboard:author_signing' s.pk %}">Apply for signing ›</a>{% else %}<span></span>{% endif %}
+        <a class="btn sm" href="{% url 'dashboard:author_chapter_new' s.pk %}">Add new chapter</a>
+      </div>
+    {% else %}
+      <p class="small muted" style="margin-bottom:10px">Please complete your book information before you publish it.</p>
+      <div style="text-align:right"><a class="btn sm" href="{% url 'dashboard:author_story_info' s.pk %}?step=1">Complete the info</a></div>
+    {% endif %}
+  </div>
+{% endwith %}{% endfor %}
+</div>
+<a class="fab hide-desktop" href="{% url 'dashboard:author_story_new' %}" aria-label="New story"><i class="ph ph-plus"></i></a>
+{% endblock %}

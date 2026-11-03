@@ -1,0 +1,176 @@
+{% extends 'dashboard/base.html' %}{% load bv %}
+{% block title %}Novel Information{% endblock %}
+{% block back %}<a class="back" href="{% if step == 1 %}{% url 'dashboard:author_stories' %}{% else %}?step={{ step|add:'-1' }}{% endif %}"><i class="ph ph-caret-left"></i></a>{% endblock %}
+{% block heading %}Novel Information{% endblock %}
+{% block actions %}
+  <span class="hint hide-mobile">Step {{ step }} of 3</span>
+  {% if step == 1 %}<button form="info" name="action" value="skip" class="btn sm outline" formnovalidate>SKIP</button>{% endif %}
+{% endblock %}
+{% block content_class %}narrow{% endblock %}
+{% block content %}
+{% if form.errors %}<div class="notice bad" style="margin-bottom:12px">{% for f in form %}{% for e in f.errors %}<div>{{ f.label }}: {{ e }}</div>{% endfor %}{% endfor %}{{ form.non_field_errors }}</div>{% endif %}
+
+{% if step == 1 %}
+<form id="info" class="card" method="post" enctype="multipart/form-data" action="{% if story.pk %}{% url 'dashboard:author_story_info' story.pk %}{% else %}{% url 'dashboard:author_story_new' %}{% endif %}?step=1">{% csrf_token %}
+  <div class="row top" style="gap:18px;margin-bottom:22px">
+    <div id="coverPreview">{% cover story 104 %}</div>
+    <div class="grow">
+      <div class="label req" style="font-weight:500;margin-bottom:6px">Book Cover</div>
+      <p class="hint">Cover size: 600×800 · .jpg .png · under 5 MB</p>
+      <div class="row wrap" style="margin-top:10px;gap:8px">
+        <button type="button" class="btn sm ghost" data-open="palettes"><i class="ph ph-image"></i>Recommended covers</button>
+        <label class="btn sm ghost" style="cursor:pointer"><i class="ph ph-upload-simple"></i>From device
+          <input type="file" name="cover" accept="image/jpeg,image/png" hidden onchange="previewUpload(this)">
+        </label>
+      </div>
+      {% if story.cover %}<label class="check-row small"><input type="checkbox" name="remove_cover" value="1">Remove uploaded photo</label>{% endif %}
+    </div>
+  </div>
+  <input type="hidden" name="cover_index" id="coverIndex" value="{{ story.cover_index }}">
+
+  <label class="field"><span class="label req">Book Title</span>
+    <input class="underline-input" type="text" name="title" maxlength="60" value="{{ form.title.value|default:'' }}" placeholder="The title has a limit of 60 characters." oninput="document.getElementById('tl').textContent=this.value.length; updatePreviewTitle(this.value)">
+    <span class="hint"><span id="tl">{{ form.title.value|default:''|length }}</span>/60</span>
+  </label>
+
+  <label class="field"><span class="label req">Language</span>
+    <select name="language">{% for l in languages %}<option {% if l == form.language.value %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+  </label>
+
+  <div class="field"><span class="label req">Target Audience</span>
+    <div class="pills">
+      {% for v, l in story.AUDIENCE_CHOICES %}<label class="pill"><input type="radio" name="audience" value="{{ v }}" {% if form.audience.value == v %}checked{% endif %}><span>{{ l }}</span></label>{% endfor %}
+    </div>
+  </div>
+
+  <div class="field"><span class="label req">Content Rating</span>
+    <div class="pills">
+      {% for v, l in ratings %}<label class="pill"><input type="radio" name="content_rating" value="{{ v }}" {% if form.content_rating.value == v %}checked{% endif %} onchange="showRating(this.value)"><span>{{ l }}</span></label>{% endfor %}
+    </div>
+    <div id="ratingInfo" class="notice bad" style="margin-top:12px;display:none"></div>
+  </div>
+
+  <button class="btn block lg" name="action" value="next">NEXT</button>
+</form>
+
+<div class="sheet" id="palettes"><div class="panel">
+  <div class="row between" style="margin-bottom:14px"><h2>Recommended book covers</h2><button class="icon-btn" data-close><i class="ph ph-x"></i></button></div>
+  <div class="row wrap" style="gap:12px">
+    {% for i in palettes %}
+      <button type="button" class="cover pal-{{ i }}" style="--w:76px;border:2px solid transparent;cursor:pointer" onclick="pickPalette({{ i }})" data-close>
+        <span class="clamp-3 pal-title">{{ story.title|default:'Your Title' }}</span><small>BONOVELA</small>
+      </button>
+    {% endfor %}
+  </div>
+</div></div>
+
+{% elif step == 2 %}
+<form id="info" class="card" method="post" action="{% url 'dashboard:author_story_info' story.pk %}?step=2">{% csrf_token %}
+  <label class="field"><span class="label req">Novel Type</span>
+    <select name="novel_type">{% for v, l in types %}<option value="{{ v }}" {% if form.novel_type.value == v %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+  </label>
+  <label class="field"><span class="label req">Genre</span>
+    <select name="genre"><option value="">Choose a genre</option>{% for g in genres %}<option value="{{ g.pk }}" {% if form.genre.value|stringformat:'s' == g.pk|stringformat:'s' %}selected{% endif %}>{{ g.name }}</option>{% endfor %}</select>
+  </label>
+
+  <div class="field"><div class="row between"><span class="label req">Tags</span><span class="hint"><span id="tagCount">{{ selected_tags|length }}</span>/10</span></div>
+    <p class="hint" style="margin-bottom:10px">Bonovela promotes your book to readers who share the same interests, based on your tags.</p>
+    <div class="tabs" style="border-radius:8px;background:var(--blush)">
+      {% for g in tag_groups %}<a href="#" class="{% if forloop.first %}active{% endif %}" data-tab="{{ g.key }}">{{ g.label }}</a>{% endfor %}
+    </div>
+    {% for g in tag_groups %}
+    <div class="tag-panel" data-panel="{{ g.key }}" style="{% if not forloop.first %}display:none;{% endif %}padding:12px 2px;max-height:280px;overflow:auto">
+      <div class="row wrap" style="gap:8px">
+      {% for t in g.tags %}
+        <label class="pill"><input type="checkbox" name="tags" value="{{ t.pk }}" {% if t.pk in selected_tags %}checked{% endif %} onchange="countTags(this)"><span class="small">{{ t.name }}</span></label>
+      {% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <label class="field"><span class="label req">Synopsis</span>
+    <span class="hint">Please write a description for your story with 20 to 300 words.</span>
+    <textarea name="synopsis" rows="8" data-words="#synWords" style="margin-top:8px">{{ form.synopsis.value|default:'' }}</textarea>
+    <span class="hint" style="display:block;text-align:right"><span id="synWords">0</span> Words</span>
+  </label>
+
+  {% if contests %}
+  <div class="field"><span class="label">Participate</span>
+    {% for ct in contests %}
+      <label class="check-row"><input type="checkbox" name="contests" value="{{ ct.pk }}" {% if ct.pk in selected_contests %}checked{% endif %}>
+        <span class="grow">{{ ct.title }}</span><span class="nowrap" style="color:var(--star)">({{ ct.prize }})</span></label>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <div class="grid cols-2">
+    <button class="btn outline lg" name="action" value="back" formnovalidate>BACK</button>
+    <button class="btn lg" name="action" value="next">COMPLETE</button>
+  </div>
+</form>
+
+{% else %}
+<form id="info" method="post" action="{% url 'dashboard:author_story_info' story.pk %}?step=3">{% csrf_token %}
+  <div class="card" style="text-align:center">{% cover story 110 %}
+    <div style="text-align:left;margin-top:16px" class="stack">
+      <div><div class="hint">Book Title</div><div>{{ story.display_title }}</div></div>
+      <div><div class="hint">Language</div><div>{{ story.language }}</div></div>
+    </div>
+  </div>
+  <div class="card stack">
+    <div><div class="hint">Novel Type</div><div>{{ story.get_novel_type_display }}</div></div>
+    <div><div class="hint">Genre</div><div>{{ story.genre|default:'—' }}</div></div>
+    <div><div class="hint">Tags</div><div class="row wrap" style="gap:6px;margin-top:4px">{% for t in story.tags.all %}<span class="tag on">{{ t.name }}</span>{% endfor %}</div></div>
+  </div>
+  <div class="card stack">
+    <div><div class="hint">Target Audience</div><div>{{ story.get_audience_display|default:'—' }}</div></div>
+    <div><div class="hint">Content Rating</div><div>{{ story.content_rating|default:'—' }}</div></div>
+  </div>
+  <div class="card"><div class="hint">Synopsis</div><p style="white-space:pre-line;margin-top:4px">{{ story.synopsis }}</p></div>
+  {% if story.contests.exists %}<div class="card"><div class="hint">Participating in</div>{% for ct in story.contests.all %}<div>{{ ct.title }}</div>{% endfor %}</div>{% endif %}
+  <div class="grid cols-2" style="margin-top:14px">
+    <button class="btn outline lg" name="action" value="back">BACK</button>
+    <button class="btn lg" name="action" value="complete">COMPLETE</button>
+  </div>
+</form>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{{ rating_info|json_script:'rating-info' }}
+<script>
+  const RATING = JSON.parse(document.getElementById('rating-info').textContent);
+  function showRating(v) {
+    const box = document.getElementById('ratingInfo'); if (!box) return;
+    if (!RATING[v]) { box.style.display = 'none'; return; }
+    box.innerHTML = '<b>' + RATING[v][0] + '</b><br>' + RATING[v][1]; box.style.display = 'block';
+  }
+  showRating(document.querySelector('input[name=content_rating]:checked')?.value);
+
+  function pickPalette(i) {
+    document.getElementById('coverIndex').value = i;
+    const title = document.querySelector('input[name=title]').value || 'Your Title';
+    document.getElementById('coverPreview').innerHTML =
+      '<div class="cover pal-' + i + '" style="--w:104px"><span class="clamp-3">' + title.replace(/</g, '&lt;') + '</span><small>BONOVELA</small></div>';
+  }
+  function updatePreviewTitle(t) {
+    document.querySelectorAll('#coverPreview .cover span, .pal-title').forEach(el => el.textContent = t || 'Your Title');
+  }
+  function previewUpload(input) {
+    const f = input.files[0]; if (!f) return;
+    document.getElementById('coverPreview').innerHTML = '<div class="cover" style="--w:104px"><img src="' + URL.createObjectURL(f) + '"></div>';
+  }
+
+  document.querySelectorAll('[data-tab]').forEach(a => a.addEventListener('click', e => {
+    e.preventDefault();
+    document.querySelectorAll('[data-tab]').forEach(x => x.classList.toggle('active', x === a));
+    document.querySelectorAll('[data-panel]').forEach(p => p.style.display = p.dataset.panel === a.dataset.tab ? '' : 'none');
+  }));
+  function countTags(box) {
+    const checked = document.querySelectorAll('input[name=tags]:checked');
+    if (checked.length > 10) { box.checked = false; alert('Up to 10 tags.'); }
+    document.getElementById('tagCount').textContent = document.querySelectorAll('input[name=tags]:checked').length;
+  }
+</script>
+{% endblock %}

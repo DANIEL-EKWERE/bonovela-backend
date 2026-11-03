@@ -1,0 +1,64 @@
+{% extends 'dashboard/base.html' %}
+{% block title %}Chapter {{ chapter.number }}{% endblock %}
+{% block back %}<button form="ed" name="action" value="save" class="back icon-btn" title="Save & exit"><i class="ph ph-caret-left"></i></button>{% endblock %}
+{% block heading %}Save&amp;Exit{% endblock %}
+{% block actions %}
+  <button type="button" class="icon-btn" style="background:var(--grad);color:#fff;width:34px;height:34px;font-size:18px" data-open="settings" title="Settings"><i class="ph ph-gear"></i></button>
+  <button type="button" class="icon-btn" style="background:var(--grad);color:#fff;width:34px;height:34px;font-size:18px" data-open="release" title="Release"><i class="ph-bold ph-arrow-right"></i></button>
+{% endblock %}
+{% block content_class %}narrow{% endblock %}
+{% block content %}
+<form id="ed" method="post">{% csrf_token %}
+  <div class="card flush">
+    <input class="editor-title" type="text" name="title" maxlength="120" value="{{ form.title.value|default:'' }}" placeholder="Chapter {{ chapter.number }} title" style="border-radius:0">
+    <div style="padding:0 16px">
+      <textarea class="editor-body" name="content" data-words="#words" placeholder="Start writing your chapter…">{{ form.content.value|default:'' }}</textarea>
+    </div>
+    <div class="hint" style="text-align:right;padding:10px 16px;background:var(--surface)"><span id="words">0</span> Words (Ideal word count: 600–1,000)</div>
+  </div>
+
+  <div class="sheet" id="settings"><div class="panel">
+    <div class="row between" style="margin-bottom:10px"><h2>Settings</h2><button type="button" class="icon-btn" data-close><i class="ph ph-x"></i></button></div>
+    <div class="field-row">
+      <div><div>Additional Note Chapter</div><div class="hint">Shown to readers after the chapter</div></div>
+      <label class="switch"><input type="checkbox" name="has_note" value="1" {% if chapter.note %}checked{% endif %} onchange="document.getElementById('noteBox').style.display=this.checked?'':'none'"><span></span></label>
+    </div>
+    <div id="noteBox" style="{% if not chapter.note %}display:none;{% endif %}margin-top:12px">
+      <textarea name="note" maxlength="300" rows="3" placeholder="Note (optional)">{{ form.note.value|default:'' }}</textarea>
+    </div>
+    <button type="button" class="btn block" style="margin-top:14px" data-close>Done</button>
+  </div></div>
+
+  <div class="sheet" id="release"><div class="panel">
+    <h2 style="margin-bottom:14px">Release</h2>
+    <p class="truncate" style="font-weight:600">{{ story.display_title }}</p>
+    <div class="field-row"><span>Chapter type</span><span class="hint">Normal chapter</span></div>
+    <div class="field-row"><span>Word counts</span><span class="hint" id="words2">0</span></div>
+    <div class="field-row">
+      <span>Auto-publish</span>
+      <label class="switch"><input type="checkbox" id="autoPub" onchange="document.getElementById('schedBox').style.display=this.checked?'':'none'"><span></span></label>
+    </div>
+    <div id="schedBox" style="display:none;margin-top:12px">
+      <label class="field"><span class="label">Publish at</span><input type="datetime-local" name="scheduled_for"></label>
+    </div>
+    <div class="grid cols-2" style="margin-top:16px">
+      <button type="button" class="btn ghost" data-close>Cancel</button>
+      <button class="btn" name="action" value="release" id="releaseBtn">Release</button>
+    </div>
+  </div></div>
+</form>
+{% endblock %}
+{% block scripts %}
+<script>
+  const w = document.getElementById('words'), w2 = document.getElementById('words2');
+  w.addEventListener('change', () => w2.textContent = w.textContent); w2.textContent = w.textContent;
+  document.getElementById('autoPub').addEventListener('change', (e) => {
+    const b = document.getElementById('releaseBtn');
+    b.value = e.target.checked ? 'schedule' : 'release'; b.textContent = e.target.checked ? 'Schedule' : 'Release';
+  });
+  // Ctrl/Cmd+S saves without leaving the page's flow.
+  document.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); document.querySelector('[name=action][value=save]').click(); }
+  });
+</script>
+{% endblock %}
