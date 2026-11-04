@@ -1,0 +1,59 @@
+# Render Blueprint for the Bonovela backend (API + web dashboards).
+# Deploy: Render Dashboard → New → Blueprint → pick this repo.
+# Docs: https://render.com/docs/blueprint-spec
+
+services:
+  - type: web
+    name: bonovela
+    runtime: python
+    # Paid plan: needed for the media disk and the pre-deploy step.
+    plan: 0.5c-512mb
+    region: frankfurt
+    buildCommand: ./build.sh
+    preDeployCommand: ./predeploy.sh
+    startCommand: gunicorn Bonovela.wsgi:application --workers 3 --timeout 120 --access-logfile -
+    healthCheckPath: /api/health/
+    # Uploaded covers, banners and episode videos. Remove this block and set the
+    # AWS_* variables to use S3 / Cloudflare R2 instead.
+    disk:
+      name: media
+      mountPath: /var/data
+      sizeGB: 10
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.3
+      - key: DEBUG
+        value: "False"
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: bonovela-db
+          property: connectionString
+      - key: MEDIA_ROOT
+        value: /var/data/media
+      - key: TRUST_X_FORWARDED_FOR
+        value: "True"
+      # Custom domains, comma-separated (the onrender.com host is added automatically).
+      - key: ALLOWED_HOSTS
+        value: localhost
+      - key: CSRF_TRUSTED_ORIGINS
+        sync: false
+      # First admin account (created on first deploy).
+      - key: DJANGO_SUPERUSER_EMAIL
+        sync: false
+      - key: DJANGO_SUPERUSER_PASSWORD
+        sync: false
+      # Optional: written AI completion reviews.
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: SEED_DEMO
+        value: "false"
+
+databases:
+  - name: bonovela-db
+    plan: 0.1c-256mb
+    region: frankfurt
+    databaseName: bonovela
+    user: bonovela
+    postgresMajorVersion: "17"

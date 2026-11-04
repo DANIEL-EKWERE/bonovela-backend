@@ -16,6 +16,13 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = config('SECRET_KEY')
 DEBUG = config('DEBUG', default=False, cast=bool)
 ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1', cast=Csv())
+CSRF_TRUSTED_ORIGINS = config('CSRF_TRUSTED_ORIGINS', default='', cast=Csv())
+
+# Render sets RENDER_EXTERNAL_HOSTNAME (e.g. bonovela.onrender.com).
+RENDER_HOST = config('RENDER_EXTERNAL_HOSTNAME', default='')
+if RENDER_HOST:
+    ALLOWED_HOSTS.append(RENDER_HOST)
+    CSRF_TRUSTED_ORIGINS.append(f'https://{RENDER_HOST}')
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -80,7 +87,8 @@ WSGI_APPLICATION = 'Bonovela.wsgi.application'
 DATABASES = {
     'default': dj_database_url.parse(
         config('DATABASE_URL', default='') or f'sqlite:///{BASE_DIR / "db.sqlite3"}',
-        conn_max_age=60,
+        conn_max_age=600,
+        conn_health_checks=True,
     )
 }
 
@@ -101,7 +109,28 @@ STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_DIRS = [BASE_DIR / 'static']
 MEDIA_URL = '/media/'
-MEDIA_ROOT = BASE_DIR / 'media'
+# On Render this points at the persistent disk (see render.yaml).
+MEDIA_ROOT = config('MEDIA_ROOT', default=str(BASE_DIR / 'media'))
+
+STORAGES = {
+    'default': {'BACKEND': 'django.core.files.storage.FileSystemStorage'},
+    # Hashed, compressed files in production; plain files while developing.
+    'staticfiles': {'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage' if DEBUG
+                    else 'whitenoise.storage.CompressedManifestStaticFilesStorage'},
+}
+# Optional object storage for uploads (covers, banners, episode videos):
+# set AWS_STORAGE_BUCKET_NAME (+ keys, and AWS_S3_ENDPOINT_URL for Cloudflare
+# R2 / other S3-compatible stores) to stop using the local disk.
+AWS_STORAGE_BUCKET_NAME = config('AWS_STORAGE_BUCKET_NAME', default='')
+if AWS_STORAGE_BUCKET_NAME:
+    STORAGES['default'] = {'BACKEND': 'storages.backends.s3.S3Storage'}
+    AWS_S3_ENDPOINT_URL = config('AWS_S3_ENDPOINT_URL', default='') or None
+    AWS_S3_REGION_NAME = config('AWS_S3_REGION_NAME', default='') or None
+    AWS_S3_CUSTOM_DOMAIN = config('AWS_S3_CUSTOM_DOMAIN', default='') or None
+    AWS_QUERYSTRING_AUTH = config('AWS_QUERYSTRING_AUTH', default=False, cast=bool)
+    AWS_S3_FILE_OVERWRITE = False
+# Serve uploads from Django when they live on the local disk in production.
+SERVE_MEDIA = config('SERVE_MEDIA', default=not AWS_STORAGE_BUCKET_NAME, cast=bool)
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
@@ -168,3 +197,22 @@ AI_REVIEW_MODEL = config('AI_REVIEW_MODEL', default='claude-opus-5-5')
 # Set True only behind a reverse proxy that sets X-Forwarded-For; otherwise
 # clients could fake their IP.
 TRUST_X_FORWARDED_FOR = config('TRUST_X_FORWARDED_FOR', default=False, cast=bool)
+
+# ── Production hardening (DEBUG off) ─────────────────────────────────────────
+if not DEBUG:
+    # Render terminates HTTPS at its proxy.
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    SECURE_SSL_REDIRECT = config('SECURE_SSL_REDIRECT', default=True, cast=bool)
+    SECURE_REDIRECT_EXEMPT = [r'^api/health/$']  # Render's health check uses plain HTTP
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_HSTS_SECONDS = config('SECURE_HSTS_SECONDS', default=3600, cast=int)
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    X_FRAME_OPTIONS = 'DENY'
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {'console': {'class': 'logging.StreamHandler'}},
+    'root': {'handlers': ['console'], 'level': config('LOG_LEVEL', default='INFO')},
+}
