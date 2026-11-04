@@ -1,0 +1,35 @@
+{% extends 'dashboard/base.html' %}{% load bv %}
+{% block title %}Promo codes{% endblock %}
+{% block heading %}Promo codes{% endblock %}
+{% block actions %}<button class="btn sm" data-open="newCode"><i class="ph ph-plus"></i><span class="hide-mobile">New code</span></button>{% endblock %}
+{% block content %}
+<div class="notice" style="margin-bottom:12px">Readers enter codes in Profile › Redeem. Each code adds bonus coins (they expire after 7 days) and works once per account.</div>
+<div class="table-wrap"><table class="table">
+  <tr><th>Code</th><th>Bonus</th><th>Uses</th><th class="hide-mobile">Campaign</th><th class="hide-mobile">Expires</th><th></th></tr>
+  {% for c in codes %}
+  <tr {% if not c.is_usable %}style="opacity:.55"{% endif %}>
+    <td><b style="font-family:monospace">{{ c.code }}</b>{% if not c.is_active %} <span class="chip grey">Off</span>{% elif not c.is_usable %} <span class="chip grey">Used up / expired</span>{% endif %}</td>
+    <td>+{{ c.bonus }}</td>
+    <td>{{ c.n_uses }}{% if c.max_uses %} / {{ c.max_uses }}{% endif %}</td>
+    <td class="hide-mobile small">{{ c.campaign|default:'—' }}</td>
+    <td class="hide-mobile small nowrap">{% if c.expires_at %}{{ c.expires_at|date:"M d, Y" }}{% else %}Never{% endif %}</td>
+    <td><form method="post">{% csrf_token %}<input type="hidden" name="action" value="toggle"><input type="hidden" name="id" value="{{ c.pk }}"><button class="btn sm ghost">{% if c.is_active %}Disable{% else %}Enable{% endif %}</button></form></td>
+  </tr>
+  {% empty %}<tr><td colspan="6" class="muted">No codes yet.</td></tr>{% endfor %}
+</table></div>
+<div class="sheet {% if open_form %}open{% endif %}" id="newCode"><div class="panel">
+  <div class="row between" style="margin-bottom:12px"><h2>New promo code</h2><button class="icon-btn" data-close><i class="ph ph-x"></i></button></div>
+  <form method="post">{% csrf_token %}
+    <label class="field"><span class="label">Code</span><input type="text" name="code" maxlength="30" value="{{ form.code.value|default:'' }}" placeholder="SUMMER50" style="text-transform:uppercase" required>{{ form.code.errors }}</label>
+    <div class="grid cols-2">
+      <label class="field"><span class="label">Bonus coins</span><input type="number" name="bonus" min="1" max="1000" value="{{ form.bonus.value|default:50 }}" required>{{ form.bonus.errors }}</label>
+      <label class="field"><span class="label">Max uses</span><input type="number" name="max_uses" min="1" value="{{ form.max_uses.value|default:'' }}" placeholder="No limit"></label>
+    </div>
+    <div class="grid cols-2">
+      <label class="field"><span class="label">Expires after (days)</span><input type="number" name="days" min="1" max="365" value="{{ form.days.value|default:'' }}" placeholder="Never">{{ form.days.errors }}</label>
+      <label class="field"><span class="label">Campaign</span><input type="text" name="campaign" maxlength="80" value="{{ form.campaign.value|default:'' }}" placeholder="e.g. TikTok October"></label>
+    </div>
+    <button class="btn block">Create code</button>
+  </form>
+</div></div>
+{% endblock %}

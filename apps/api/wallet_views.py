@@ -122,9 +122,9 @@ def subscribe(request):
 @permission_classes(Auth)
 def redeem(request):
     code = (request.data.get('code') or '').strip().upper()
-    rc = RedeemCode.objects.filter(code=code, is_active=True).first()
-    if not rc:
-        return Response({'detail': 'Invalid code.', 'code': 'invalid'}, status=400)
+    rc = RedeemCode.objects.filter(code=code).first()
+    if not rc or not rc.is_usable:
+        return Response({'detail': 'Invalid or expired code.', 'code': 'invalid'}, status=400)
     if rc.redeemed_by.filter(pk=request.user.pk).exists():
         return Response({'detail': 'Already redeemed.', 'code': 'used'}, status=400)
     rc.redeemed_by.add(request.user)

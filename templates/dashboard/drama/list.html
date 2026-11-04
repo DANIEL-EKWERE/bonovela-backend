@@ -1,0 +1,39 @@
+{% extends 'dashboard/base.html' %}{% load bv %}
+{% block title %}Dramas{% endblock %}
+{% block heading %}Drama Studio{% endblock %}
+{% block actions %}<a class="btn sm" href="{% url 'dashboard:drama_new' %}"><i class="ph ph-plus"></i><span class="hide-mobile">New drama</span></a>{% endblock %}
+{% block content %}
+<details class="tips" style="margin-bottom:14px">
+  <summary style="cursor:pointer">TIPS: Vertical 9:16 video, 1–2 minutes per episode, end on a hook…</summary>
+  <p style="margin-top:6px">Episodes 1–5 are free for viewers, so make them count. Adapted dramas link back to the novel, and readers can jump from the player to the book.</p>
+</details>
+<div class="card flush">
+  <div class="tabs">
+    <a class="{% if f == 'all' %}active{% endif %}" href="?f=all">All</a>
+    <a class="{% if f == 'live' %}active{% endif %}" href="?f=live">Live</a>
+    <a class="{% if f == 'draft' %}active{% endif %}" href="?f=draft">Drafts</a>
+  </div>
+  {% for d in dramas %}
+    <a class="list-item" href="{% url 'dashboard:drama_episodes' d.pk %}">
+      {% cover d 56 %}
+      <div class="grow">
+        <b class="truncate" style="display:block">{{ d.title }}</b>
+        <div class="hint">{{ d.genre|default:'—' }} · {{ d.n_published }}/{{ d.n_episodes }} episodes published{% if d.story %} · from <i>{{ d.story.title }}</i>{% endif %}</div>
+        <div class="row wrap" style="gap:4px;margin-top:4px">
+          <span class="chip {% if d.kind == 'adapted' %}pink{% else %}grey{% endif %}"><i class="ph-fill ph-video-camera"></i> {{ d.get_kind_display }}</span>
+          {% if d.is_removed %}<span class="chip" style="color:var(--error)">Removed</span>{% elif d.is_published %}<span class="chip green">Live</span>{% else %}<span class="chip gold">Draft</span>{% endif %}
+          {% if d.is_completed %}<span class="chip grey">Complete</span>{% endif %}
+        </div>
+      </div>
+      <div style="text-align:right" class="small"><div><i class="ph-fill ph-play"></i> {{ d.plays|compact }}</div><div class="hint"><i class="ph ph-bookmark-simple"></i> {{ d.n_saves }}</div></div>
+    </a>
+  {% empty %}
+    <div style="text-align:center;padding:40px 20px">
+      <i class="ph ph-film-slate" style="font-size:56px;color:var(--blush-deep)"></i>
+      <p class="muted" style="margin:8px 0 18px">No dramas yet.</p>
+      <a class="btn" href="{% url 'dashboard:drama_new' %}">Create a drama</a>
+    </div>
+  {% endfor %}
+</div>
+{% if dramas %}<p class="hint" style="margin-top:10px">{{ total_plays|compact }} plays across {{ dramas|length }} dramas.</p>{% endif %}
+{% endblock %}

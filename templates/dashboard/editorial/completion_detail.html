@@ -1,0 +1,46 @@
+{% extends 'dashboard/base.html' %}{% load bv %}
+{% block title %}Completion · {{ app.story.title }}{% endblock %}
+{% block back %}<a class="back" href="{% url 'dashboard:editorial_completion' %}"><i class="ph ph-caret-left"></i></a>{% endblock %}
+{% block heading %}<span class="truncate" style="display:block">{{ app.story.title }}</span>{% endblock %}
+{% block actions %}<span class="chip gold">{{ app.get_status_display }}</span>{% endblock %}
+{% block content %}
+<div class="grid cols-4">
+  <div class="kpi"><div class="l">Chapters</div><div class="v">{{ a.chapters }}</div><div class="d">{{ a.avg_words|compact }} words on average</div></div>
+  <div class="kpi"><div class="l">Words</div><div class="v">{{ a.words|compact }}</div><div class="d">{{ a.shortest }}–{{ a.longest }} per chapter</div></div>
+  <div class="kpi"><div class="l">Writing span</div><div class="v">{{ a.span_days }}d</div><div class="d">{{ a.per_week }} chapters/week · longest gap {{ a.longest_gap }}d</div></div>
+  <div class="kpi {% if a.verdict == 'not_ready' %}alert{% endif %}"><div class="l">Verdict</div><div class="v">{% if a.verdict == 'ready' %}Ready{% elif a.verdict == 'review' %}Check warnings{% else %}Not ready{% endif %}</div><div class="d">{{ a.fails }} fail · {{ a.warns }} warning{{ a.warns|pluralize }}</div></div>
+</div>
+<div class="grid" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr);margin-top:12px" id="cGrid">
+  <div class="stack">
+    <div class="card"><div class="row between"><h3>Manuscript checks</h3>
+        <form method="post">{% csrf_token %}<button class="btn sm outline" name="action" value="analyse"><i class="ph ph-magnifying-glass"></i>{% if app.analysed_at %}Re-run{% else %}Run{% endif %}{% if ai_enabled %} with AI{% endif %}</button></form></div>
+      {% if not app.analysed_at %}<p class="hint" style="margin-top:4px">Preview: not saved yet.</p>{% endif %}
+      {% for c in a.checks %}<div class="check {{ c.status }}"><i class="ph-fill {% if c.status == 'pass' %}ph-check-circle{% elif c.status == 'warn' %}ph-warning-circle{% else %}ph-x-circle{% endif %}"></i><div><b class="small">{{ c.label }}</b><div class="hint">{{ c.detail }}</div></div></div>{% endfor %}
+      {% if a.plagiarism_hits %}<a class="small pink" href="{% url 'dashboard:editorial_plagiarism' %}?book={{ app.story.pk }}">Open in Plagiarism Checker ›</a>{% endif %}
+      {% if a.duplicate_pairs %}<a class="small pink" href="{% url 'dashboard:editorial_duplicates' %}?book={{ app.story.pk }}" style="margin-left:10px">Open in Duplicate Detector ›</a>{% endif %}
+    </div>
+    {% if app.message %}<div class="card"><div class="hint">Author's message</div><p style="white-space:pre-line">{{ app.message }}</p></div>{% endif %}
+  </div>
+  <div class="stack">
+    <div class="card"><h3>AI assessment</h3>
+      {% if app.ai_review %}<div class="ai-text" style="margin-top:8px">{{ app.ai_review }}</div><p class="hint" style="margin-top:8px">Written by Claude from the opening, middle and final chapters. Check it against the text before deciding.</p>
+      {% elif ai_enabled %}<p class="muted small" style="margin-top:6px">Run the analysis to get a written assessment.</p>
+      {% else %}<p class="muted small" style="margin-top:6px">Not configured. Set <code>ANTHROPIC_API_KEY</code> in the server's .env to enable it.</p>{% endif %}
+    </div>
+    <form class="card" method="post">{% csrf_token %}
+      <h3 style="margin-bottom:8px">Decision</h3>
+      {% if app.reviewer %}<p class="small">Editor: <b>{{ app.reviewer.display_name }}</b>{% if app.reviewer_note %}: {{ app.reviewer_note }}{% endif %}</p>{% endif %}
+      {% if app.status == 'pending' or app.status == 'recommended' %}
+        <label class="field"><span class="label">Note</span><textarea name="note" rows="3" placeholder="For the CE, or for the author if you ask for changes"></textarea></label>
+        {% if lv == 'ce' %}
+          <label class="field"><span class="label">Completion Bonus (USD)</span><input type="number" name="bonus" min="0" step="0.01" placeholder="0.00"></label>
+          <div class="grid cols-3"><button class="btn ghost" name="action" value="reject">Reject</button><button class="btn outline" name="action" value="changes">Needs changes</button><button class="btn" name="action" value="approve">Approve</button></div>
+        {% else %}
+          <div class="grid cols-2"><button class="btn outline" name="action" value="changes">Needs changes</button><button class="btn" name="action" value="recommend">Recommend to CE</button></div>
+        {% endif %}
+      {% else %}<p class="muted small">Decided{% if app.decided_by %} by {{ app.decided_by.display_name }}{% endif %}.{% if app.bonus_cents %} Bonus {{ app.bonus_cents|money }}.{% endif %}</p>{% endif %}
+    </form>
+  </div>
+</div>
+<style>@media (max-width: 860px) { #cGrid { grid-template-columns: 1fr !important; } }</style>
+{% endblock %}

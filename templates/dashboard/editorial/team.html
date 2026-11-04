@@ -1,0 +1,30 @@
+{% extends 'dashboard/base.html' %}{% load bv %}
+{% block title %}Team{% endblock %}
+{% block heading %}Senior Editors{% endblock %}
+{% block actions %}<a class="btn sm ghost" href="{% url 'dashboard:editorial_performance' %}"><i class="ph ph-target"></i><span class="hide-mobile">Targets</span></a>{% endblock %}
+{% block content %}
+<div class="grid fill">
+{% for r in rows %}
+  <div class="card">
+    <div class="row between">
+      <a class="row" href="{% url 'dashboard:editorial_editor' r.editor.pk %}" style="gap:10px"><span class="avatar">{{ r.editor.display_name|first|upper }}</span>
+        <span><b>{{ r.editor.display_name }}</b><div class="hint">{{ r.editor.get_role_display }} · {{ r.editor.email }}</div></span></a>
+      <div style="text-align:right"><div class="hint">Rank #{{ r.rank }}</div><b style="font-size:20px">{{ r.score }}</b></div>
+    </div>
+    <div class="row wrap" style="gap:4px;margin:8px 0">
+      {% if r.overloaded %}<span class="chip red">Overloaded</span>{% endif %}{% if r.underloaded %}<span class="chip grey">Light load</span>{% endif %}
+      {% if r.inactive %}<span class="chip gold">No login for 7+ days</span>{% endif %}{% if r.interventions %}<span class="chip red">{{ r.interventions }} need attention</span>{% endif %}
+    </div>
+    <div class="grid cols-4 small" style="gap:6px;text-align:center">
+      <div><b>{{ r.books }}</b><div class="hint">books</div></div><div><b>{{ r.pending_reviews }}</b><div class="hint">to review</div></div>
+      <div><b>{{ r.recruitment }}</b><div class="hint">recruits</div></div><div><b>{{ r.chapter_review_pct }}%</b><div class="hint">on time</div></div>
+    </div>
+    <div class="row wrap" style="gap:6px;margin-top:10px">
+      <a class="btn sm ghost" href="{% url 'dashboard:editorial_editor' r.editor.pk %}">Details</a>
+      <a class="btn sm ghost" href="{% url 'dashboard:editorial_books' %}?editor={{ r.editor.pk }}">Books</a>
+      <a class="btn sm ghost" href="{% url 'dashboard:editorial_performance' %}">Targets</a>
+    </div>
+  </div>
+{% empty %}<div class="card muted">No Senior Editors yet. Give an account the Senior Editor role in Admin › Users.</div>{% endfor %}
+</div>
+{% endblock %}

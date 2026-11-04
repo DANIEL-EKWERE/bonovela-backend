@@ -1,7 +1,8 @@
 from django.urls import path
-from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
+from rest_framework_simplejwt.views import TokenRefreshView
 
 from . import author_views as author
+from . import drama_views as drama
 from . import views as v
 from . import wallet_views as w
 
@@ -10,7 +11,7 @@ urlpatterns = [
     # Auth
     path('auth/register/', v.RegisterView.as_view()),
     path('auth/email-status/', v.email_status),
-    path('auth/token/', TokenObtainPairView.as_view()),
+    path('auth/token/', v.TokenView.as_view()),
     path('auth/token/refresh/', TokenRefreshView.as_view()),
     path('auth/me/', v.MeView.as_view()),
     path('auth/onboarding/', v.onboarding),
@@ -35,6 +36,16 @@ urlpatterns = [
     path('authors/<int:user_id>/', v.author_profile),
     path('authors/<int:user_id>/follow/', v.follow),
     path('following/', v.following),
+    # Drama
+    path('dramas/', drama.feed),
+    path('dramas/saved/', drama.saved),
+    path('dramas/<int:pk>/', drama.detail),
+    path('dramas/<int:pk>/save/', drama.save),
+    path('dramas/<int:pk>/episodes/<int:number>/', drama.episode),
+    path('dramas/<int:pk>/episodes/<int:number>/unlock/', drama.unlock),
+    # Marketing banners
+    path('banners/', drama.banners),
+    path('banners/<int:banner_id>/click/', drama.banner_click),
     # Library
     path('library/', v.library),
     path('history/', v.history),

@@ -3,7 +3,7 @@
 {% block heading %}Discover{% endblock %}
 {% block content %}
 <div class="section-title" style="margin-top:4px"><h2>Writing Contests</h2></div>
-<div class="grid cols-2 stack-sm">
+<div class="grid fill">
 {% for c in contests %}
   <div class="card">
     <div class="row"><i class="ph-fill ph-medal" style="color:var(--gold);font-size:24px"></i><h3 class="grow">{{ c.contest.title }}</h3></div>

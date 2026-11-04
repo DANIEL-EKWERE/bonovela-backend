@@ -1,0 +1,22 @@
+{% extends 'dashboard/base.html' %}{% load bv %}
+{% block title %}Reports{% endblock %}
+{% block heading %}Reports{% endblock %}
+{% block actions %}<a class="btn sm ghost" href="?period={{ period }}&export=csv"><i class="ph ph-download-simple"></i><span class="hide-mobile">CSV</span></a>{% endblock %}
+{% block content %}
+<div class="card flush" style="margin-bottom:12px"><div class="tabs">
+  <a class="{% if period == 'week' %}active{% endif %}" href="?period=week">Weekly</a>
+  <a class="{% if period == 'month' %}active{% endif %}" href="?period=month">Monthly</a>
+</div></div>
+<p class="hint" style="margin-bottom:8px">Since {{ since|date:"M d, Y" }}{% if lv == 'se' %} · your team{% elif lv == 'ce' %} · whole platform{% endif %}</p>
+<div class="grid cols-4">{% for label, value, key in mine %}<div class="kpi {% if key == 'at_risk' or key == 'interventions' %}{% if value %}alert{% endif %}{% endif %}"><div class="l">{{ label }}</div><div class="v">{{ value|compact }}</div></div>{% endfor %}</div>
+{% if rows %}
+<div class="section-title"><h2>{% if lv == 'ce' %}By Senior Editor{% else %}By editor{% endif %}</h2></div>
+<div class="table-wrap"><table class="table">
+  <tr><th>Name</th><th>Recruited</th><th>Contracts</th><th class="hide-mobile">Book reviews</th><th class="hide-mobile">Chapter reviews</th><th class="hide-mobile">At risk</th><th class="hide-mobile">Revenue</th></tr>
+  {% for r in rows %}<tr><td><b>{{ r.who.display_name }}</b></td><td>{{ r.recruited }}</td><td>{{ r.contracts }}</td><td class="hide-mobile">{{ r.book_reviews }}</td><td class="hide-mobile">{{ r.chapter_reviews }}</td><td class="hide-mobile">{{ r.at_risk }}</td><td class="hide-mobile">{{ r.revenue|compact }}</td></tr>{% endfor %}
+</table></div>
+{% endif %}
+<div class="section-title"><h2>Challenges</h2></div>
+<div class="card flush">{% for r in challenges %}<a class="list-item" href="{% url 'dashboard:editorial_book' r.story.pk %}"><div class="grow"><b>{{ r.author.display_name }}</b> · {{ r.story.title }}</div><span class="chip {% if r.risk == 'at_risk' %}red{% else %}gold{% endif %}">{% if r.days is not None %}{{ r.days }} days without a chapter{% else %}No chapters{% endif %}</span></a>
+  {% empty %}<div style="padding:20px" class="muted">No authors at risk.</div>{% endfor %}</div>
+{% endblock %}

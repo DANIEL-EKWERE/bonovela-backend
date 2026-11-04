@@ -1,4 +1,7 @@
+from datetime import timedelta
+
 from django.core.management import call_command
+from django.utils import timezone
 from django.test import TestCase
 
 from apps.catalog.models import Chapter, Genre, Story, Tag
@@ -143,3 +146,453 @@ class DashboardTests(TestCase):
         self.client.post(f'/admin-panel/reports/{report.pk}/', {'action': 'resolve'})
         report.refresh_from_db()
         self.assertTrue(report.is_resolved)
+
+
+class EditorialDashboardTests(TestCase):
+    """Senior Editor and Chief Editor workspaces (there is no AE level)."""
+
+    @classmethod
+    def setUpTestData(cls):
+        call_command('seed_bonovela', chapters=12, episodes=4, verbosity=0)
+
+    def setUp(self):
+        self.se = User.objects.get(email='se@bonovela.app')
+        self.se2 = User.objects.get(email='se2@bonovela.app')
+        self.story = Story.objects.filter(editor=self.se, is_signed=True).first()
+        self.story.is_signed = False
+        self.story.save()
+        self.app = ContractApplication.objects.create(story=self.story, message='Please sign me')
+
+    def as_role(self, role):
+        self.client.logout()
+        self.assertTrue(self.client.login(username=f'{role}@bonovela.app', password=PASSWORD))
+        return User.objects.get(email=f'{role}@bonovela.app')
+
+    def get_ok(self, role, urls):
+        for url in urls:
+            r = self.client.get(url)
+            self.assertEqual(r.status_code, 200, f'{role} {url} → {r.status_code}')
+
+    def test_no_assistant_editor_role(self):
+        self.assertNotIn('ae', dict(User.ROLE_CHOICES))
+        self.assertEqual(User.EDITOR_ROLES, (User.ROLE_SE, User.ROLE_CE))
+        self.assertNotIn('ae_approved', dict(ContractApplication.STATUS_CHOICES))
+
+    def test_pages_render(self):
+        from apps.editorial.models import CompletionApplication
+        ch = self.story.chapters.first()
+        comp = CompletionApplication.objects.first()
+        common = ['/editorial/', '/editorial/authors/', '/editorial/authors/?f=at_risk', '/editorial/books/',
+                  '/editorial/books/?f=at_risk', '/editorial/books/?f=completed', '/editorial/books/?f=unassigned',
+                  '/editorial/submissions/', '/editorial/submissions/?tab=open', '/editorial/submissions/?tab=flagged',
+                  f'/editorial/submissions/{self.app.pk}/', f'/editorial/submissions/{self.app.pk}/?chapter={ch.number}',
+                  f'/editorial/books/{self.story.pk}/', f'/editorial/books/{self.story.pk}/?chapter={ch.number}',
+                  f'/editorial/authors/{self.story.author_id}/', '/editorial/completion/', '/editorial/completion/?tab=done',
+                  '/editorial/plagiarism/', f'/editorial/plagiarism/?book={self.story.pk}', '/editorial/duplicates/',
+                  f'/editorial/duplicates/?book={self.story.pk}', '/editorial/duplicates/?scan=1',
+                  '/editorial/recruitment/', '/editorial/recruitment/?stage=contracted', '/editorial/commission/',
+                  '/editorial/escalations/', '/editorial/escalations/?tab=recs', '/editorial/messages/',
+                  '/editorial/reports/', '/editorial/reports/?period=month', '/editorial/promotions/']
+        chief = ['/editorial/team/', f'/editorial/team/{self.se.pk}/', '/editorial/performance/']
+        for role in ('se', 'ce', 'admin'):
+            self.as_role(role)
+            self.get_ok(role, common + ([] if role == 'se' else chief))
+        if comp:
+            self.as_role('ce')
+            self.get_ok('ce', [f'/editorial/completion/{comp.pk}/'])
+
+    def test_se_scope_and_chief_only_pages(self):
+        other_book = Story.objects.filter(editor=self.se2).first()
+        self.as_role('se')
+        for url in ('/editorial/team/', '/editorial/performance/', f'/editorial/team/{self.se2.pk}/'):
+            self.assertEqual(self.client.get(url).status_code, 403, url)
+        self.assertEqual(self.client.get(f'/editorial/books/{other_book.pk}/').status_code, 403)
+        self.as_role('ce')
+        self.assertEqual(self.client.get(f'/editorial/books/{other_book.pk}/').status_code, 200)
+
+    def test_navigation(self):
+        self.as_role('se')
+        nav = [i['label'] for i in self.client.get('/editorial/').context['nav']]
+        self.assertEqual(nav[:4], ['Overview', 'Authors & Accounts', 'Book Management', 'Submission History'])
+        self.assertIn('AI Completion Review', nav)
+        self.assertNotIn('Senior Editors', nav)
+        self.assertNotIn('Team Performance', nav)
+        self.as_role('ce')
+        nav = [i['label'] for i in self.client.get('/editorial/').context['nav']]
+        self.assertIn('Senior Editors', nav)
+        self.assertIn('Team Performance', nav)
+
+    def test_signing_flow_se_then_ce(self):
+        url = f'/editorial/submissions/{self.app.pk}/'
+        # Another SE can't decide on a book that isn't theirs.
+        self.as_role('se2')
+        self.assertEqual(self.client.post(url, {'action': 'se_approve'}).status_code, 403)
+        self.as_role('se')
+        self.client.post(url, {'action': 'ce_contract'})  # only the CE sends contracts
+        self.app.refresh_from_db()
+        self.assertEqual(self.app.status, ContractApplication.STATUS_PENDING)
+        self.client.post(url, {'action': 'se_approve', 'feedback': 'Strong hook'})
+        self.app.refresh_from_db()
+        self.assertEqual((self.app.status, self.app.se), (ContractApplication.STATUS_SE_APPROVED, self.se))
+        self.as_role('ce')
+        self.client.post(url, {'action': 'ce_contract', 'contract_type': 'exclusive', 'signing_bonus': '25.50'})
+        self.app.refresh_from_db()
+        self.assertEqual(self.app.signing_bonus_cents, 2550)
+        self.client.logout()
+        self.client.force_login(self.story.author)
+        self.client.post(f'/author/stories/{self.story.pk}/signing/', {'action': 'sign', 'agree': 'on'})
+        self.story.refresh_from_db()
+        self.assertTrue(self.story.is_signed)
+
+    def test_assign_take_transfer_and_suspend_rules(self):
+        from apps.editorial.models import Recommendation
+        url = f'/editorial/books/{self.story.pk}/action/'
+        self.as_role('se')
+        # An SE can't hand a book to another SE directly…
+        self.client.post(url, {'action': 'assign', 'editor': self.se2.pk})
+        self.story.refresh_from_db()
+        self.assertEqual(self.story.editor, self.se)
+        # …it becomes a recommendation the CE approves.
+        self.client.post(url, {'action': 'recommend_transfer', 'editor': self.se2.pk, 'text': 'Genre fit'})
+        rec = Recommendation.objects.get(kind='transfer_out', story=self.story)
+        self.client.post(url, {'action': 'remove'})  # SEs can only recommend suspension
+        self.story.refresh_from_db()
+        self.assertFalse(self.story.is_removed)
+        # An SE can take an unassigned book.
+        free = Story.objects.filter(editor__isnull=True).exclude(status=Story.STATUS_DRAFT).first()
+        self.client.post(f'/editorial/books/{free.pk}/action/', {'action': 'assign', 'editor': self.se.pk})
+        free.refresh_from_db()
+        self.assertEqual(free.editor, self.se)
+        self.as_role('ce')
+        self.client.post('/editorial/escalations/', {'action': 'approve', 'id': rec.pk, 'tab': 'recs'})
+        self.story.refresh_from_db()
+        self.assertEqual(self.story.editor, self.se2)
+        self.client.post(url, {'action': 'remove'})
+        self.story.refresh_from_db()
+        self.assertTrue(self.story.is_removed)
+
+    def test_chapter_review(self):
+        ch = self.story.chapters.filter(status=Chapter.STATUS_PUBLISHED).last()
+        Chapter.objects.filter(pk=ch.pk).update(review_status=Chapter.REVIEW_PENDING)
+        url = f'/editorial/books/{self.story.pk}/action/'
+        self.as_role('se')
+        self.client.post(url, {'action': 'revise_chapter', 'chapter': ch.pk, 'text': 'Fix the typo'})
+        ch.refresh_from_db()
+        self.assertEqual((ch.status, ch.review_status), (Chapter.STATUS_REVISION, Chapter.REVIEW_FLAGGED))
+        self.assertTrue(self.story.author.inbox.filter(title__contains=f'Chapter {ch.number}').exists())
+        self.client.post(url, {'action': 'review_approve_all'})
+        self.assertFalse(self.story.chapters.filter(status=Chapter.STATUS_PUBLISHED,
+                                                    review_status=Chapter.REVIEW_PENDING).exists())
+
+    def test_targets_and_messages(self):
+        from apps.editorial.models import Target, TeamMessage
+        self.as_role('ce')
+        self.client.post('/editorial/performance/', {'editor': self.se.pk, 'recruitment': 7, 'contracts': 3})
+        self.assertEqual(Target.objects.get(user=self.se, metric='recruitment', month__month=timezone.now().month).value, 7)
+        self.client.post('/editorial/messages/', {'to': 'team', 'kind': 'announcement', 'title': 'Hi everyone', 'body': 'Go!'})
+        self.as_role('se')
+        self.assertContains(self.client.get('/editorial/messages/'), 'Hi everyone')
+        self.assertEqual(self.client.post('/editorial/messages/', {'to': 'team', 'title': 'x', 'body': 'y'}).status_code, 403)
+        ce = User.objects.get(email='ce@bonovela.app')
+        self.client.post('/editorial/messages/', {'to': ce.pk, 'kind': 'message', 'title': 'Question', 'body': '?'})
+        self.assertTrue(TeamMessage.objects.filter(sender=self.se, recipient=ce, title='Question').exists())
+
+    def test_escalation_confidential(self):
+        from apps.editorial.models import Escalation
+        self.as_role('se')
+        self.client.post('/editorial/escalations/', {'action': 'raise', 'category': 'misconduct',
+                                                    'subject': 'Zq7 confidential case', 'body': 'x', 'confidential': 'on'})
+        self.assertTrue(Escalation.objects.filter(subject='Zq7 confidential case', is_confidential=True).exists())
+        self.as_role('se2')
+        self.assertNotContains(self.client.get('/editorial/escalations/'), 'Zq7 confidential case')
+        self.as_role('ce')
+        self.assertContains(self.client.get('/editorial/escalations/'), 'Zq7 confidential case')
+
+    def test_plagiarism_and_duplicates(self):
+        from apps.editorial import similarity
+        other = Story.objects.exclude(pk=self.story.pk).filter(editor=self.se, is_signed=True).first()
+        original = ('The lighthouse keeper counted seventeen gulls on the broken pier before the storm swallowed '
+                    'the harbour and the bells of Saint Ives rang out across the grey copper water at dawn. ') * 4
+        self.story.chapters.create(number=900, title='Orig', content=original, status=Chapter.STATUS_PUBLISHED,
+                                   published_at=timezone.now() - timedelta(days=3))
+        other.chapters.create(number=900, title='Copy', content=original, status=Chapter.STATUS_PUBLISHED,
+                              published_at=timezone.now())
+        self.story.chapters.create(number=901, title='Again', content=original, status=Chapter.STATUS_PUBLISHED)
+        report = similarity.plagiarism_report(other)
+        row = next(r for r in report['rows'] if r['chapter'].number == 900)
+        self.assertEqual(row['match'].story, self.story)
+        self.assertFalse(row['ours_first'])
+        dup = similarity.duplicate_report(self.story)
+        self.assertEqual({dup['pairs'][0]['a'].number, dup['pairs'][0]['b'].number}, {900, 901})
+        self.assertTrue(similarity.check_text(original)['rows'])
+        clean = Story.objects.filter(is_signed=True).exclude(pk__in=[self.story.pk, other.pk]).first()
+        self.assertFalse(similarity.plagiarism_report(clean)['rows'])
+        self.as_role('se')
+        self.assertContains(self.client.get(f'/editorial/plagiarism/?book={other.pk}'), self.story.title)
+
+    def test_completion_review_flow(self):
+        from apps.editorial.models import CompletionApplication
+        from apps.wallet.models import AuthorEarning
+        Story.objects.filter(pk=self.story.pk).update(status=Story.STATUS_COMPLETED, is_signed=True)
+        self.client.force_login(self.story.author)
+        self.client.post(f'/author/stories/{self.story.pk}/signing/', {'action': 'completion', 'message': 'Done!'})
+        app = CompletionApplication.objects.get(story=self.story)
+        self.as_role('se')
+        self.client.post(f'/editorial/completion/{app.pk}/', {'action': 'analyse'})
+        app.refresh_from_db()
+        self.assertTrue(app.analysis['checks'])
+        self.assertEqual(app.ai_review, '')  # no API key in tests
+        self.client.post(f'/editorial/completion/{app.pk}/', {'action': 'recommend', 'note': 'Solid ending'})
+        self.client.post(f'/editorial/completion/{app.pk}/', {'action': 'approve', 'bonus': '50'})  # SE can't
+        app.refresh_from_db()
+        self.assertEqual(app.status, CompletionApplication.STATUS_RECOMMENDED)
+        self.as_role('ce')
+        self.client.post(f'/editorial/completion/{app.pk}/', {'action': 'approve', 'bonus': '50'})
+        app.refresh_from_db()
+        self.assertEqual(app.status, CompletionApplication.STATUS_APPROVED)
+        self.assertTrue(AuthorEarning.objects.filter(author=self.story.author, type='completion', amount_cents=5000).exists())
+
+    def test_commission_booking(self):
+        from apps.editorial import team
+        from apps.wallet.models import AuthorEarning, Transaction
+        reader = User.objects.get(email='reader@bonovela.app')
+        last_month = (timezone.localdate().replace(day=1) - timedelta(days=1)).replace(day=15)
+        tx = Transaction.objects.create(user=reader, kind=Transaction.KIND_UNLOCK, title='x', coins=-1000,
+                                        story=self.story)
+        Transaction.objects.filter(pk=tx.pk).update(created_at=timezone.make_aware(
+            timezone.datetime.combine(last_month, timezone.datetime.min.time())))
+        self.assertEqual(team.commission(self.se, last_month)['total'], 50)  # SE: 5% of 1000
+        self.as_role('finance')
+        self.client.post('/finance/payouts/commission/')
+        self.client.post('/finance/payouts/commission/')  # idempotent
+        self.assertEqual(AuthorEarning.objects.filter(author=self.se, type='editor_commission').count(), 1)
+
+
+class ResubmissionFlagTests(TestCase):
+    """Books turned down by one editor and sent again are flagged."""
+
+    @classmethod
+    def setUpTestData(cls):
+        call_command('seed_bonovela', chapters=4, episodes=2, verbosity=0)
+
+    def as_role(self, role):
+        self.client.logout()
+        self.assertTrue(self.client.login(username=f'{role}@bonovela.app', password=PASSWORD))
+
+    def test_seeded_resubmission_shows_flag_and_details(self):
+        app = ContractApplication.objects.get(story__title='Bride of the Lantern Delta')
+        self.assertEqual(app.prior_flag, ContractApplication.FLAG_REJECTED)
+        self.as_role('se')
+        self.assertContains(self.client.get('/editorial/submissions/?tab=flagged'), 'Bride of the Lantern Delta')
+        self.assertContains(self.client.get('/editorial/'), 'Flagged submissions')
+        r = self.client.get(f'/editorial/submissions/{app.pk}/')
+        for text in ('Previously rejected', "another Senior Editor", 'See more info', 'The Lantern Bride',
+                     'Bisi (SE)', 'lift whole scenes', 'Shared IP address (102.89.34.17)', 'Opening chapters'):
+            self.assertContains(r, text)
+        self.assertContains(self.client.get(f'/editorial/books/{app.story_id}/'), 'See more info')
+        self.assertContains(self.client.get(f'/editorial/authors/{app.story.author_id}/'), 'Also used by')
+
+    def test_ip_recorded_on_signup_login_and_submit(self):
+        from rest_framework.test import APIClient
+        from apps.users.models import IPLog
+        c = APIClient(REMOTE_ADDR='41.58.10.20')
+        c.post('/api/auth/register/', {'email': 'ipt@x.com', 'password': 'pink_reads27', 'name': 'Ip'}, format='json')
+        u = User.objects.get(email='ipt@x.com')
+        self.assertEqual(IPLog.objects.get(user=u).first_event, 'signup')
+        APIClient(REMOTE_ADDR='41.58.10.21').post('/api/auth/token/', {'email': 'ipt@x.com', 'password': 'pink_reads27'},
+                                                  format='json')
+        self.assertEqual(set(IPLog.objects.filter(user=u).values_list('ip', flat=True)), {'41.58.10.20', '41.58.10.21'})
+        self.client.post('/login/', {'username': 'reader@bonovela.app', 'password': PASSWORD}, REMOTE_ADDR='41.58.10.22')
+        self.assertTrue(IPLog.objects.filter(user__email='reader@bonovela.app', ip='41.58.10.22').exists())
+
+    def test_rejection_then_new_account_same_ip_is_flagged(self):
+        from apps.editorial import history
+        from apps.users.models import IPLog
+        se2 = User.objects.get(email='se2@bonovela.app')
+        se = User.objects.get(email='se@bonovela.app')
+        story = Story.objects.filter(editor=se2, is_signed=True).exclude(tags=None).first()
+        Story.objects.filter(pk=story.pk).update(is_signed=False, synopsis=' '.join(['word'] * 40))
+        story.refresh_from_db()
+        # Author applies from the web (IP recorded), AE passes, SE2 rejects.
+        self.client.force_login(story.author)
+        self.client.post(f'/author/stories/{story.pk}/signing/', {'action': 'apply'}, REMOTE_ADDR='197.210.5.9')
+        app = story.applications.get()
+        self.assertEqual(app.submitted_ip, '197.210.5.9')
+        self.assertEqual(app.prior_flag, '')
+        self.as_role('se2')
+        self.client.post(f'/editorial/submissions/{app.pk}/', {'action': 'se_reject', 'feedback': 'Weak hook'})
+        app.refresh_from_db()
+        self.assertEqual((app.rejected_by, app.rejection_reason), (se2, 'Weak hook'))
+        # Same author tries again with the same book: flagged.
+        again = history.submit(story, message='Second try')
+        self.assertEqual(again.prior_flag, ContractApplication.FLAG_REJECTED)
+        self.assertEqual(again.prior_matches[0]['reasons'][0]['kind'], 'same_book')
+        # A new account on the same IP sends a different book to se's team: flagged as another team.
+        other = User.objects.create_user(email='newpen@x.com', username='newpen', password=PASSWORD,
+                                         role=User.ROLE_AUTHOR)
+        IPLog.objects.create(user=other, ip='197.210.5.9', first_event='signup', last_event='signup')
+        other_story = Story.objects.filter(editor=se).exclude(author=story.author).first()
+        Story.objects.filter(pk=other_story.pk).update(author=other)
+        other_story.refresh_from_db()
+        fresh = history.submit(other_story)
+        m = fresh.prior_matches[0]
+        self.assertEqual(fresh.prior_flag, ContractApplication.FLAG_REJECTED)
+        self.assertEqual(m['rejected_by'], se2.display_name)
+        self.assertEqual(m['reason'], 'Weak hook')
+        self.assertTrue(m['other_team'])
+        self.assertIn('shared_ip', [r['kind'] for r in m['reasons']])
+
+    def test_clean_submission_is_not_flagged(self):
+        from apps.editorial import history
+        story = Story.objects.filter(editor__email='se4@bonovela.app').first()
+        self.assertEqual(history.submit(story).prior_flag, '')
+
+
+class NewDashboardTests(TestCase):
+    """Drama Studio, Marketing and Finance."""
+
+    @classmethod
+    def setUpTestData(cls):
+        call_command('seed_bonovela', chapters=2, episodes=8, demo_sales=True, verbosity=0)
+
+    def as_role(self, role):
+        self.client.logout()
+        self.assertTrue(self.client.login(username=f'{role}@bonovela.app', password=PASSWORD))
+        return User.objects.get(email=f'{role}@bonovela.app')
+
+    def get_ok(self, *urls):
+        for url in urls:
+            r = self.client.get(url)
+            self.assertEqual(r.status_code, 200, f'{url} → {r.status_code}')
+
+    def test_role_redirects_and_access(self):
+        for role, home in [('creator', '/drama-studio/'), ('marketing', '/marketing/'), ('finance', '/finance/')]:
+            self.as_role(role)
+            self.assertRedirects(self.client.get('/'), home)
+        self.as_role('finance')
+        self.assertEqual(self.client.get('/marketing/').status_code, 403)
+        self.assertEqual(self.client.get('/drama-studio/').status_code, 403)
+        self.as_role('author')
+        self.assertEqual(self.client.get('/finance/').status_code, 403)
+
+    # ── Drama Studio ─────────────────────────────────────────────────────────
+    def test_drama_pages_render(self):
+        from apps.drama.models import Drama
+        self.as_role('creator')
+        d = Drama.objects.first()
+        ep = d.episodes.first()
+        self.get_ok('/drama-studio/', '/drama-studio/?f=live', '/drama-studio/new/', '/drama-studio/analytics/',
+                    '/drama-studio/earnings/', f'/drama-studio/{d.pk}/', f'/drama-studio/{d.pk}/edit/',
+                    f'/drama-studio/{d.pk}/stats/', f'/drama-studio/{d.pk}/episodes/new/',
+                    f'/drama-studio/{d.pk}/episodes/{ep.pk}/')
+
+    def test_creator_uploads_and_publishes(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from apps.drama.models import Drama, Episode
+        self.as_role('creator')
+        story = Story.objects.filter(is_signed=True).first()
+        r = self.client.post('/drama-studio/new/', {'title': 'Pink Skies', 'cover_index': 2, 'story': story.pk,
+                                                    'synopsis': 'A short drama.', 'tags': [Tag.objects.first().pk]})
+        d = Drama.objects.get(title='Pink Skies')
+        self.assertRedirects(r, f'/drama-studio/{d.pk}/')
+        self.assertEqual(d.kind, Drama.KIND_ADAPTED)
+
+        # Going live needs a published episode.
+        self.client.post(f'/drama-studio/{d.pk}/action/', {'action': 'publish'})
+        d.refresh_from_db()
+        self.assertFalse(d.is_published)
+
+        # Wrong file type is rejected; an mp4 is accepted.
+        bad = SimpleUploadedFile('ep1.txt', b'hello', content_type='text/plain')
+        self.client.post(f'/drama-studio/{d.pk}/episodes/new/', {'number': 1, 'video': bad, 'action': 'publish'})
+        self.assertFalse(d.episodes.exists())
+        video = SimpleUploadedFile('ep1.mp4', b'\x00\x00\x00\x18ftypmp42', content_type='video/mp4')
+        self.client.post(f'/drama-studio/{d.pk}/episodes/new/', {'number': 1, 'title': 'Pilot', 'video': video,
+                                                                 'duration_seconds': 75, 'action': 'publish'})
+        ep = d.episodes.get()
+        self.assertEqual(ep.status, Episode.STATUS_PUBLISHED)
+        self.addCleanup(ep.video.delete, save=False)
+
+        # Duplicate number is refused.
+        self.client.post(f'/drama-studio/{d.pk}/episodes/new/', {'number': 1, 'video_url': 'https://cdn.x/e.mp4'})
+        self.assertEqual(d.episodes.count(), 1)
+
+        self.client.post(f'/drama-studio/{d.pk}/action/', {'action': 'publish'})
+        d.refresh_from_db()
+        self.assertTrue(d.is_published)
+
+    def test_creator_cannot_edit_others_drama(self):
+        from apps.drama.models import Drama
+        other = User.objects.create_user(email='c2@x.com', username='c2', password=PASSWORD, role=User.ROLE_CREATOR)
+        d = Drama.objects.create(creator=other, title='Theirs')
+        self.as_role('creator')
+        self.assertEqual(self.client.get(f'/drama-studio/{d.pk}/').status_code, 404)
+
+    # ── Marketing ────────────────────────────────────────────────────────────
+    def test_marketing_pages_and_actions(self):
+        from apps.engagement.models import InboxMessage
+        from apps.marketing.models import Banner
+        from apps.wallet.models import RedeemCode
+        self.as_role('marketing')
+        b = Banner.objects.first()
+        self.get_ok('/marketing/', '/marketing/banners/', '/marketing/banners/?placement=drama',
+                    '/marketing/banners/new/', f'/marketing/banners/{b.pk}/', '/marketing/codes/',
+                    '/marketing/broadcasts/')
+
+        story = Story.objects.visible_in_app().first()
+        r = self.client.post('/marketing/banners/new/', {
+            'title': 'Autumn reads', 'color_index': 1, 'placement': 'discover', 'target': 'story', 'story': story.pk,
+            'order': 0, 'starts_at': '2026-01-01T10:00', 'is_active': 'on'})
+        self.assertRedirects(r, '/marketing/banners/')
+        self.assertTrue(Banner.objects.filter(title='Autumn reads').exists())
+        # A story banner needs a story.
+        self.client.post('/marketing/banners/new/', {'title': 'Broken', 'color_index': 1, 'placement': 'discover',
+                                                     'target': 'story', 'order': 0, 'starts_at': '2026-01-01T10:00'})
+        self.assertFalse(Banner.objects.filter(title='Broken').exists())
+
+        self.client.post('/marketing/codes/', {'code': 'fall25', 'bonus': 25, 'max_uses': 1, 'days': 10})
+        code = RedeemCode.objects.get(code='FALL25')
+        self.assertTrue(code.is_usable)
+        reader = User.objects.get(email='reader@bonovela.app')
+        code.redeemed_by.add(reader)
+        self.assertFalse(code.is_usable)  # max_uses reached
+
+        before = InboxMessage.objects.filter(user=reader).count()
+        self.client.post('/marketing/broadcasts/', {'title': 'Hello', 'body': 'New dramas!', 'audience': 'readers',
+                                                    'bonus': 5})
+        self.assertEqual(InboxMessage.objects.filter(user=reader).count(), before + 1)
+
+    # ── Finance ──────────────────────────────────────────────────────────────
+    def test_finance_pages_and_csv(self):
+        self.as_role('finance')
+        self.get_ok('/finance/', '/finance/transactions/', '/finance/transactions/?kind=paid&from=2026-01-01&q=reader',
+                    '/finance/balances/', '/finance/balances/?due=1', '/finance/payouts/', '/finance/payouts/?tab=paid',
+                    '/finance/statements/')
+        for url in ['/finance/transactions/?export=csv', '/finance/balances/?export=csv',
+                    '/finance/statements/?export=csv']:
+            r = self.client.get(url)
+            self.assertEqual(r['Content-Type'], 'text/csv', url)
+            self.assertGreater(len(r.content.splitlines()), 1, url)
+        r = self.client.get('/finance/payouts/?export=csv')  # no payouts yet: header only
+        self.assertEqual(r.content.splitlines()[0], b'id,email,name,usd,period_end,method,reference')
+
+    def test_payout_flow(self):
+        from apps.wallet.models import Payout, PayoutMethod
+        creator = User.objects.get(email='creator@bonovela.app')
+        PayoutMethod.objects.create(author=creator, method='paypal', account_name='Studio', account_detail='s@x.com')
+        self.as_role('finance')
+        self.client.post('/finance/payouts/generate/')
+        payout = Payout.objects.get(author=creator)
+        self.assertEqual(payout.status, Payout.STATUS_PENDING)
+        self.assertIn('PayPal', payout.method)
+        # Generating again doesn't double-pay: the pending amount is held.
+        self.client.post('/finance/payouts/generate/')
+        self.assertEqual(Payout.objects.filter(author=creator).count(), 1)
+
+        self.client.post(f'/finance/payouts/{payout.pk}/', {'action': 'paid'})  # no reference
+        payout.refresh_from_db()
+        self.assertEqual(payout.status, Payout.STATUS_PENDING)
+        self.client.post(f'/finance/payouts/{payout.pk}/', {'action': 'paid', 'reference': 'PP-123'})
+        payout.refresh_from_db()
+        self.assertEqual(payout.status, Payout.STATUS_PAID)
+        self.assertTrue(creator.inbox.filter(title__startswith='Payout sent').exists())

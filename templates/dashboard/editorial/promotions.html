@@ -1,7 +1,7 @@
 {% extends 'dashboard/base.html' %}{% load bv %}
 {% block title %}Promotions{% endblock %}
 {% block heading %}Promotions{% endblock %}
-{% block actions %}{% if role == 'se' %}<button class="btn sm" data-open="newReq"><i class="ph ph-plus"></i>Request</button>{% elif role == 'ce' %}<button class="btn sm" data-open="newPromo"><i class="ph ph-plus"></i>Promote</button>{% endif %}{% endblock %}
+{% block actions %}{% if lv == 'se' %}<button class="btn sm" data-open="newReq"><i class="ph ph-plus"></i>Request</button>{% elif is_chief %}<button class="btn sm" data-open="newPromo"><i class="ph ph-plus"></i>Promote</button>{% endif %}{% endblock %}
 {% block content %}
 <div class="notice" style="margin-bottom:12px">Senior Editors request promotions; the Chief Editor approves them and they go live in the app's sections. Promotions end automatically after their set number of days.</div>
 
@@ -14,7 +14,7 @@
         <b>{{ r.story.display_title }}</b>
         <div class="hint">by {{ r.requested_by.display_name }} · {{ r.days }} days · {{ r.created_at|date:"M d" }}</div>
         <p class="small" style="margin:4px 0">{{ r.reason }}</p>
-        {% if role == 'ce' %}
+        {% if is_chief %}
         <form method="post" style="margin-top:8px">{% csrf_token %}<input type="hidden" name="request" value="{{ r.pk }}">
           <div class="row wrap" style="gap:6px;margin-bottom:8px">
             {% for key, label in sections %}<label class="pill"><input type="checkbox" name="sections" value="{{ key }}" {% if key in r.sections %}checked{% endif %}><span class="small">{{ label }}</span></label>{% endfor %}
@@ -35,7 +35,7 @@
   {% for p in live %}
     <tr><td>{{ p.story.display_title }}</td><td>{{ p.get_section_display }}</td><td class="nowrap">{{ p.ends_at|date:"M d" }} <span class="hint">({{ p.ends_at|timeuntil }})</span></td>
       <td class="hide-mobile">{{ p.created_by.display_name }}</td>
-      <td>{% if role == 'ce' %}<form method="post">{% csrf_token %}<input type="hidden" name="promotion" value="{{ p.pk }}"><button class="btn sm ghost" name="action" value="end">End</button></form>{% endif %}</td></tr>
+      <td>{% if is_chief %}<form method="post">{% csrf_token %}<input type="hidden" name="promotion" value="{{ p.pk }}"><button class="btn sm ghost" name="action" value="end">End</button></form>{% endif %}</td></tr>
   {% empty %}<tr><td colspan="5" class="muted">Nothing promoted right now.</td></tr>{% endfor %}
 </table></div>
 

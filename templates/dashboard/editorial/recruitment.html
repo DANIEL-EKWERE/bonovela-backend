@@ -1,0 +1,22 @@
+{% extends 'dashboard/base.html' %}{% load bv %}
+{% block title %}Recruitment{% endblock %}
+{% block heading %}Recruitment{% endblock %}
+{% block actions %}<button class="btn sm" data-open="addRecruit"><i class="ph ph-user-plus"></i><span class="hide-mobile">Add recruit</span></button>{% endblock %}
+{% block content %}
+<div class="grid" style="grid-template-columns:minmax(0,1fr) minmax(0,1.4fr)" id="recGrid">
+  <div class="card">
+    <div class="row between"><h3>Pipeline</h3><span class="chip pink">{{ conversion }}% converted</span></div>
+    {% for s in funnel %}<a class="funnel-row small" href="?stage={% if s.key != 'recruited' %}{{ s.key }}{% endif %}" style="{% if stage == s.key %}font-weight:600;color:var(--primary){% endif %}"><span>{{ s.label }}</span><div class="meter"><span style="width:{{ s.pct }}%"></span></div><b style="text-align:right">{{ s.n }}</b></a>{% endfor %}
+    <p class="hint" style="margin-top:8px">Conversion = contracted ÷ recruited.</p>
+  </div>
+  <div class="card flush">
+    <div style="padding:14px 16px 4px"><h3>{% if stage %}{{ labels|get_item:stage }}{% else %}All recruits{% endif %} <span class="hint">({{ rows|length }})</span></h3></div>
+    {% for r in rows %}<a class="list-item" href="{% url 'dashboard:editorial_author' r.author.pk %}"><span class="avatar">{{ r.author.display_name|first|upper }}</span><div class="grow"><b>{{ r.author.display_name }}</b><div class="hint">{{ r.books }} book{{ r.books|pluralize }} · by {{ r.author.recruited_by.display_name }} · {{ r.author.date_joined|date:"M d" }}</div></div><span class="chip {% if r.stage == 'contracted' %}green{% else %}gold{% endif %}">{{ labels|get_item:r.stage }}</span></a>
+    {% empty %}<div style="padding:24px" class="muted">No recruits here.</div>{% endfor %}
+  </div>
+</div>
+<div class="sheet" id="addRecruit"><div class="panel"><div class="row between" style="margin-bottom:12px"><h2>Add a recruit</h2><button class="icon-btn" data-close><i class="ph ph-x"></i></button></div>
+  <p class="hint" style="margin-bottom:10px">Link an author you brought to Bonovela. They need an account first.</p>
+  <form method="post">{% csrf_token %}<label class="field"><span class="label">Author's email</span><input type="email" name="email" required></label><button class="btn block">Add</button></form></div></div>
+<style>@media (max-width: 860px) { #recGrid { grid-template-columns: 1fr !important; } }</style>
+{% endblock %}

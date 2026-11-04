@@ -1,0 +1,52 @@
+{% extends 'dashboard/base.html' %}{% load bv %}
+{% block title %}Escalations{% endblock %}
+{% block heading %}Escalation Centre{% endblock %}
+{% block actions %}{% if lv != 'ce' %}<button class="btn sm" data-open="raise"><i class="ph ph-warning-octagon"></i><span class="hide-mobile">Escalate</span></button>{% endif %}{% endblock %}
+{% block content %}
+<div class="card flush">
+  <div class="tabs">
+    <a class="{% if tab == 'issues' %}active{% endif %}" href="?tab=issues">Issues</a>
+    <a class="{% if tab == 'recs' %}active{% endif %}" href="?tab=recs">{% if lv == 'ce' %}Decisions{% else %}My recommendations{% endif %}</a>
+  </div>
+  {% if tab == 'issues' %}
+    {% for e in escalations %}
+    <div class="list-item" style="align-items:flex-start">
+      <i class="ph-fill ph-warning-octagon" style="font-size:22px;color:{% if e.status == 'open' %}var(--error){% else %}var(--hint){% endif %}"></i>
+      <div class="grow">
+        <b>{{ e.subject }}</b> {% if e.is_confidential %}<span class="chip grey"><i class="ph ph-lock-simple"></i> Confidential</span>{% endif %}
+        <div class="hint">{{ e.get_category_display }} · {{ e.raised_by.display_name }} · {{ e.created_at|date:"M d H:i" }}{% if e.story %} · {{ e.story.title }}{% endif %}{% if e.about_user %} · about {{ e.about_user.display_name }}{% endif %}</div>
+        <p class="small" style="margin-top:4px;white-space:pre-line">{{ e.body }}</p>
+        {% if e.status == 'resolved' %}<p class="small success-text" style="margin-top:4px">Resolved by {{ e.resolved_by.display_name }}: {{ e.resolution|default:'—' }}</p>
+        {% elif lv == 'ce' %}<form method="post" class="row" style="gap:6px;margin-top:8px">{% csrf_token %}<input type="hidden" name="action" value="resolve"><input type="hidden" name="id" value="{{ e.pk }}"><input type="hidden" name="tab" value="issues"><input type="text" name="resolution" placeholder="Resolution / instruction"><button class="btn sm">Resolve</button></form>{% endif %}
+      </div>
+      <span class="chip {% if e.status == 'open' %}red{% else %}green{% endif %}">{{ e.get_status_display }}</span>
+    </div>
+    {% empty %}<div style="padding:28px;text-align:center" class="muted">No escalations.</div>{% endfor %}
+  {% else %}
+    {% for r in recs %}
+    <div class="list-item" style="align-items:flex-start">
+      <div class="grow">
+        <b>{{ r.get_kind_display }}</b>: {% if r.story %}{{ r.story.title }}{% endif %}{% if r.about_user %}{{ r.about_user.display_name }}{% endif %}{% if r.target_editor %} → {{ r.target_editor.display_name }}{% endif %}
+        <div class="hint">by {{ r.recommended_by.display_name }} · {{ r.created_at|date:"M d" }}{% if r.decided_by %} · decided by {{ r.decided_by.display_name }}{% endif %}</div>
+        {% if r.note %}<p class="small" style="margin-top:4px">{{ r.note }}</p>{% endif %}
+        {% if r.decision_note %}<p class="small muted">CE: {{ r.decision_note }}</p>{% endif %}
+        {% if lv == 'ce' and r.status == 'pending' %}<form method="post" class="row" style="gap:6px;margin-top:8px">{% csrf_token %}<input type="hidden" name="id" value="{{ r.pk }}"><input type="hidden" name="tab" value="recs"><input type="text" name="note" placeholder="Note (optional)"><button class="btn sm ghost" name="action" value="reject">Reject</button><button class="btn sm" name="action" value="approve">Approve</button></form>{% endif %}
+      </div>
+      <span class="chip {% if r.status == 'approved' %}green{% elif r.status == 'rejected' %}grey{% else %}gold{% endif %}">{{ r.get_status_display }}</span>
+    </div>
+    {% empty %}<div style="padding:28px;text-align:center" class="muted">No recommendations.</div>{% endfor %}
+  {% endif %}
+</div>
+<div class="sheet {% if prefill_story %}open{% endif %}" id="raise"><div class="panel">
+  <div class="row between" style="margin-bottom:12px"><h2>Escalate to the Chief Editor</h2><button class="icon-btn" data-close><i class="ph ph-x"></i></button></div>
+  <form method="post">{% csrf_token %}<input type="hidden" name="action" value="raise">
+    <label class="field"><span class="label">Type</span><select name="category">{% for k, l in categories %}<option value="{{ k }}" {% if k == prefill_category %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></label>
+    <label class="field"><span class="label">Subject</span><input type="text" name="subject" maxlength="140" required></label>
+    <label class="field"><span class="label">Details</span><textarea name="body" rows="4" required></textarea></label>
+    <label class="field"><span class="label">Book (optional)</span><select name="story"><option value="">—</option>{% for b in books %}<option value="{{ b.pk }}" {% if b.pk|stringformat:"s" == prefill_story %}selected{% endif %}>{{ b.title }}</option>{% endfor %}</select></label>
+    <label class="field"><span class="label">About a person (email, optional)</span><input type="email" name="about"></label>
+    <label class="check-row"><input type="checkbox" name="confidential"> Confidential: only the Chief Editor can read it</label>
+    <button class="btn block" style="margin-top:8px">Send</button>
+  </form>
+</div></div>
+{% endblock %}

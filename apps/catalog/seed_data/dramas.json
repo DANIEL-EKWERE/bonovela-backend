@@ -1,0 +1,261 @@
+[
+ {
+  "id": 1,
+  "title": "The Bodyguard Returns",
+  "genre": "Urban",
+  "synopsis": "Discharged and written off, Kai takes a quiet job guarding a CEO who has no idea who he used to be — until her enemies find out.",
+  "plays": 2600,
+  "episodes": 72,
+  "tags": [
+   "Revenge",
+   "Hidden Identity"
+  ]
+ },
+ {
+  "id": 2,
+  "title": "Triplets for the Billionaire",
+  "genre": "Romance",
+  "synopsis": "Five years after one stormy night, Mara walks into a boardroom holding three small hands — and the man across the table has their eyes.",
+  "book": "Triplets for the Billionaire",
+  "plays": 2000,
+  "episodes": 80,
+  "tags": [
+   "Secret Baby",
+   "CEO"
+  ]
+ },
+ {
+  "id": 3,
+  "title": "Moonbound to the Exiled Alpha",
+  "genre": "Werewolf",
+  "synopsis": "Rejected at her first shift, Lyra is cast out — straight into the territory of the one alpha every pack fears.",
+  "book": "Moonbound to the Exiled Alpha",
+  "plays": 4800,
+  "episodes": 90,
+  "tags": [
+   "Rejected Mate",
+   "Second Chance"
+  ]
+ },
+ {
+  "id": 4,
+  "title": "I Faked My Death at Our Wedding",
+  "genre": "Romance",
+  "synopsis": "She left him a ring, a letter and an empty church. Three years later, she is his new assistant — under another name.",
+  "book": "I Faked My Death at Our Wedding",
+  "plays": 4800,
+  "episodes": 64,
+  "tags": [
+   "Revenge",
+   "Second Chance"
+  ]
+ },
+ {
+  "id": 5,
+  "title": "The Heiress and the Stand-in",
+  "genre": "Romance",
+  "synopsis": "Paid to pose as a missing heiress for one dinner, Nina is still pretending a month later — and the real one is coming home.",
+  "plays": 3500,
+  "episodes": 58,
+  "tags": [
+   "Identity Swap"
+  ]
+ },
+ {
+  "id": 6,
+  "title": "Vanishing Point",
+  "genre": "Mafia",
+  "synopsis": "A detective who never smiles. A witness who never stops lying. One city that wants them both gone.",
+  "plays": 2400,
+  "episodes": 66,
+  "tags": [
+   "Crime",
+   "Enemies to Lovers"
+  ]
+ },
+ {
+  "id": 7,
+  "title": "Kneel Before the Luna",
+  "genre": "Werewolf",
+  "synopsis": "Banished for a crime she did not commit, Amara returns with an army — and the alpha who exiled her is the first to fall to his knees.",
+  "book": "The Silver Pack's Forgotten Luna",
+  "plays": 2500,
+  "episodes": 85,
+  "daysAgo": 2,
+  "tags": [
+   "Revenge",
+   "Strong Heroine"
+  ]
+ },
+ {
+  "id": 8,
+  "title": "Saved by the Don",
+  "genre": "Mafia",
+  "synopsis": "Cut off by her family and dumped on a rainy road, Sofia is picked up by the most dangerous man in the city. He asks for one thing in return.",
+  "book": "Sworn to the Don",
+  "plays": 3200,
+  "episodes": 70,
+  "daysAgo": 3,
+  "tags": [
+   "Protective Hero"
+  ]
+ },
+ {
+  "id": 9,
+  "title": "Snowed In with Seven Uncles",
+  "genre": "Urban",
+  "synopsis": "A four-year-old dials the only number she remembers. Seven powerful brothers drop everything to find her.",
+  "plays": 2100,
+  "episodes": 60,
+  "daysAgo": 4,
+  "tags": [
+   "Family",
+   "Cute Kid"
+  ]
+ },
+ {
+  "id": 10,
+  "title": "The Devil's Bargain",
+  "genre": "Romance",
+  "synopsis": "To save her father's company, Elise signs a one-year marriage contract. The clause about falling in love is written in invisible ink.",
+  "plays": 1500,
+  "episodes": 54,
+  "daysAgo": 5,
+  "completed": false,
+  "tags": [
+   "Contract Marriage"
+  ]
+ },
+ {
+  "id": 11,
+  "title": "Queen of the Frozen Pack",
+  "genre": "Werewolf",
+  "synopsis": "Every winter the northern pack sends a bride south. This year the bride has teeth.",
+  "book": "Howl of the Northern Wilds",
+  "plays": 2700,
+  "episodes": 76,
+  "daysAgo": 6,
+  "tags": [
+   "Arranged Marriage"
+  ]
+ },
+ {
+  "id": 12,
+  "title": "The Unforgiven Daughter",
+  "genre": "Urban",
+  "synopsis": "They threw away the \"spare\" daughter. Ten years later she owns the bank holding their mortgage.",
+  "book": "Their Spare Daughter",
+  "plays": 2800,
+  "episodes": 68,
+  "daysAgo": 7,
+  "tags": [
+   "Revenge",
+   "Family Drama"
+  ]
+ },
+ {
+  "id": 13,
+  "title": "The Father I Never Knew",
+  "genre": "Romance",
+  "synopsis": "Serena returns to the city with twin sons and a single rule: he never finds out. Then one of the boys climbs into his car.",
+  "plays": 1800,
+  "episodes": 62,
+  "daysAgo": 12,
+  "tags": [
+   "Secret Baby"
+  ]
+ },
+ {
+  "id": 14,
+  "title": "The Prince Who Stayed",
+  "genre": "Fantasy",
+  "synopsis": "The crown prince was meant to leave the border town after one night. He bought a bakery instead.",
+  "book": "The Prince Who Stayed",
+  "plays": 6600,
+  "episodes": 88,
+  "daysAgo": 15,
+  "tags": [
+   "Royalty",
+   "Slow Burn"
+  ]
+ },
+ {
+  "id": 15,
+  "title": "Reborn to Expose Them",
+  "genre": "Fantasy",
+  "synopsis": "Betrayed by her twin and her husband, Livia wakes up five years in the past — with every secret still in her head.",
+  "book": "Reborn Before the Apocalypse",
+  "plays": 2200,
+  "episodes": 74,
+  "daysAgo": 18,
+  "tags": [
+   "Rebirth",
+   "Revenge"
+  ]
+ },
+ {
+  "id": 16,
+  "title": "Destined Mate of the Alpha King",
+  "genre": "Werewolf",
+  "synopsis": "A human with no wolf, a king with no mercy, and a moon bond that refuses to break.",
+  "book": "The Alpha's Unexpected Mate",
+  "plays": 2900,
+  "episodes": 82,
+  "daysAgo": 20,
+  "tags": [
+   "Fated Mates"
+  ]
+ },
+ {
+  "id": 17,
+  "title": "Her Obedient Bodyguard",
+  "genre": "Romance",
+  "synopsis": "Desperate to pay for her sister's surgery, Ella takes the only job she can find — guarding the heiress who once ruined her.",
+  "plays": 1200,
+  "episodes": 50,
+  "daysAgo": 1,
+  "completed": false,
+  "tags": [
+   "Enemies to Lovers"
+  ]
+ },
+ {
+  "id": 18,
+  "title": "Hidden Girl, Feral Beast",
+  "genre": "Fantasy",
+  "synopsis": "In an age where beasts rule the cities, one human girl hides in plain sight — until the beast king picks her from the crowd.",
+  "plays": 2100,
+  "episodes": 70,
+  "daysAgo": 8,
+  "tags": [
+   "Beast King"
+  ]
+ },
+ {
+  "id": 19,
+  "title": "Return of the War God",
+  "genre": "Urban",
+  "synopsis": "Framed and locked away for ten years, Kaelen walks out of prison with one list of names and nothing left to lose.",
+  "book": "Return of the War God",
+  "plays": 1600,
+  "episodes": 78,
+  "daysAgo": 9,
+  "tags": [
+   "Revenge",
+   "Overpowered"
+  ]
+ },
+ {
+  "id": 20,
+  "title": "The Live-In Son-in-Law",
+  "genre": "Urban",
+  "synopsis": "Mocked at every family dinner, Ryan pours the tea and smiles. None of them know who signs his paychecks.",
+  "book": "The Live-In Son-in-Law Rises",
+  "plays": 3100,
+  "episodes": 96,
+  "daysAgo": 11,
+  "tags": [
+   "Hidden Identity"
+  ]
+ }
+]

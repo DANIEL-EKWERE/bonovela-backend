@@ -4,6 +4,7 @@
 {% block heading %}<span class="truncate" style="display:block">{{ story.display_title }}</span>{% endblock %}
 {% block actions %}<span class="chip gold">{{ app.get_status_display }}</span>{% endblock %}
 {% block content %}
+{% include 'dashboard/editorial/_prior.html' %}
 <div class="grid" style="grid-template-columns:minmax(0,1fr) minmax(0,1.3fr)" id="appGrid">
   <div class="stack">
     <div class="card row top">
@@ -26,13 +27,10 @@
       <h3 style="margin-bottom:10px">Decision</h3>
       <label class="field"><span class="label">Feedback to the author</span><textarea name="feedback" rows="3" placeholder="What works, what to change…">{{ app.feedback }}</textarea></label>
       {% if app.status == 'pending' %}
-        <div class="grid cols-2"><button class="btn outline" name="action" value="ae_revise">Request revision</button><button class="btn" name="action" value="ae_approve">Approve → SE</button></div>
-      {% elif app.status == 'ae_approved' %}
-        {% if role == 'se' or role == 'ce' or role == 'admin' %}
-        <div class="grid cols-3"><button class="btn danger" name="action" value="se_reject">Reject</button><button class="btn outline" name="action" value="se_revise">Revise</button><button class="btn" name="action" value="se_approve">Approve</button></div>
-        {% endif %}
+        <div class="grid cols-3"><button class="btn danger" name="action" value="se_reject">Reject</button><button class="btn outline" name="action" value="se_revise">Request revision</button><button class="btn" name="action" value="se_approve">Approve → CE</button></div>
+        <p class="hint" style="margin-top:6px">Approving sends the book to the Chief Editor for the contract.</p>
       {% elif app.status == 'se_approved' %}
-        {% if role == 'ce' %}
+        {% if is_chief %}
         <div class="grid cols-2 stack-sm">
           <label class="field"><span class="label">Contract</span><select name="contract_type"><option value="non_exclusive">Non-exclusive</option><option value="exclusive">Exclusive</option></select></label>
           <label class="field"><span class="label">Signing bonus (USD)</span><input type="number" name="signing_bonus" min="0" step="0.01" placeholder="0.00"></label>

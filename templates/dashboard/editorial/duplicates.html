@@ -1,0 +1,19 @@
+{% extends 'dashboard/base.html' %}{% load bv %}
+{% block title %}Duplicate Chapter Detector{% endblock %}
+{% block heading %}Duplicate Chapter Detector{% endblock %}
+{% block actions %}<a class="btn sm ghost" href="?scan=1"><i class="ph ph-scan"></i><span class="hide-mobile">Scan my books</span></a>{% endblock %}
+{% block content %}
+<div class="notice" style="margin-bottom:12px">Finds chapters in the same book that repeat earlier ones, which is a common way to pad a book or re-upload content.</div>
+<form class="card row" method="get" style="gap:6px">{% csrf_token %}<select name="book">{% for b in books %}<option value="{{ b.pk }}" {% if story and b.pk == story.pk %}selected{% endif %}>{{ b.title }}</option>{% endfor %}</select><button class="btn sm">Check</button></form>
+{% if report %}
+<div class="section-title"><h2>{{ story.title }}</h2><span class="hint">{{ report.checked }} chapters checked</span></div>
+{% if report.pairs %}<div class="table-wrap"><table class="table"><tr><th>Chapter</th><th>Repeats</th><th>Overlap</th></tr>
+  {% for p in report.pairs %}<tr><td><a href="{% url 'dashboard:editorial_book' story.pk %}?chapter={{ p.b.number }}">Ch. {{ p.b.number }}</a></td><td><a href="{% url 'dashboard:editorial_book' story.pk %}?chapter={{ p.a.number }}">Ch. {{ p.a.number }}</a></td><td><b class="pink">{{ p.pct }}%</b></td></tr>{% endfor %}</table></div>
+{% else %}<div class="card"><i class="ph-fill ph-check-circle" style="color:var(--success);font-size:22px"></i> No repeated chapters.</div>{% endif %}
+{% endif %}
+{% if scan is not None %}
+<div class="section-title"><h2>Scan results</h2></div>
+<div class="card flush">{% for s in scan %}<a class="list-item" href="?book={{ s.story.pk }}"><div class="grow"><b>{{ s.story.title }}</b><div class="hint">{{ s.pairs }} repeated pair{{ s.pairs|pluralize }}</div></div><b class="pink">{{ s.top }}%</b></a>
+  {% empty %}<div style="padding:20px" class="muted">No duplicates in your books.</div>{% endfor %}</div>
+{% endif %}
+{% endblock %}

@@ -26,7 +26,7 @@
   </div>
   <div>
     <div class="section-title"><h2>Redeem codes</h2></div>
-    <div class="card flush">{% for c in codes %}<div class="list-item" {% if not c.is_active %}style="opacity:.5"{% endif %}><div class="grow"><b style="font-family:monospace">{{ c.code }}</b><div class="hint">+{{ c.bonus }} bonus · used {{ c.uses }}×</div></div>
+    <div class="card flush">{% for c in codes %}<div class="list-item" {% if not c.is_active %}style="opacity:.5"{% endif %}><div class="grow"><b style="font-family:monospace">{{ c.code }}</b><div class="hint">+{{ c.bonus }} bonus · used {{ c.n_uses }}×</div></div>
       <form method="post">{% csrf_token %}<input type="hidden" name="kind" value="code"><input type="hidden" name="id" value="{{ c.pk }}"><button class="btn sm ghost">{% if c.is_active %}Disable{% else %}Enable{% endif %}</button></form></div>{% endfor %}</div>
   </div>
 </div>

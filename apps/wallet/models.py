@@ -207,6 +207,7 @@ class AuthorEarning(models.Model):
         ('others', 'Others'),
         ('carry_over', 'Carry over'),
         ('reward_share', 'Reward Share'),
+        ('editor_commission', 'Editorial Commission'),
     ]
 
     author = models.ForeignKey(User, on_delete=models.CASCADE, related_name='earnings')
@@ -218,6 +219,31 @@ class AuthorEarning(models.Model):
 
     class Meta:
         ordering = ['-created_at']
+
+
+class Payout(models.Model):
+    """Money sent to an author or drama creator. Finance creates these from
+    unpaid earnings and marks them paid once the transfer has gone out."""
+
+    STATUS_PENDING, STATUS_PAID, STATUS_FAILED = 'pending', 'paid', 'failed'
+    STATUS_CHOICES = [(STATUS_PENDING, 'Pending'), (STATUS_PAID, 'Paid'), (STATUS_FAILED, 'Failed')]
+
+    author = models.ForeignKey(User, on_delete=models.CASCADE, related_name='payouts')
+    amount_cents = models.PositiveIntegerField()
+    period_end = models.DateField(help_text='Earnings up to and including this day')
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=STATUS_PENDING, db_index=True)
+    method = models.CharField(max_length=160, blank=True, help_text='Payout method at the time of payment')
+    reference = models.CharField(max_length=120, blank=True, help_text='Bank / PayPal transaction id')
+    note = models.CharField(max_length=200, blank=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='+')
+    created_at = models.DateTimeField(auto_now_add=True)
+    paid_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'{self.author} · {self.amount_cents / 100:.2f} · {self.get_status_display()}'
 
 
 class PayoutMethod(models.Model):
@@ -234,6 +260,21 @@ class RedeemCode(models.Model):
     bonus = models.PositiveIntegerField()
     is_active = models.BooleanField(default=True)
     redeemed_by = models.ManyToManyField(User, blank=True, related_name='redeemed_codes')
+    # Set by Marketing; blank means no limit.
+    campaign = models.CharField(max_length=80, blank=True)
+    expires_at = models.DateTimeField(null=True, blank=True)
+    max_uses = models.PositiveIntegerField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
+
+    @property
+    def uses(self):
+        return self.redeemed_by.count()
+
+    @property
+    def is_usable(self):
+        if not self.is_active or (self.expires_at and self.expires_at <= timezone.now()):
+            return False
+        return self.max_uses is None or self.uses < self.max_uses
 
     def __str__(self):
         return self.code

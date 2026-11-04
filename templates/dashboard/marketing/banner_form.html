@@ -1,0 +1,38 @@
+{% extends 'dashboard/base.html' %}{% load bv %}
+{% block title %}Banner{% endblock %}
+{% block back %}<a class="back" href="{% url 'dashboard:marketing_banners' %}"><i class="ph ph-caret-left"></i></a>{% endblock %}
+{% block heading %}{% if banner.pk %}Edit banner{% else %}New banner{% endif %}{% endblock %}
+{% block content_class %}narrow{% endblock %}
+{% block content %}
+<form method="post" enctype="multipart/form-data" class="stack">{% csrf_token %}
+  <div class="card">
+    <label class="field"><span class="label">Headline <span class="req">*</span></span>{{ form.title }}{{ form.title.errors }}</label>
+    <label class="field"><span class="label">Subtitle</span>{{ form.subtitle }}</label>
+    <div class="field"><span class="label">Background</span>
+      <div class="row wrap" style="gap:6px">{% for i in palettes %}<label style="cursor:pointer"><input type="radio" name="color_index" value="{{ i }}" {% if form.color_index.value|stringformat:"s" == i|stringformat:"s" %}checked{% endif %} hidden><span class="cover pal-{{ i }}" style="--w:34px"></span></label>{% endfor %}</div>
+      <span class="hint">Or upload an image (wide, under 5 MB):</span>
+      <input type="file" name="image" accept="image/jpeg,image/png,image/webp">{{ form.image.errors }}
+    </div>
+  </div>
+  <div class="card">
+    <div class="grid cols-2 stack-sm">
+      <label class="field"><span class="label">Where it shows</span>{{ form.placement }}</label>
+      <label class="field"><span class="label">Tapping opens</span>{{ form.target }}</label>
+    </div>
+    <label class="field"><span class="label">Book</span>{{ form.story }}{{ form.story.errors }}</label>
+    <label class="field"><span class="label">Drama</span>{{ form.drama }}{{ form.drama.errors }}</label>
+    <label class="field"><span class="label">Link</span>{{ form.url }}{{ form.url.errors }}</label>
+  </div>
+  <div class="card">
+    <div class="grid cols-2 stack-sm">
+      <label class="field"><span class="label">Starts</span>{{ form.starts_at }}{{ form.starts_at.errors }}</label>
+      <label class="field"><span class="label">Ends</span>{{ form.ends_at }}{{ form.ends_at.errors }}</label>
+    </div>
+    <div class="grid cols-2">
+      <label class="field"><span class="label">Order</span>{{ form.order }}</label>
+      <label class="check-row" style="align-self:end">{{ form.is_active }} Active</label>
+    </div>
+  </div>
+  <button class="btn block lg">Save banner</button>
+</form>
+{% endblock %}

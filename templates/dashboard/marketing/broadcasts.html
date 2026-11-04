@@ -1,0 +1,28 @@
+{% extends 'dashboard/base.html' %}{% load bv %}
+{% block title %}Broadcasts{% endblock %}
+{% block heading %}Broadcasts{% endblock %}
+{% block actions %}<button class="btn sm" data-open="compose"><i class="ph ph-paper-plane-tilt"></i><span class="hide-mobile">New message</span></button>{% endblock %}
+{% block content %}
+<div class="notice" style="margin-bottom:12px">Broadcasts land in each reader's Inbox in the app. You can attach a book and a small bonus gift.</div>
+<div class="card flush">
+  {% for b in broadcasts %}
+  <div class="list-item" style="align-items:flex-start">
+    <i class="ph-fill ph-megaphone" style="font-size:22px;color:var(--primary)"></i>
+    <div class="grow"><b>{{ b.title }}</b><p class="small muted clamp-2" style="margin:2px 0">{{ b.body }}</p>
+      <div class="hint">{{ b.get_audience_display }} · {{ b.recipients }} recipients{% if b.bonus %} · +{{ b.bonus }} bonus each{% endif %}{% if b.story %} · links {{ b.story.title }}{% endif %} · {{ b.sent_by.display_name }}, {{ b.sent_at|date:"M d H:i" }}</div></div>
+  </div>
+  {% empty %}<div style="padding:28px;text-align:center" class="muted">Nothing sent yet.</div>{% endfor %}
+</div>
+<div class="sheet {% if open_form %}open{% endif %}" id="compose"><div class="panel">
+  <div class="row between" style="margin-bottom:12px"><h2>New broadcast</h2><button class="icon-btn" data-close><i class="ph ph-x"></i></button></div>
+  <form method="post" onsubmit="return confirm('Send this to ' + this.audience.selectedOptions[0].dataset.size + ' people?')">{% csrf_token %}
+    <label class="field"><span class="label">Audience</span>
+      <select name="audience">{% for k, l in audiences %}<option value="{{ k }}" data-size="{{ sizes|get_item:k }}" {% if form.audience.value == k %}selected{% endif %}>{{ l }} ({{ sizes|get_item:k }})</option>{% endfor %}</select></label>
+    <label class="field"><span class="label">Title</span><input type="text" name="title" maxlength="120" value="{{ form.title.value|default:'' }}" required>{{ form.title.errors }}</label>
+    <label class="field"><span class="label">Message</span><textarea name="body" rows="4" required>{{ form.body.value|default:'' }}</textarea>{{ form.body.errors }}</label>
+    <label class="field"><span class="label">Link a book (optional)</span>{{ form.story }}</label>
+    <label class="field"><span class="label">Bonus gift per person</span><input type="number" name="bonus" min="0" max="200" value="{{ form.bonus.value|default:0 }}">{{ form.bonus.errors }}</label>
+    <button class="btn block">Send</button>
+  </form>
+</div></div>
+{% endblock %}

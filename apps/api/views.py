@@ -9,6 +9,9 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.views import TokenObtainPairView
+
+from apps.users.ip import record as record_ip
 
 from apps.catalog import feeds
 from apps.catalog.models import Chapter, Genre, Story, Tag
@@ -35,7 +38,20 @@ class RegisterView(APIView):
         ser = s.RegisterSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
         user = ser.save()
+        record_ip(user, request, 'signup')
         return Response(tokens_for(user), status=status.HTTP_201_CREATED)
+
+
+class TokenView(TokenObtainPairView):
+    """JWT sign-in that also records the IP address."""
+
+    def post(self, request, *args, **kwargs):
+        response = super().post(request, *args, **kwargs)
+        if response.status_code == 200:
+            user = User.objects.filter(email__iexact=request.data.get('email', '')).first()
+            if user:
+                record_ip(user, request, 'login')
+        return response
 
 
 @api_view(['POST'])

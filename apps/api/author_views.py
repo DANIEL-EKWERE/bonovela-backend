@@ -119,7 +119,8 @@ def application(request, pk):
         return Response({'detail': 'This story already has an open application.'}, status=400)
     if not story.is_info_complete or story.published_chapters().count() < 3:
         return Response({'detail': 'Complete your book information and publish at least 3 chapters first.'}, status=400)
-    app = ContractApplication.objects.create(story=story, message=request.data.get('message', ''))
+    from apps.editorial.history import submit
+    app = submit(story, request, request.data.get('message', '') or '')
     return Response(s.ApplicationSerializer(app).data, status=201)
 
 

@@ -17,7 +17,7 @@
   <p class="hint">Latest update {% now "M d, Y" %}</p>
 </div>
 
-<div class="grid cols-2 stack-sm" style="margin-top:12px">
+<div class="grid fill" style="--min:240px;margin-top:12px">
   {% for c in cards %}
     <div class="income-card" style="background:linear-gradient(135deg, {{ c.colors }})">
       <span>{{ c.label }}</span>

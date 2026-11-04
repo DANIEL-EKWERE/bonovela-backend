@@ -1,39 +1,80 @@
 {% extends 'dashboard/base.html' %}{% load bv %}
-{% block title %}Editorial{% endblock %}
-{% block heading %}Editorial · {{ user.get_role_display }}{% endblock %}
+{% block title %}{% if lv == 'se' %}Command Centre{% else %}Overview{% endif %}{% endblock %}
+{% block heading %}{% if lv == 'se' %}SE Command Centre{% elif lv == 'ce' %}Chief Editor Overview{% else %}My desk{% endif %}{% endblock %}
 {% block content %}
+{# Row 1: portfolio #}
 <div class="grid cols-4">
-  <a class="kpi" href="{% url 'dashboard:editorial_queue' %}?tab=open"><div class="l">Waiting for AE</div><div class="v">{{ counts.pending|default:0 }}</div></a>
-  <a class="kpi" href="{% url 'dashboard:editorial_queue' %}?tab=open"><div class="l">Waiting for SE</div><div class="v">{{ counts.ae_approved|default:0 }}</div></a>
-  <a class="kpi" href="{% url 'dashboard:editorial_queue' %}?tab=open"><div class="l">Waiting for contract</div><div class="v">{{ counts.se_approved|default:0 }}</div></a>
-  <a class="kpi" href="{% url 'dashboard:editorial_promotions' %}"><div class="l">Promotion requests</div><div class="v">{{ pending_requests }}</div><div class="d">{{ live_promotions }} live</div></a>
+  <a class="kpi" href="{% url 'dashboard:editorial_books' %}"><div class="l">{% if lv == 'se' %}My books{% else %}All books{% endif %}</div><div class="v">{{ counts.books }}</div>
+    <div class="d">{{ counts.active }} active · {{ counts.completed }} completed · {{ counts.suspended }} suspended</div></a>
+  <a class="kpi" href="{% url 'dashboard:editorial_authors' %}"><div class="l">Authors managed</div><div class="v">{{ counts.authors }}</div><div class="d">{{ risk|length }} at risk of inactivity</div></a>
+  {% if lv == 'ce' %}<a class="kpi" href="{% url 'dashboard:editorial_team' %}"><div class="l">Senior Editors</div><div class="v">{{ counts.editors }}</div><div class="d">{{ counts.unassigned }} unassigned books</div></a>
+  {% else %}<a class="kpi" href="{% url 'dashboard:editorial_recruitment' %}"><div class="l">My recruits</div><div class="v">{{ recruitment.0.n }}</div><div class="d">{{ recruitment.6.n }} contracted</div></a>{% endif %}
+  <a class="kpi" href="{% url 'dashboard:editorial_commission' %}"><div class="l">Revenue this month</div><div class="v">{{ revenue|compact }}</div><div class="d">coins · your commission {{ commission.total|money }}</div></a>
 </div>
 
-<div class="section-title"><h2>Needs your action</h2><a class="small pink" href="{% url 'dashboard:editorial_queue' %}">See all ›</a></div>
-<div class="card flush">
-  {% for a in mine %}
-    <a class="list-item" href="{% url 'dashboard:editorial_application' a.pk %}">
-      {% cover a.story 44 %}
-      <div class="grow"><b class="truncate" style="display:block">{{ a.story.display_title }}</b>
-        <div class="hint">{{ a.story.author.display_name }} · {{ a.story.genre|default:'—' }} · applied {{ a.created_at|timesince }} ago</div></div>
-      <span class="chip gold">{{ a.get_status_display }}</span>
-    </a>
-  {% empty %}
-    <div style="padding:28px;text-align:center" class="muted">Nothing waiting on you. 🎉</div>
-  {% endfor %}
+{# Row 2: work waiting #}
+<div class="grid cols-4" style="margin-top:12px">
+  <a class="kpi {% if open.pending_book_reviews %}alert{% endif %}" href="{% url 'dashboard:editorial_queue' %}?tab=open"><div class="l">Pending book reviews</div><div class="v">{{ open.pending_book_reviews }}</div></a>
+  <a class="kpi {% if open.pending_chapter_reviews %}alert{% endif %}" href="{% url 'dashboard:editorial_books' %}"><div class="l">Pending chapter reviews</div><div class="v">{{ open.pending_chapter_reviews|compact }}</div></a>
+  <a class="kpi" href="{% url 'dashboard:editorial_queue' %}?tab=open"><div class="l">Contract applications</div><div class="v">{{ open.pending_contracts }}</div><div class="d">{{ signed_week }} signed this week</div></a>
+  <a class="kpi" href="{% url 'dashboard:editorial_escalations' %}"><div class="l">Open escalations</div><div class="v">{{ open.open_escalations }}</div><div class="d">{% if lv == 'ce' %}{{ pending_recs }} recommendations to decide{% else %}{{ open.pending_recommendations }} recommendations pending{% endif %}</div></a>
+</div>
+
+{% if flagged %}
+<div class="section-title"><h2><i class="ph-fill ph-flag" style="color:var(--error)"></i> Flagged submissions</h2><a class="small pink" href="{% url 'dashboard:editorial_queue' %}?tab=flagged">All ›</a></div>
+<div class="card flush" style="margin-bottom:12px">{% for a in flagged %}<a class="list-item" href="{% url 'dashboard:editorial_application' a.pk %}">{% cover a.story 36 %}<div class="grow"><b class="truncate" style="display:block">{{ a.story.title }}</b><div class="hint truncate">{{ a.story.author.display_name }} · {% for m in a.prior_matches|slice:":1" %}{{ m.reasons.0.label }} · turned down by {{ m.rejected_by|default:'an editor' }}{% endfor %}</div></div><span class="chip {% if a.prior_flag == 'rejected' %}red{% else %}gold{% endif %}">See more info</span></a>{% endfor %}</div>
+{% endif %}
+
+<div class="grid cols-2 stack-sm" style="margin-top:12px">
+  <div>
+    <div class="section-title" style="margin-top:0"><h2>Monthly targets</h2><a class="small pink" href="{% if lv == 'ce' %}{% url 'dashboard:editorial_performance' %}{% else %}{% url 'dashboard:editorial_reports' %}{% endif %}">Details ›</a></div>
+    <div class="card">{% for p in progress %}
+      <div style="padding:5px 0"><div class="row between small"><span>{{ p.label }}</span><b>{{ p.actual }}{% if p.is_pct %}%{% endif %} <span class="hint">/ {{ p.target }}{% if p.is_pct %}%{% endif %}</span></b></div>
+        <div class="meter {% if p.pct >= 100 %}ok{% elif p.pct < 50 %}warn{% endif %}"><span style="width:{{ p.pct }}%"></span></div></div>
+    {% endfor %}</div>
+  </div>
+  <div>
+    <div class="section-title" style="margin-top:0"><h2>Recruitment pipeline</h2><a class="small pink" href="{% url 'dashboard:editorial_recruitment' %}">Open ›</a></div>
+    <div class="card">{% for s in recruitment %}<div class="funnel-row small"><span>{{ s.label }}</span><div class="meter"><span style="width:{{ s.pct }}%"></span></div><b style="text-align:right">{{ s.n }}</b></div>{% endfor %}</div>
+  </div>
+</div>
+
+{% if workload %}
+<div class="section-title"><h2>Senior Editors</h2><a class="small pink" href="{% url 'dashboard:editorial_team' %}">All ›</a></div>
+<div class="table-wrap"><table class="table">
+  <tr><th>Senior Editor</th><th>Books</th><th class="hide-mobile">Pending reviews</th><th class="hide-mobile">Recruits</th><th>Score</th></tr>
+  {% for r in workload %}<tr><td><a href="{% url 'dashboard:editorial_editor' r.editor.pk %}"><b>{{ r.editor.display_name }}</b></a> <span class="hint">{{ r.editor.get_role_display }}</span>
+      {% if r.overloaded %}<span class="chip red">Overloaded</span>{% elif r.inactive %}<span class="chip gold">Inactive</span>{% endif %}</td>
+    <td>{{ r.books }}</td><td class="hide-mobile">{{ r.pending_reviews }}</td><td class="hide-mobile">{{ r.recruitment }}</td><td><b>{{ r.score }}</b></td></tr>{% endfor %}
+</table></div>
+{% endif %}
+
+
+
+<div class="grid cols-2 stack-sm" style="margin-top:12px">
+  <div>
+    <div class="section-title" style="margin-top:0"><h2>Struggling authors</h2><a class="small pink" href="{% url 'dashboard:editorial_authors' %}?f=at_risk">All ›</a></div>
+    <div class="card flush">{% for r in risk %}<a class="list-item" href="{% url 'dashboard:editorial_book' r.story.pk %}">{% cover r.story 36 %}<div class="grow"><b class="truncate" style="display:block">{{ r.author.display_name }}</b><div class="hint truncate">{{ r.story.title }}</div></div>
+      <span class="chip {% if r.risk == 'at_risk' %}red{% else %}gold{% endif %}">{% if r.days is not None %}{{ r.days }}d quiet{% else %}No chapters{% endif %}</span></a>
+      {% empty %}<div style="padding:20px" class="muted">Everyone is updating. 🎉</div>{% endfor %}</div>
+  </div>
+  <div>
+    <div class="section-title" style="margin-top:0"><h2>Books needing intervention</h2><a class="small pink" href="{% url 'dashboard:editorial_books' %}?f=intervention">All ›</a></div>
+    <div class="card flush">{% for b in interventions %}<a class="list-item" href="{% url 'dashboard:editorial_book' b.pk %}">{% cover b 36 %}<div class="grow"><b class="truncate" style="display:block">{{ b.title }}</b><div class="hint truncate">{{ b.intervention_note|default:'Flagged' }}</div></div></a>
+      {% empty %}<div style="padding:20px" class="muted">No books flagged.</div>{% endfor %}</div>
+  </div>
 </div>
 
 <div class="grid cols-2 stack-sm" style="margin-top:12px">
-  <div class="kpi"><div class="l">Signed this week</div><div class="v">{{ signed_week }}</div></div>
-  <a class="kpi" href="{% url 'dashboard:editorial_books' %}?f=unsigned"><div class="l">Unsigned live books</div><div class="v">{{ unsigned_books }}</div><div class="d">Web only, not in the app</div></a>
-</div>
-
-<div class="card" style="margin-top:12px">
-  <h3>How review works</h3>
-  <ol class="small muted" style="margin:8px 0 0 18px;padding:0">
-    <li><b>AE</b> reads the application and opening chapters: approve to the SE, or send back for revision.</li>
-    <li><b>SE</b> approves, sends back, or rejects. SEs can also <i>request</i> promotions.</li>
-    <li><b>CE</b> sends the contract; the author signs in Author Center and the book goes live in the app. Only the CE places books in promoted sections.</li>
-  </ol>
+  <div>
+    <div class="section-title" style="margin-top:0"><h2>Waiting on you</h2><a class="small pink" href="{% url 'dashboard:editorial_queue' %}">Submissions ›</a></div>
+    <div class="card flush">{% for a in mine %}<a class="list-item" href="{% url 'dashboard:editorial_application' a.pk %}">{% cover a.story 36 %}<div class="grow"><b class="truncate" style="display:block">{{ a.story.display_title }}</b><div class="hint">{{ a.story.author.display_name }} · {{ a.created_at|timesince }} ago</div></div><span class="chip gold">{{ a.get_status_display }}</span></a>
+      {% empty %}<div style="padding:20px" class="muted">Nothing waiting.</div>{% endfor %}</div>
+  </div>
+  <div>
+    <div class="section-title" style="margin-top:0"><h2>Messages</h2><a class="small pink" href="{% url 'dashboard:editorial_messages' %}">Open ›</a></div>
+    <div class="card flush">{% for m in inbox %}<div class="list-item"><i class="ph-fill ph-chat-centered-text" style="color:var(--primary);font-size:20px"></i><div class="grow"><b class="truncate" style="display:block">{{ m.title }}</b><div class="hint">{{ m.get_kind_display }} · {{ m.sender.display_name }} · {{ m.created_at|timesince }} ago</div></div></div>
+      {% empty %}<div style="padding:20px" class="muted">No messages.</div>{% endfor %}</div>
+  </div>
 </div>
 {% endblock %}

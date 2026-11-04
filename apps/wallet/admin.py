@@ -11,3 +11,5 @@ admin.site.register(models.GiftItem, list_display=('emoji', 'name', 'price', 'vo
 for m in (models.BonusBatch, models.VoucherEntry, models.ChapterUnlock, models.AutoUnlock, models.Subscription,
           models.Gift, models.Vote, models.AuthorEarning, models.PayoutMethod, models.RedeemCode):
     admin.site.register(m)
+admin.site.register(models.Payout, list_display=('author', 'amount_cents', 'period_end', 'status', 'paid_at'),
+                    list_filter=('status',))

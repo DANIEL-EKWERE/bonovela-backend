@@ -29,26 +29,16 @@ def _notify(story, title, body):
     InboxMessage.objects.create(user=story.author, story=story, title=title, body=body)
 
 
+def _mark_rejected(app, editor, reason):
+    app.rejected_by, app.rejected_at, app.rejection_reason = editor, timezone.now(), reason
+
+
 # ── Contract applications ────────────────────────────────────────────────────
 @transaction.atomic
-def ae_review(app, editor, approve: bool, feedback: str = ''):
-    """Assistant Editor: first read. Approve → SE queue, or send back."""
-    _require(editor, User.ROLE_AE, User.ROLE_SE, User.ROLE_CE)
-    _require_status(app, App.STATUS_PENDING)
-    app.ae = editor
-    app.feedback = feedback
-    app.status = App.STATUS_AE_APPROVED if approve else App.STATUS_REVISION
-    app.save()
-    if not approve:
-        _notify(app.story, 'Your book needs a few changes',
-                feedback or 'An editor reviewed your application and asked for revisions.')
-
-
-@transaction.atomic
 def se_decide(app, editor, decision: str, feedback: str = ''):
-    """Senior Editor: approve (→ CE), revise, or reject."""
+    """Senior Editor reviews the application: approve (→ CE), revise, or reject."""
     _require(editor, User.ROLE_SE, User.ROLE_CE)
-    _require_status(app, App.STATUS_AE_APPROVED)
+    _require_status(app, App.STATUS_PENDING)
     app.se = editor
     app.feedback = feedback
     if decision == 'approve':
@@ -56,9 +46,11 @@ def se_decide(app, editor, decision: str, feedback: str = ''):
         _notify(app.story, 'Your book was approved 🎉', 'Our Chief Editor will send your contract shortly.')
     elif decision == 'revise':
         app.status = App.STATUS_REVISION
+        _mark_rejected(app, editor, feedback)
         _notify(app.story, 'Your book needs a few changes', feedback or 'Please revise and apply again.')
     elif decision == 'reject':
         app.status = App.STATUS_REJECTED
+        _mark_rejected(app, editor, feedback)
         _notify(app.story, 'Application update', feedback or "Your book wasn't selected for signing this time.")
     else:
         raise ValidationError('decision must be approve, revise or reject')

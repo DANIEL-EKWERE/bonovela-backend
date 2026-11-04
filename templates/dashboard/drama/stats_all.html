@@ -1,0 +1,18 @@
+{% extends 'dashboard/base.html' %}{% load bv %}
+{% block title %}Analytics{% endblock %}
+{% block heading %}Analytics{% endblock %}
+{% block content %}
+<div class="grid cols-4">
+  <div class="kpi"><div class="l">Plays</div><div class="v">{{ totals.plays|compact }}</div></div>
+  <div class="kpi"><div class="l">Saves</div><div class="v">{{ totals.saves|compact }}</div></div>
+  <div class="kpi"><div class="l">Episode unlocks</div><div class="v">{{ totals.unlocks|compact }}</div></div>
+  <div class="kpi"><div class="l">Coins spent</div><div class="v">{{ totals.coins|compact }}</div></div>
+</div>
+<div class="section-title"><h2>By drama</h2></div>
+<div class="table-wrap"><table class="table">
+  <tr><th>Drama</th><th>Plays</th><th class="hide-mobile">Saves</th><th class="hide-mobile">Episodes</th><th></th></tr>
+  {% for d in dramas %}<tr><td><b>{{ d.title }}</b> <span class="hint">{{ d.get_kind_display }}</span></td><td>{{ d.plays|compact }}</td><td class="hide-mobile">{{ d.n_saves }}</td><td class="hide-mobile">{{ d.n_published }}</td>
+    <td><a class="small pink" href="{% url 'dashboard:drama_stats' d.pk %}">Details ›</a></td></tr>
+  {% empty %}<tr><td colspan="5" class="muted">No dramas yet.</td></tr>{% endfor %}
+</table></div>
+{% endblock %}

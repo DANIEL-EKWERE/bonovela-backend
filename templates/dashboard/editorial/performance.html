@@ -1,0 +1,33 @@
+{% extends 'dashboard/base.html' %}{% load bv %}
+{% block title %}Team Performance{% endblock %}
+{% block heading %}Team Performance{% endblock %}
+{% block actions %}<form method="get"><select name="month" onchange="this.form.submit()" style="width:auto">{% for m in months %}<option value="{{ m|date:'Y-m' }}" {% if m == month %}selected{% endif %}>{{ m|date:"M Y" }}</option>{% endfor %}</select></form>{% endblock %}
+{% block content %}
+
+<div class="section-title"><h2>Ranking</h2><span class="hint">Quality 30 · recruitment 20 · active authors 20 · review speed 15 · completed books 15</span></div>
+<div class="table-wrap"><table class="table">
+  <tr><th>#</th><th>Senior Editor</th><th>Score</th><th class="hide-mobile">Quality</th><th class="hide-mobile">Recruits</th><th class="hide-mobile">Active authors</th><th class="hide-mobile">On-time reviews</th><th class="hide-mobile">Completed</th><th></th></tr>
+  {% for r in rows %}<tr><td><b>{{ r.rank }}</b></td><td><a href="{% url 'dashboard:editorial_editor' r.editor.pk %}"><b>{{ r.editor.display_name }}</b></a><div class="hint">{{ r.editor.get_role_display }}</div></td><td><b class="pink">{{ r.score }}</b></td>
+    <td class="hide-mobile">{{ r.quality_score }}%</td><td class="hide-mobile">{{ r.recruitment }} / {{ r.targets.recruitment }}</td><td class="hide-mobile">{{ r.active_authors_pct }}%</td><td class="hide-mobile">{{ r.chapter_review_pct }}%</td><td class="hide-mobile">{{ r.completed_books }}</td>
+    <td>{% if lv == 'ce' %}<button class="btn sm ghost" data-open="t{{ r.editor.pk }}">Targets</button>{% endif %}</td></tr>
+  {% empty %}<tr><td colspan="9" class="muted">No editors.</td></tr>{% endfor %}
+</table></div>
+
+<div class="section-title"><h2>Workload balance</h2><span class="hint">Team average {{ avg_books }} books per editor</span></div>
+<div class="card">
+  {% for r in rows %}<div class="funnel-row small"><span>{{ r.editor.display_name }}</span><div class="meter {% if r.overloaded %}warn{% endif %}"><span style="width:{{ r.load_pct }}%"></span></div><b style="text-align:right">{{ r.books }}</b></div>{% endfor %}
+  {% if overloaded and underloaded %}<div class="notice" style="margin-top:10px">Suggestion: move books from {% for r in overloaded %}<b>{{ r.editor.display_name }}</b>{% if not forloop.last %}, {% endif %}{% endfor %} to {% for r in underloaded %}<b>{{ r.editor.display_name }}</b>{% if not forloop.last %}, {% endif %}{% endfor %} (assign from Book Management).</div>
+  {% elif overloaded %}<div class="notice" style="margin-top:10px">{% for r in overloaded %}<b>{{ r.editor.display_name }}</b> {% endfor %}is carrying more than 1.5× the average. Consider reassigning books.</div>{% endif %}
+</div>
+
+{% for r in rows %}{% if lv == 'ce' %}
+<div class="sheet" id="t{{ r.editor.pk }}"><div class="panel">
+  <div class="row between" style="margin-bottom:12px"><h2>Targets · {{ r.editor.display_name }}</h2><button class="icon-btn" data-close><i class="ph ph-x"></i></button></div>
+  <p class="hint" style="margin-bottom:10px">{{ month|date:"F Y" }}. The editor gets a message when you save.</p>
+  <form method="post">{% csrf_token %}<input type="hidden" name="editor" value="{{ r.editor.pk }}">
+    <div class="grid cols-2">{% for key, label in metrics %}<label class="field"><span class="label">{{ label }}</span><input type="number" name="{{ key }}" min="0" value="{{ r.targets|get_item:key }}"></label>{% endfor %}</div>
+    <button class="btn block">Save targets</button>
+  </form>
+</div></div>
+{% endif %}{% endfor %}
+{% endblock %}

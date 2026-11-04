@@ -1,0 +1,35 @@
+{% extends 'dashboard/base.html' %}{% load bv %}
+{% block title %}Earnings{% endblock %}
+{% block heading %}Earnings{% endblock %}
+{% block actions %}<button class="btn sm" data-open="payout">Payment info</button>{% endblock %}
+{% block content %}
+<div class="grid cols-4">
+  <div class="kpi"><div class="l">Total earned</div><div class="v">{{ total|money }}</div></div>
+  <div class="kpi"><div class="l">Paid out</div><div class="v">{{ paid|money }}</div></div>
+  <div class="kpi"><div class="l">Payout in progress</div><div class="v">{{ pending|money }}</div></div>
+  <div class="kpi"><div class="l">Balance</div><div class="v pink">{{ balance|money }}</div><div class="d">Paid when it reaches {{ minimum|money }}</div></div>
+</div>
+<div class="notice" style="margin-top:12px">You earn {{ share }}% of the coins viewers spend unlocking your episodes. {% if not method %}<b>Add your payment info</b> so Finance can pay you.{% endif %}</div>
+<div class="grid cols-2 stack-sm" style="margin-top:12px">
+  <div>
+    <div class="section-title" style="margin-top:0"><h2>Recent earnings</h2></div>
+    <div class="card flush">{% for e in recent %}<div class="list-item"><div class="grow"><b>{{ e.get_type_display }}</b><div class="hint truncate">{{ e.note }} · {{ e.created_at|date:"M d" }}</div></div><span>{{ e.amount_cents|money }}</span></div>
+      {% empty %}<div style="padding:20px" class="muted">Nothing yet.</div>{% endfor %}</div>
+  </div>
+  <div>
+    <div class="section-title" style="margin-top:0"><h2>Payouts</h2></div>
+    <div class="card flush">{% for p in payouts %}<div class="list-item"><div class="grow"><b>{{ p.amount_cents|money }}</b><div class="hint">up to {{ p.period_end|date:"M d, Y" }}{% if p.reference %} · ref {{ p.reference }}{% endif %}</div></div><span class="chip {% if p.status == 'paid' %}green{% elif p.status == 'failed' %}grey{% else %}gold{% endif %}">{{ p.get_status_display }}</span></div>
+      {% empty %}<div style="padding:20px" class="muted">No payouts yet.</div>{% endfor %}</div>
+  </div>
+</div>
+<div class="sheet" id="payout"><div class="panel">
+  <div class="row between" style="margin-bottom:12px"><h2>Payment info</h2><button class="icon-btn" data-close><i class="ph ph-x"></i></button></div>
+  <form method="post">{% csrf_token %}
+    <label class="field"><span class="label">Method</span>{{ form.method }}</label>
+    <label class="field"><span class="label">Account name</span>{{ form.account_name }}</label>
+    <label class="field"><span class="label">Bank name (bank transfer)</span>{{ form.bank_name }}</label>
+    <label class="field"><span class="label">Account number / PayPal email</span>{{ form.account_detail }}</label>
+    <button class="btn block">Save</button>
+  </form>
+</div></div>
+{% endblock %}

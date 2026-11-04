@@ -1,0 +1,40 @@
+{# Flag banner + "See more info" sheet for books an editor turned down before. #}
+{% if prior %}
+<div class="flag-banner {% if prior_rejected %}red{% endif %}">
+  <i class="ph-fill ph-flag"></i>
+  <div class="grow">
+    <b>{% if prior_rejected %}Previously rejected{% else %}Previously sent back{% endif %}{% if prior_other_team %} by another Senior Editor's team{% endif %}</b>
+    <div class="small">This submission matches {{ prior|length }} earlier submission{{ prior|length|pluralize }} that an editor turned down: {% for m in prior %}{{ m.reasons.0.label|lower }}{% if not forloop.last %}; {% endif %}{% endfor %}.</div>
+  </div>
+  <button class="btn sm" type="button" data-open="priorInfo">See more info</button>
+</div>
+
+<div class="sheet" id="priorInfo"><div class="panel" style="max-width:640px">
+  <div class="row between" style="margin-bottom:12px"><h2>Submission history</h2><button class="icon-btn" data-close><i class="ph ph-x"></i></button></div>
+  <p class="hint" style="margin-bottom:10px">Now: <b>{{ prior_app.story.title }}</b> by {{ prior_app.story.author.display_name }} ({{ prior_app.story.author.email }}){% if prior_app.submitted_ip %} · submitted from {{ prior_app.submitted_ip }}{% endif %}</p>
+  {% for m in prior %}
+  <div class="card" style="margin-bottom:10px;border:1px solid var(--divider)">
+    <div class="row between wrap" style="gap:6px">
+      <b>{{ m.title }}</b>
+      <span class="chip {% if m.status == 'rejected' %}red{% else %}gold{% endif %}">{{ m.status_label }}</span>
+    </div>
+    <div class="row wrap" style="gap:4px;margin:6px 0">{% for r in m.reasons %}<span class="chip pink">{{ r.label }}</span>{% endfor %}{% if m.other_team %}<span class="chip red">Another SE's team</span>{% endif %}</div>
+    <table class="small" style="width:100%;border-collapse:collapse">
+      <tr><td class="hint" style="padding:3px 10px 3px 0;width:38%">Rejected by</td><td><b>{{ m.rejected_by|default:'—' }}</b>{% if m.rejected_by_role %} ({{ m.rejected_by_role }}){% endif %}</td></tr>
+      <tr><td class="hint" style="padding:3px 10px 3px 0">Senior Editor / team</td><td>{{ m.rejected_by_team|default:'—' }}</td></tr>
+      <tr><td class="hint" style="padding:3px 10px 3px 0">Date</td><td>{{ m.rejected_at|date:"M d, Y H:i" }}</td></tr>
+      <tr><td class="hint" style="padding:3px 10px 3px 0">Author account then</td><td>{{ m.author }} · {{ m.author_email }}</td></tr>
+      <tr><td class="hint" style="padding:3px 10px 3px 0;vertical-align:top">Reason given</td><td style="white-space:pre-line">{{ m.reason|default:'No reason recorded.' }}</td></tr>
+    </table>
+    <div class="row wrap" style="gap:6px;margin-top:8px">
+      <a class="btn sm ghost" href="{% url 'dashboard:editorial_application' m.application_id %}">Open old submission</a>
+      <a class="btn sm ghost" href="{% url 'dashboard:editorial_book' m.story_id %}">Open old book</a>
+    </div>
+  </div>
+  {% endfor %}
+  {% if author_ips %}
+  <h3 style="margin:6px 0">Author's IP addresses</h3>
+  <div class="small">{% for i in author_ips %}<div class="row between" style="padding:3px 0;border-bottom:1px solid var(--divider)"><span style="font-family:monospace">{{ i.ip }}</span><span class="hint">{{ i.get_last_event_display }} · {{ i.last_seen|date:"M d" }}</span></div>{% endfor %}</div>
+  {% endif %}
+</div></div>
+{% endif %}

@@ -1,0 +1,24 @@
+{% extends 'dashboard/base.html' %}{% load bv %}
+{% block title %}Authors & Accounts{% endblock %}
+{% block heading %}Authors &amp; Accounts{% endblock %}
+{% block content %}
+<form method="get" style="margin-bottom:12px"><input type="hidden" name="f" value="{{ f }}"><input type="text" name="q" value="{{ q }}" placeholder="Search pen name or email"></form>
+<div class="card flush">
+  <div class="tabs" style="overflow-x:auto">
+    <a class="nowrap {% if f == 'all' %}active{% endif %}" href="?f=all">All</a>
+    <a class="nowrap {% if f == 'at_risk' %}active{% endif %}" href="?f=at_risk">Stopped updating</a>
+    <a class="nowrap {% if f == 'awaiting' %}active{% endif %}" href="?f=awaiting">Awaiting contract</a>
+    <a class="nowrap {% if f == 'contracted' %}active{% endif %}" href="?f=contracted">Contracted</a>
+    <a class="nowrap {% if f == 'no_kyc' %}active{% endif %}" href="?f=no_kyc">Missing KYC</a>
+  </div>
+  <div class="table-wrap"><table class="table" style="border-radius:0">
+    <tr><th>Author</th><th>Books</th><th class="hide-mobile">Chapters</th><th class="hide-mobile">Words</th><th>Last update</th><th class="hide-mobile">Recruited by</th></tr>
+    {% for a in authors %}<tr>
+      <td><a class="row" href="{% url 'dashboard:editorial_author' a.pk %}" style="gap:10px"><span class="avatar">{{ a.display_name|first|upper }}</span><span style="min-width:0"><b class="truncate" style="display:block;max-width:220px">{{ a.display_name }}</b>
+        {% if a.risk == 'at_risk' %}<span class="chip red">At risk</span>{% elif a.risk == 'slowing' %}<span class="chip gold">Slowing</span>{% endif %}{% if a.n_signed %}<span class="chip pink">Contracted</span>{% endif %}{% if a.kyc_verified %}<span class="chip green">KYC</span>{% endif %}{% if a.complaints %}<span class="chip red">{{ a.complaints }} complaint{{ a.complaints|pluralize }}</span>{% endif %}</span></a></td>
+      <td>{{ a.n_books }}</td><td class="hide-mobile">{{ a.n_chapters }}</td><td class="hide-mobile">{{ a.n_words|default:0|compact }}</td>
+      <td class="small nowrap">{{ a.last_update|date:"M d"|default:'—' }}</td><td class="hide-mobile small">{{ a.recruited_by.display_name|default:'—' }}</td>
+    </tr>{% empty %}<tr><td colspan="6" class="muted" style="text-align:center;padding:28px">No authors here.</td></tr>{% endfor %}
+  </table></div>
+</div>
+{% endblock %}

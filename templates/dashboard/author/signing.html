@@ -56,4 +56,20 @@
     <button class="btn block lg" name="action" value="apply" {% if not ready %}disabled{% endif %}>Apply</button>
   </form>
 {% endif %}
+
+<div class="card" style="margin-top:12px">
+  <h2>Completion review</h2>
+  {% if completion %}
+    <p class="small" style="margin-top:6px">Status: <span class="chip gold">{{ completion.get_status_display }}</span>{% if completion.bonus_cents %} · Bonus {{ completion.bonus_cents|money }}{% endif %}</p>
+    {% if completion.status == 'changes' and completion.reviewer_note %}<p class="small muted" style="margin-top:6px">Editor: {{ completion.reviewer_note }}</p>{% endif %}
+  {% endif %}
+  {% if story.status == 'completed' and story.is_signed and not completion_open %}
+    <p class="hint" style="margin:6px 0 10px">Finished your book? Apply for a completion review. Approved books earn a Completion Bonus.</p>
+    <form method="post">{% csrf_token %}<input type="hidden" name="action" value="completion">
+      <textarea name="message" rows="2" placeholder="Anything the editors should know (optional)"></textarea>
+      <button class="btn block" style="margin-top:8px">Apply for completion review</button></form>
+  {% elif not completion %}
+    <p class="hint" style="margin-top:6px">Available once your book is signed and marked Completed.</p>
+  {% endif %}
+</div>
 {% endblock %}

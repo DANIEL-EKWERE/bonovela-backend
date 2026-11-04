@@ -102,6 +102,12 @@ class Story(models.Model):
     is_signed = models.BooleanField(default=False)
     signed_at = models.DateTimeField(null=True, blank=True)
     is_removed = models.BooleanField(default=False)
+    # Senior Editor responsible for this book.
+    editor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                               related_name='edited_stories')
+    assigned_at = models.DateTimeField(null=True, blank=True)
+    needs_intervention = models.BooleanField(default=False, help_text='Flagged by an editor for urgent attention')
+    intervention_note = models.CharField(max_length=200, blank=True)
 
     # Counters (denormalised for listing speed)
     views = models.PositiveIntegerField(default=0)
@@ -182,6 +188,13 @@ class Chapter(models.Model):
     word_count = models.PositiveIntegerField(default=0)
     scheduled_for = models.DateTimeField(null=True, blank=True)
     published_at = models.DateTimeField(null=True, blank=True)
+    # Editorial chapter review (after publishing).
+    REVIEW_PENDING, REVIEW_APPROVED, REVIEW_FLAGGED = 'pending', 'approved', 'flagged'
+    REVIEW_CHOICES = [(REVIEW_PENDING, 'Pending review'), (REVIEW_APPROVED, 'Approved'), (REVIEW_FLAGGED, 'Flagged')]
+    review_status = models.CharField(max_length=10, choices=REVIEW_CHOICES, default=REVIEW_PENDING, db_index=True)
+    reviewed_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                                    related_name='+')
+    reviewed_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

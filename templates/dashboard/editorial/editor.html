@@ -1,0 +1,26 @@
+{% extends 'dashboard/base.html' %}{% load bv %}
+{% block title %}{{ ed.display_name }}{% endblock %}
+{% block back %}<a class="back" href="{% url 'dashboard:editorial_team' %}"><i class="ph ph-caret-left"></i></a>{% endblock %}
+{% block heading %}{{ ed.display_name }}{% endblock %}
+{% block actions %}<span class="chip grey">{{ ed.get_role_display }}</span>{% endblock %}
+{% block content %}
+<div class="grid cols-4">
+  <div class="kpi"><div class="l">Performance score</div><div class="v">{{ score }}</div></div>
+  <div class="kpi"><div class="l">Books</div><div class="v">{{ stats.books }}</div><div class="d">{{ stats.active_books }} active · {{ stats.completed_books }} completed</div></div>
+  <div class="kpi"><div class="l">Pending chapter reviews</div><div class="v">{{ stats.pending_reviews }}</div><div class="d">{{ stats.chapters_reviewed }} reviewed this month</div></div>
+  <div class="kpi"><div class="l">Recruits this month</div><div class="v">{{ stats.recruitment }}</div><div class="d">{{ stats.contracts }} contracts</div></div>
+</div>
+<div class="grid cols-2 stack-sm" style="margin-top:12px">
+  <div class="card"><h3 style="margin-bottom:8px">Targets this month</h3>{% for p in progress %}<div style="padding:4px 0"><div class="row between small"><span>{{ p.label }}</span><b>{{ p.actual }}{% if p.is_pct %}%{% endif %} / {{ p.target }}{% if p.is_pct %}%{% endif %}</b></div><div class="meter {% if p.pct >= 100 %}ok{% elif p.pct < 50 %}warn{% endif %}"><span style="width:{{ p.pct }}%"></span></div></div>{% endfor %}</div>
+  <div class="card"><h3 style="margin-bottom:8px">Recent recruits</h3>
+    {% for a in recruits %}<a class="list-item" href="{% url 'dashboard:editorial_author' a.pk %}" style="padding-left:0"><span class="avatar">{{ a.display_name|first|upper }}</span><span class="grow"><b>{{ a.display_name }}</b><div class="hint">joined {{ a.date_joined|date:"M d" }}</div></span></a>{% empty %}<p class="muted small">None yet.</p>{% endfor %}
+  </div>
+</div>
+<div class="section-title"><h2>Books</h2></div>
+<div class="table-wrap"><table class="table">
+  <tr><th>Book</th><th>Chapters</th><th class="hide-mobile">Last update</th><th>To review</th></tr>
+  {% for b in books %}<tr><td><a href="{% url 'dashboard:editorial_book' b.pk %}"><b>{{ b.title }}</b></a> <span class="hint">{{ b.author.display_name }}</span>{% if b.risk == 'at_risk' %} <span class="chip red">At risk</span>{% elif b.risk == 'slowing' %} <span class="chip gold">Slowing</span>{% endif %}</td>
+    <td>{{ b.n_chapters }}</td><td class="hide-mobile small">{{ b.last_update|date:"M d"|default:'—' }}</td><td>{{ b.pending_reviews }}</td></tr>
+  {% empty %}<tr><td colspan="4" class="muted">No books assigned.</td></tr>{% endfor %}
+</table></div>
+{% endblock %}

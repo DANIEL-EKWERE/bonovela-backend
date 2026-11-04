@@ -1,0 +1,44 @@
+{% extends 'dashboard/base.html' %}{% load bv %}
+{% block title %}Episode{% endblock %}
+{% block back %}<a class="back" href="{% url 'dashboard:drama_episodes' drama.pk %}"><i class="ph ph-caret-left"></i></a>{% endblock %}
+{% block heading %}{% if episode.pk %}Episode {{ episode.number }}{% else %}New episode{% endif %}{% endblock %}
+{% block content_class %}narrow{% endblock %}
+{% block content %}
+<form method="post" enctype="multipart/form-data" class="card">{% csrf_token %}
+  <p class="hint" style="margin-bottom:12px">{{ drama.title }}</p>
+  <div class="grid cols-2 stack-sm">
+    <label class="field"><span class="label">Episode number</span><input type="number" name="number" min="1" value="{{ form.number.value|default:'' }}" required>{{ form.number.errors }}</label>
+    <label class="field"><span class="label">Length (seconds)</span><input type="number" name="duration_seconds" min="0" value="{{ form.duration_seconds.value|default:0 }}" id="duration">{{ form.duration_seconds.errors }}</label>
+  </div>
+  <label class="field"><span class="label">Title</span><input type="text" name="title" maxlength="80" value="{{ form.title.value|default:'' }}" placeholder="Optional">{{ form.title.errors }}</label>
+  <div class="field">
+    <span class="label">Video</span>
+    {% if episode.video %}<video src="{{ episode.video.url }}" controls style="width:100%;max-height:360px;border-radius:12px;background:#000;margin-bottom:8px"></video>{% endif %}
+    <label class="card" style="display:block;text-align:center;border:1.5px dashed var(--blush-deep);cursor:pointer;padding:22px">
+      <i class="ph ph-upload-simple" style="font-size:30px;color:var(--primary)"></i>
+      <div class="small" id="videoName">{% if episode.video %}Replace video{% else %}Choose an .mp4, .mov or .webm (vertical 9:16, up to 500 MB){% endif %}</div>
+      <input type="file" name="video" accept="video/mp4,video/quicktime,video/webm" hidden onchange="pickVideo(this)">
+    </label>
+    {{ form.video.errors }}
+  </div>
+  <label class="field"><span class="label">…or a hosted video link</span><input type="url" name="video_url" value="{{ form.video_url.value|default:'' }}" placeholder="https://cdn.example.com/ep1.mp4">{{ form.video_url.errors }}</label>
+  <div class="grid cols-2">
+    <button class="btn outline" name="action" value="save">Save draft</button>
+    <button class="btn" name="action" value="publish">{% if episode.status == 'published' %}Update{% else %}Publish{% endif %}</button>
+  </div>
+</form>
+{% endblock %}
+{% block scripts %}
+<script>
+  // Shows the file name and reads the length from the video itself.
+  function pickVideo(input) {
+    const f = input.files[0];
+    if (!f) return;
+    document.getElementById('videoName').textContent = f.name + ' · ' + (f.size / 1048576).toFixed(1) + ' MB';
+    const v = document.createElement('video');
+    v.preload = 'metadata';
+    v.onloadedmetadata = () => { document.getElementById('duration').value = Math.round(v.duration); URL.revokeObjectURL(v.src); };
+    v.src = URL.createObjectURL(f);
+  }
+</script>
+{% endblock %}

@@ -1,0 +1,43 @@
+{% extends 'dashboard/base.html' %}{% load bv %}
+{% block title %}{% if drama.pk %}Edit drama{% else %}New drama{% endif %}{% endblock %}
+{% block back %}<a class="back" href="{% if drama.pk %}{% url 'dashboard:drama_episodes' drama.pk %}{% else %}{% url 'dashboard:drama_list' %}{% endif %}"><i class="ph ph-caret-left"></i></a>{% endblock %}
+{% block heading %}{% if drama.pk %}Drama info{% else %}New drama{% endif %}{% endblock %}
+{% block content_class %}narrow{% endblock %}
+{% block content %}
+<form method="post" enctype="multipart/form-data" class="stack">{% csrf_token %}
+  {% if form.non_field_errors %}<div class="notice">{{ form.non_field_errors }}</div>{% endif %}
+  <div class="card row top">
+    <div id="coverPreview">{% cover drama 104 %}</div>
+    <div class="grow stack" style="gap:8px">
+      <span class="label">Poster</span>
+      <p class="hint">Vertical 3:4 image, under 5 MB. Or pick a colour.</p>
+      <div class="row wrap" style="gap:8px">
+        <label class="btn sm outline" style="cursor:pointer"><i class="ph ph-upload-simple"></i>Upload<input type="file" name="cover" accept="image/jpeg,image/png,image/webp" hidden onchange="this.closest('label').lastChild.textContent=' ' + this.files[0].name"></label>
+      </div>
+      <div class="row wrap" style="gap:6px">
+        {% for i in palettes %}<label style="cursor:pointer"><input type="radio" name="cover_index" value="{{ i }}" {% if drama.cover_index == i %}checked{% endif %} hidden><span class="cover pal-{{ i }}" style="--w:30px"></span></label>{% endfor %}
+      </div>
+      {{ form.cover.errors }}
+    </div>
+  </div>
+
+  <div class="card">
+    <label class="field"><span class="label">Title <span class="req">*</span></span>{{ form.title }}{{ form.title.errors }}</label>
+    <label class="field"><span class="label">Adapted from</span>{{ form.story }}<span class="hint">Pick a signed Bonovela novel, or leave as an original drama.</span>{{ form.story.errors }}</label>
+    <label class="field"><span class="label">Genre</span>{{ form.genre }}</label>
+    <label class="field"><span class="label">Synopsis</span><textarea name="synopsis" rows="5" data-words="#synWords" placeholder="One or two sentences that make people tap Play.">{{ form.synopsis.value|default:'' }}</textarea><span class="hint"><span id="synWords">0</span> words</span>{{ form.synopsis.errors }}</label>
+    <label class="check-row"><input type="checkbox" name="is_completed" {% if form.is_completed.value %}checked{% endif %}> All episodes are uploaded (complete series)</label>
+  </div>
+
+  <div class="card">
+    <span class="label">Tags <span class="hint">(up to 10)</span></span>{{ form.tags.errors }}
+    {% for g in tag_groups %}
+      <details style="margin-top:8px" {% if forloop.first %}open{% endif %}><summary class="small" style="cursor:pointer;font-weight:600">{{ g.label }}</summary>
+        <div class="row wrap" style="gap:6px;margin-top:8px">{% for t in g.tags %}<label class="pill"><input type="checkbox" name="tags" value="{{ t.pk }}" {% if t.pk in selected_tags %}checked{% endif %}><span class="small">{{ t.name }}</span></label>{% endfor %}</div>
+      </details>
+    {% endfor %}
+  </div>
+
+  <button class="btn block lg">{% if drama.pk %}Save{% else %}Create &amp; add episodes{% endif %}</button>
+</form>
+{% endblock %}

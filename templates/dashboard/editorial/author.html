@@ -1,0 +1,47 @@
+{% extends 'dashboard/base.html' %}{% load bv %}
+{% block title %}{{ author.display_name }}{% endblock %}
+{% block back %}<a class="back" href="{% url 'dashboard:editorial_authors' %}"><i class="ph ph-caret-left"></i></a>{% endblock %}
+{% block heading %}{{ author.display_name }}{% endblock %}
+{% block content %}
+<div class="grid" style="grid-template-columns:minmax(0,1fr) minmax(0,2fr)" id="authGrid">
+  <div class="stack">
+    <div class="card">
+      <div class="row" style="gap:12px"><span class="avatar" style="width:52px;height:52px;font-size:22px">{{ author.display_name|first|upper }}</span><div><h3>{{ author.display_name }}</h3><div class="hint">{{ author.email }}</div></div></div>
+      <div class="row wrap" style="gap:4px;margin-top:10px">
+        <span class="chip grey">Joined {{ author.date_joined|date:"M Y" }}</span>
+        {% if author.kyc_verified %}<span class="chip green">KYC verified</span>{% else %}<span class="chip gold">No KYC</span>{% endif %}
+        {% if author.is_suspended %}<span class="chip red">Suspended</span>{% endif %}
+      </div>
+      <p class="small" style="margin-top:10px">Recruited by: <b>{{ author.recruited_by.display_name|default:'—' }}</b></p>
+      {% if author.about %}<p class="small muted" style="margin-top:6px">{{ author.about }}</p>{% endif %}
+      <form method="post" class="row wrap" style="gap:6px;margin-top:10px">{% csrf_token %}
+        {% if not author.recruited_by %}<button class="btn sm outline" name="action" value="claim">Add to my recruits</button>{% endif %}
+        {% if lv == 'ce' %}<button class="btn sm ghost" name="action" value="kyc">{% if author.kyc_verified %}Clear KYC{% else %}Mark KYC verified{% endif %}</button>{% endif %}
+        <button class="btn sm ghost" type="button" data-open="msgAuthor">Message</button>
+        <button class="btn sm ghost" type="button" data-open="recAuthor">Recommend</button>
+      </form>
+    </div>
+    <div class="card"><h3>Chapters published · 14 days</h3><div class="bars" style="height:110px;margin-top:8px">{% for d in days %}<div class="bar" title="{{ d.n }}"><span style="height:{{ d.pct }}%"></span><small>{{ d.label }}</small></div>{% endfor %}</div></div>
+    <div class="card"><h3>IP addresses</h3>
+      {% for i in ips %}<div style="padding:6px 0;border-bottom:1px solid var(--divider)"><div class="row between small"><span style="font-family:monospace">{{ i.ip }}</span><span class="hint">{{ i.get_last_event_display }} · {{ i.last_seen|date:"M d" }} · {{ i.hits }}×</span></div>
+        {% if i.shared %}<div class="small" style="color:var(--error);margin-top:2px"><i class="ph-fill ph-warning"></i> Also used by: {% for u in i.shared %}<a class="pink" href="{% url 'dashboard:editorial_author' u.pk %}">{{ u.display_name }}</a>{% if not forloop.last %}, {% endif %}{% endfor %}</div>{% endif %}</div>
+      {% empty %}<p class="muted small" style="margin-top:6px">None recorded yet.</p>{% endfor %}
+    </div>
+    <div class="card"><h3>Complaints &amp; reports</h3>{% for r in complaints %}<p class="small" style="margin-top:6px">{% if not r.is_resolved %}<span class="chip red">Open</span>{% endif %} {{ r.reason }} <span class="hint">· {{ r.reporter.display_name }}, {{ r.created_at|date:"M d" }}</span></p>{% empty %}<p class="muted small" style="margin-top:6px">None.</p>{% endfor %}</div>
+  </div>
+  <div class="stack">
+    <div class="table-wrap"><table class="table">
+      <tr><th>Book</th><th>Chapters</th><th class="hide-mobile">Words</th><th class="hide-mobile">7 days</th><th>Status</th></tr>
+      {% for s in stories %}<tr><td><a href="{% url 'dashboard:editorial_book' s.pk %}"><b>{{ s.title }}</b></a><div class="hint">editor {{ s.editor.display_name|default:'—' }}</div></td><td>{{ s.n_chapters }}</td><td class="hide-mobile">{{ s.n_words|default:0|compact }}</td><td class="hide-mobile">+{{ s.updates_7d }}</td>
+        <td>{% if s.is_signed %}<span class="chip pink">Signed</span>{% endif %}{% if s.risk == 'at_risk' %}<span class="chip red">At risk</span>{% elif s.risk == 'slowing' %}<span class="chip gold">Slowing</span>{% else %}<span class="chip grey">{{ s.get_status_display }}</span>{% endif %}</td></tr>
+      {% empty %}<tr><td colspan="5" class="muted">No books.</td></tr>{% endfor %}
+    </table></div>
+    <div class="card"><h3>Contract applications</h3>{% for a in apps %}<a class="list-item" href="{% url 'dashboard:editorial_application' a.pk %}" style="padding-left:0"><span class="grow">{{ a.story.title }}</span><span class="chip gold">{{ a.get_status_display }}</span></a>{% empty %}<p class="muted small" style="margin-top:6px">None.</p>{% endfor %}</div>
+  </div>
+</div>
+<div class="sheet" id="msgAuthor"><div class="panel"><div class="row between" style="margin-bottom:12px"><h2>Message {{ author.display_name }}</h2><button class="icon-btn" data-close><i class="ph ph-x"></i></button></div>
+  <form method="post">{% csrf_token %}<input type="hidden" name="action" value="message"><label class="field"><span class="label">Title</span><input type="text" name="title" value="Message from your editor"></label><label class="field"><span class="label">Message</span><textarea name="text" rows="4" required></textarea></label><button class="btn block">Send to inbox</button></form></div></div>
+<div class="sheet" id="recAuthor"><div class="panel"><div class="row between" style="margin-bottom:12px"><h2>Recommend for promotion</h2><button class="icon-btn" data-close><i class="ph ph-x"></i></button></div>
+  <form method="post">{% csrf_token %}<input type="hidden" name="action" value="recommend_promotion"><label class="field"><span class="label">Why?</span><textarea name="text" rows="3" required></textarea></label><button class="btn block">Send to Chief Editor</button></form></div></div>
+<style>@media (max-width: 860px) { #authGrid { grid-template-columns: 1fr !important; } }</style>
+{% endblock %}

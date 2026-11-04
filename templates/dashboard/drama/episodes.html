@@ -1,0 +1,53 @@
+{% extends 'dashboard/base.html' %}{% load bv %}
+{% block title %}{{ drama.title }}{% endblock %}
+{% block back %}<a class="back" href="{% url 'dashboard:drama_list' %}"><i class="ph ph-caret-left"></i></a>{% endblock %}
+{% block heading %}<span class="truncate" style="display:block">{{ drama.title }}</span>{% endblock %}
+{% block actions %}<a class="btn sm" href="{% url 'dashboard:drama_episode_new' drama.pk %}"><i class="ph ph-plus"></i><span class="hide-mobile">Episode</span></a>{% endblock %}
+{% block content %}
+<div class="card row top" style="margin-bottom:12px">
+  {% cover drama 76 %}
+  <div class="grow">
+    <div class="row wrap" style="gap:4px">
+      <span class="chip {% if drama.kind == 'adapted' %}pink{% else %}grey{% endif %}">{{ drama.get_kind_display }}</span>
+      {% if drama.is_removed %}<span class="chip" style="color:var(--error)">Removed by Bonovela</span>{% elif drama.is_published %}<span class="chip green">Live in the app</span>{% else %}<span class="chip gold">Draft</span>{% endif %}
+    </div>
+    <p class="small muted clamp-2" style="margin:6px 0">{{ drama.synopsis|default:'No synopsis yet.' }}</p>
+    <div class="row wrap" style="gap:6px">
+      <a class="btn sm ghost" href="{% url 'dashboard:drama_edit' drama.pk %}"><i class="ph ph-pencil-simple"></i>Edit info</a>
+      <a class="btn sm ghost" href="{% url 'dashboard:drama_stats' drama.pk %}"><i class="ph ph-chart-bar"></i>Stats</a>
+      <form method="post" action="{% url 'dashboard:drama_action' drama.pk %}">{% csrf_token %}
+        {% if drama.is_published %}<button class="btn sm ghost" name="action" value="unpublish">Unpublish</button>
+        {% elif not drama.is_removed %}<button class="btn sm" name="action" value="publish">Go live</button>{% endif %}
+      </form>
+    </div>
+  </div>
+</div>
+
+<div class="notice" style="margin-bottom:12px">Episodes 1–{{ free }} are free. Later episodes cost {{ price }} coins, or are free for Plus members.</div>
+
+<div class="section-title" style="margin-top:4px"><h2>Episodes <span class="hint">({{ episodes|length }})</span></h2>
+  {% if drafts %}<form method="post" action="{% url 'dashboard:drama_episode_action' drama.pk 0 %}">{% csrf_token %}<button class="btn sm outline" name="action" value="publish_all">Publish {{ drafts }} draft{{ drafts|pluralize }}</button></form>{% endif %}
+</div>
+<div class="table-wrap"><table class="table">
+  <tr><th>#</th><th>Title</th><th class="hide-mobile">Length</th><th class="hide-mobile">Plays</th><th class="hide-mobile">Unlocks</th><th>Status</th><th></th></tr>
+  {% for e in episodes %}
+  <tr>
+    <td><b>{{ e.number }}</b>{% if e.number <= free %} <span class="tag">Free</span>{% endif %}</td>
+    <td><a href="{% url 'dashboard:drama_episode_edit' drama.pk e.pk %}">{{ e.title|default:'Untitled' }}</a>{% if not e.has_video %} <span class="chip" style="color:var(--error)">No video</span>{% endif %}</td>
+    <td class="hide-mobile small">{{ e.duration_seconds }}s</td>
+    <td class="hide-mobile">{{ e.plays|compact }}</td>
+    <td class="hide-mobile">{{ e.n_unlocks }}</td>
+    <td><span class="chip {% if e.status == 'published' %}green{% else %}gold{% endif %}">{{ e.get_status_display }}</span></td>
+    <td class="nowrap"><form method="post" action="{% url 'dashboard:drama_episode_action' drama.pk e.pk %}" style="display:inline">{% csrf_token %}
+      {% if e.status == 'published' %}<button class="icon-btn" name="action" value="unpublish" title="Move to drafts"><i class="ph ph-eye-slash"></i></button>
+      {% else %}<button class="icon-btn" name="action" value="publish" title="Publish"><i class="ph ph-paper-plane-tilt"></i></button>{% endif %}
+      <button class="icon-btn" name="action" value="delete" title="Delete" onclick="return confirm('Delete episode {{ e.number }}?')"><i class="ph ph-trash"></i></button>
+    </form></td>
+  </tr>
+  {% empty %}<tr><td colspan="7" class="muted" style="text-align:center;padding:30px">No episodes yet. <a class="pink" href="{% url 'dashboard:drama_episode_new' drama.pk %}">Upload episode 1</a></td></tr>{% endfor %}
+</table></div>
+
+<form method="post" action="{% url 'dashboard:drama_action' drama.pk %}" style="margin-top:24px;text-align:center">{% csrf_token %}
+  <button class="btn sm ghost" name="action" value="delete" style="color:var(--error)" onclick="return confirm('Delete “{{ drama.title|escapejs }}” and all its episodes?')"><i class="ph ph-trash"></i>Delete drama</button>
+</form>
+{% endblock %}

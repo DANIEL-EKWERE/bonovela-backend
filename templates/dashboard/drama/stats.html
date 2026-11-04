@@ -1,0 +1,19 @@
+{% extends 'dashboard/base.html' %}{% load bv %}
+{% block title %}Stats · {{ drama.title }}{% endblock %}
+{% block back %}<a class="back" href="{% url 'dashboard:drama_episodes' drama.pk %}"><i class="ph ph-caret-left"></i></a>{% endblock %}
+{% block heading %}<span class="truncate" style="display:block">{{ drama.title }}</span>{% endblock %}
+{% block content %}
+<div class="grid cols-4">
+  <div class="kpi"><div class="l">Plays</div><div class="v">{{ totals.plays|compact }}</div></div>
+  <div class="kpi"><div class="l">Saves</div><div class="v">{{ totals.saves|compact }}</div></div>
+  <div class="kpi"><div class="l">Episode unlocks</div><div class="v">{{ totals.unlocks|compact }}</div><div class="d">{{ totals.coins|compact }} coins spent</div></div>
+  <div class="kpi"><div class="l">Watched to the end</div><div class="v">{{ finish_rate }}%</div><div class="d">of viewers who started EP 1</div></div>
+</div>
+<div class="section-title"><h2>Retention by episode</h2></div>
+<div class="card">
+  {% if episodes %}
+  <div class="bars" style="height:200px">{% for e in episodes %}<div class="bar" title="EP {{ e.number }}: {{ e.plays }} plays ({{ e.retention }}%)"><span style="height:{{ e.retention }}%"></span>{% if forloop.first or forloop.last or e.number|divisibleby:10 %}<small>{{ e.number }}</small>{% else %}<small>&nbsp;</small>{% endif %}</div>{% endfor %}</div>
+  <p class="hint" style="margin-top:8px">Plays per episode as a share of episode 1. A sharp drop shows where viewers leave.</p>
+  {% else %}<p class="muted">Publish episodes to see retention.</p>{% endif %}
+</div>
+{% endblock %}

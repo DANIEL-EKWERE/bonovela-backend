@@ -19,8 +19,10 @@
     <a class="brand" href="{% url 'dashboard:home' %}"><img src="{% static 'img/logo_wordmark.png' %}" alt="Bonovela"></a>
     <div class="area">{{ area }}</div>
     {% for item in nav %}
-      <a class="side-link {% if item.active %}active{% endif %}" href="{{ item.url }}">
-        <i class="{% if item.active %}ph-fill{% else %}ph{% endif %} ph-{{ item.icon }}"></i>{{ item.label }}
+      {% if item.section %}<div class="area" style="margin-top:14px">{{ item.section }}</div>{% endif %}
+      <a class="side-link {% if item.active %}active{% endif %} {% if item.hint %}featured{% endif %}" href="{{ item.url }}">
+        <i class="{% if item.active %}ph-fill{% else %}ph{% endif %} ph-{{ item.icon }}"></i>
+        <span class="grow">{{ item.label }}{% if item.badge %} <span class="nav-badge">{{ item.badge }}</span>{% endif %}{% if item.hint %}<small>{{ item.hint }}</small>{% endif %}</span>
       </a>
     {% endfor %}
     {% if areas|length > 1 %}
@@ -67,12 +69,21 @@
 
   {% if nav %}
   <nav class="bottom-nav">
-    {% for item in nav %}
+    {% for item in nav %}{% if nav|length <= 5 or forloop.counter <= 4 %}
       <a class="{% if item.active %}active{% endif %}" href="{{ item.url }}">
-        <i class="{% if item.active %}ph-fill{% else %}ph{% endif %} ph-{{ item.icon }}"></i>{{ item.label }}
+        <i class="{% if item.active %}ph-fill{% else %}ph{% endif %} ph-{{ item.icon }}"></i><span class="truncate">{{ item.short|default:item.label }}</span>
       </a>
-    {% endfor %}
+    {% endif %}{% endfor %}
+    {% if nav|length > 5 %}<a href="#" data-open="navMore"><i class="ph ph-dots-three-circle"></i>More</a>{% endif %}
   </nav>
+  {% if nav|length > 5 %}
+  <div class="sheet" id="navMore"><div class="panel">
+    <div class="row between" style="margin-bottom:8px"><h2>{{ area }}</h2><button class="icon-btn" data-close><i class="ph ph-x"></i></button></div>
+    {% for item in nav %}
+      <a class="side-link {% if item.active %}active{% endif %}" href="{{ item.url }}"><i class="ph ph-{{ item.icon }}"></i><span class="grow">{{ item.label }}</span>{% if item.badge %}<span class="nav-badge">{{ item.badge }}</span>{% endif %}</a>
+    {% endfor %}
+  </div></div>
+  {% endif %}
   {% endif %}
 </div>
 

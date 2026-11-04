@@ -1,0 +1,31 @@
+{% extends 'dashboard/base.html' %}{% load bv %}
+{% block title %}Messages{% endblock %}
+{% block heading %}Communication Centre{% endblock %}
+{% block actions %}<button class="btn sm" data-open="compose"><i class="ph ph-paper-plane-tilt"></i><span class="hide-mobile">New</span></button>{% endblock %}
+{% block content %}
+<div class="card flush">
+  {% for m in msgs %}
+  <div class="list-item" style="align-items:flex-start;{% if m.unread %}background:var(--blush){% endif %}">
+    <span class="avatar">{{ m.sender.display_name|first|upper }}</span>
+    <div class="grow">
+      <b>{{ m.title }}</b> <span class="chip grey">{{ m.get_kind_display }}</span>
+      <div class="hint">{{ m.sender.display_name }} → {% if m.recipient %}{{ m.recipient.display_name }}{% else %}all Senior Editors{% endif %} · {{ m.created_at|date:"M d H:i" }}</div>
+      <p class="small" style="margin-top:4px;white-space:pre-line">{{ m.body }}</p>
+    </div>
+  </div>
+  {% empty %}<div style="padding:28px;text-align:center" class="muted">No messages yet.</div>{% endfor %}
+</div>
+<div class="sheet" id="compose"><div class="panel">
+  <div class="row between" style="margin-bottom:12px"><h2>New message</h2><button class="icon-btn" data-close><i class="ph ph-x"></i></button></div>
+  <form method="post">{% csrf_token %}
+    <label class="field"><span class="label">To</span><select name="to">
+      {% if lv == 'ce' %}<option value="team">All Senior Editors (announcement)</option>{% endif %}
+      {% for r in recipients %}<option value="{{ r.pk }}">{{ r.display_name }} ({{ r.get_role_display }})</option>{% endfor %}
+    </select></label>
+    <label class="field"><span class="label">Type</span><select name="kind">{% for k, l in kinds %}<option value="{{ k }}">{{ l }}</option>{% endfor %}</select></label>
+    <label class="field"><span class="label">Title</span><input type="text" name="title" maxlength="140" required></label>
+    <label class="field"><span class="label">Message</span><textarea name="body" rows="5" required></textarea></label>
+    <button class="btn block">Send</button>
+  </form>
+</div></div>
+{% endblock %}

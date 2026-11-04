@@ -107,7 +107,6 @@ class BonovelaAPITests(TestCase):
 
         self.assertEqual(c.post(f'/api/author/stories/{sid}/application/', {'message': 'Hi'}).status_code, 201)
         app = ContractApplication.objects.get(story_id=sid)
-        editorial.ae_review(app, User.objects.get(email='ae@bonovela.app'), approve=True)
         editorial.se_decide(app, User.objects.get(email='se@bonovela.app'), 'approve')
         editorial.ce_send_contract(app, User.objects.get(email='ce@bonovela.app'), signing_bonus_cents=5000)
         self.assertEqual(c.post(f'/api/author/stories/{sid}/sign/').status_code, 200)
@@ -129,3 +128,58 @@ class BonovelaAPITests(TestCase):
         romance = APIClient().get(f'/api/books/discover/?tab={story.genre.name}').data
         picks = next(s for s in romance if s['title'] == "Editor's Pick")
         self.assertEqual(picks['books'][0]['id'], story.id)
+
+
+class DramaAPITests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        call_command('seed_bonovela', chapters=2, episodes=8, verbosity=0)
+
+    def login(self, email='reader@bonovela.app'):
+        client = APIClient()
+        r = client.post('/api/auth/token/', {'email': email, 'password': 'bonovela1'}, format='json')
+        client.credentials(HTTP_AUTHORIZATION='Bearer ' + r.data['access'])
+        return client
+
+    def test_feed_sections(self):
+        r = APIClient().get('/api/dramas/')
+        self.assertEqual([s['title'] for s in r.data['sections']],
+                         ['Popular Picks', 'New Release', 'You May Also Like', 'Trending'])
+        first = r.data['sections'][0]['dramas'][0]
+        self.assertIn(first['kind'], ('drama', 'adapted'))
+        self.assertEqual(first['episode_count'], 8)
+
+    def test_locked_episode_unlock_and_creator_share(self):
+        from apps.drama.models import Drama
+        from apps.wallet.models import AuthorEarning
+        d = Drama.objects.first()
+        anon = APIClient().get(f'/api/dramas/{d.pk}/episodes/6/').data
+        self.assertTrue(anon['is_locked'])
+        self.assertEqual(anon['video_url'], '')
+        self.assertFalse(APIClient().get(f'/api/dramas/{d.pk}/episodes/1/').data['is_locked'])
+
+        c = self.login()
+        coins = c.get('/api/wallet/').data['coins']
+        r = c.post(f'/api/dramas/{d.pk}/episodes/6/unlock/')
+        self.assertEqual(r.status_code, 200, r.content)
+        self.assertFalse(r.data['is_locked'])
+        w = c.get('/api/wallet/').data
+        self.assertEqual(coins + 20, w['coins'] + w['bonus'] + 10)  # bonus first; 10 coins spent overall
+        self.assertTrue(AuthorEarning.objects.filter(author=d.creator, note__contains='EP 6').exists())
+        # Unlocking twice doesn't charge again.
+        c.post(f'/api/dramas/{d.pk}/episodes/6/unlock/')
+        w2 = c.get('/api/wallet/').data
+        self.assertEqual((w['coins'], w['bonus']), (w2['coins'], w2['bonus']))
+
+    def test_save_and_banners(self):
+        from apps.drama.models import Drama
+        d = Drama.objects.first()
+        c = self.login()
+        c.post(f'/api/dramas/{d.pk}/save/')
+        self.assertEqual([x['id'] for x in c.get('/api/dramas/saved/').data], [d.pk])
+        self.assertTrue(c.get(f'/api/dramas/{d.pk}/').data['is_saved'])
+        banners = APIClient().get('/api/banners/?placement=discover').data
+        self.assertTrue(banners)
+        APIClient().post(f'/api/banners/{banners[0]["id"]}/click/')
+        from apps.marketing.models import Banner
+        self.assertEqual(Banner.objects.get(pk=banners[0]['id']).clicks, 1)

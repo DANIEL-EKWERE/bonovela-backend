@@ -207,5 +207,5 @@ def store(request):
         'packages': CoinPackage.objects.all(),
         'plans': SubscriptionPlan.objects.all(),
         'gifts': GiftItem.objects.all(),
-        'codes': RedeemCode.objects.annotate(uses=Count('redeemed_by')),
+        'codes': RedeemCode.objects.annotate(n_uses=Count('redeemed_by')),
     })

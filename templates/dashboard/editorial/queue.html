@@ -1,12 +1,13 @@
 {% extends 'dashboard/base.html' %}{% load bv %}
-{% block title %}Review queue{% endblock %}
-{% block heading %}Review queue{% endblock %}
+{% block title %}Submission History{% endblock %}
+{% block heading %}Submission History{% endblock %}
 {% block content %}
 <form method="get" style="margin-bottom:12px"><input type="hidden" name="tab" value="{{ tab }}"><input type="text" name="q" value="{{ q }}" placeholder="Search title or author"></form>
 <div class="card flush">
   <div class="tabs">
     <a class="{% if tab == 'mine' %}active{% endif %}" href="?tab=mine">Needs me</a>
     <a class="{% if tab == 'open' %}active{% endif %}" href="?tab=open">All open</a>
+    <a class="{% if tab == 'flagged' %}active{% endif %}" href="?tab=flagged">⚑ Flagged{% if flagged %} <span class="badge">{{ flagged }}</span>{% endif %}</a>
     <a class="{% if tab == 'closed' %}active{% endif %}" href="?tab=closed">Decided</a>
   </div>
   {% for a in apps %}
@@ -14,13 +15,11 @@
       {% cover a.story 44 %}
       <div class="grow">
         <b class="truncate" style="display:block">{{ a.story.display_title }}</b>
-        <div class="hint">{{ a.story.author.display_name }} · {{ a.story.genre|default:'—' }} · {{ a.story.content_rating }}</div>
-        <div class="hint">{% if a.ae %}AE {{ a.ae.display_name }}{% endif %}{% if a.se %} · SE {{ a.se.display_name }}{% endif %}{% if a.ce %} · CE {{ a.ce.display_name }}{% endif %}</div>
+        <div class="hint">{{ a.story.author.display_name }} · {{ a.story.genre|default:'—' }} · editor {{ a.story.editor.display_name|default:'—' }}</div>
+        <div class="hint">{% if a.se %}SE {{ a.se.display_name }}{% endif %}{% if a.ce %} · CE {{ a.ce.display_name }}{% endif %}</div>
       </div>
-      <div style="text-align:right"><span class="chip {% if a.status == 'signed' %}green{% elif a.status == 'rejected' %}grey{% else %}gold{% endif %}">{{ a.get_status_display }}</span><div class="hint">{{ a.updated_at|date:"M d" }}</div></div>
+      <div style="text-align:right">{% if a.prior_flag %}<span class="chip {% if a.prior_flag == 'rejected' %}red{% else %}gold{% endif %}" title="Matches a book an editor turned down before"><i class="ph-fill ph-flag"></i> {% if a.prior_flag == 'rejected' %}Rejected before{% else %}Sent back before{% endif %}</span><br>{% endif %}<span class="chip {% if a.status == 'signed' %}green{% elif a.status == 'rejected' %}grey{% else %}gold{% endif %}">{{ a.get_status_display }}</span><div class="hint">{{ a.updated_at|date:"M d" }}</div></div>
     </a>
-  {% empty %}
-    <div style="padding:28px;text-align:center" class="muted">No applications here.</div>
-  {% endfor %}
+  {% empty %}<div style="padding:28px;text-align:center" class="muted">No applications here.</div>{% endfor %}
 </div>
 {% endblock %}

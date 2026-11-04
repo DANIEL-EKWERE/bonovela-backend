@@ -1,0 +1,26 @@
+{% extends 'dashboard/base.html' %}{% load bv %}
+{% block title %}Book Management{% endblock %}
+{% block heading %}Book Management{% endblock %}
+{% block content %}
+<form method="get" class="row wrap" style="gap:8px;margin-bottom:12px"><input type="hidden" name="f" value="{{ f }}">
+  <input type="text" name="q" value="{{ q }}" placeholder="Search title, author or email" style="flex:2;min-width:180px">
+  {% if editors %}<select name="editor" style="flex:1;min-width:150px" onchange="this.form.submit()"><option value="">All editors</option>{% for e in editors %}<option value="{{ e.pk }}" {% if e.pk|stringformat:"s" == editor_id %}selected{% endif %}>{{ e.display_name }}</option>{% endfor %}</select>{% endif %}
+</form>
+<div class="card flush">
+  <div class="tabs" style="overflow-x:auto">{% for k, l in tabs %}<a class="{% if f == k %}active{% endif %} nowrap" href="?f={{ k }}">{{ l }}</a>{% endfor %}</div>
+  <div class="table-wrap"><table class="table" style="border-radius:0">
+    <tr><th>Book</th><th class="hide-mobile">Editor</th><th>Chapters</th><th class="hide-mobile">Words</th><th class="hide-mobile">Last update</th><th class="hide-mobile">To review</th>{% if f == 'unassigned' %}<th>Assign</th>{% endif %}</tr>
+    {% for b in books %}<tr>
+      <td><a class="row" href="{% url 'dashboard:editorial_book' b.pk %}" style="gap:10px">{% cover b 34 %}<span style="min-width:0"><b class="truncate" style="display:block;max-width:240px">{{ b.title }}</b><span class="hint">{{ b.author.display_name }}</span>
+        {% if b.is_removed %}<span class="chip red">Suspended</span>{% elif b.needs_intervention %}<span class="chip red">Needs attention</span>{% elif b.risk == 'at_risk' %}<span class="chip red">At risk</span>{% elif b.risk == 'slowing' %}<span class="chip gold">Slowing</span>{% elif b.status == 'completed' %}<span class="chip green">Completed</span>{% endif %}
+        {% if b.is_signed %}<span class="chip pink">Signed</span>{% endif %}</span></a></td>
+      <td class="hide-mobile small">{{ b.editor.display_name|default:'—' }}</td>
+      <td>{{ b.n_chapters }} <span class="hint">+{{ b.updates_7d }}/7d</span></td>
+      <td class="hide-mobile">{{ b.n_words|default:0|compact }}</td>
+      <td class="hide-mobile small nowrap">{{ b.last_update|date:"M d"|default:'—' }}</td>
+      <td class="hide-mobile">{% if b.pending_reviews %}<span class="chip gold">{{ b.pending_reviews }}</span>{% else %}—{% endif %}</td>
+      {% if f == 'unassigned' %}<td><form method="post" action="{% url 'dashboard:editorial_book_action' b.pk %}" class="row" style="gap:4px">{% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}"><select name="editor" style="width:auto;padding:6px">{% for e in editors %}<option value="{{ e.pk }}">{{ e.display_name }}</option>{% endfor %}</select><button class="btn sm" name="action" value="assign">{% if lv == 'se' %}Take{% else %}Assign{% endif %}</button></form></td>{% endif %}
+    </tr>{% empty %}<tr><td colspan="7" class="muted" style="text-align:center;padding:28px">No books here.</td></tr>{% endfor %}
+  </table></div>
+</div>
+{% endblock %}

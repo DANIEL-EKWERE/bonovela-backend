@@ -301,8 +301,20 @@ def signing(request, pk):
             elif not story.is_info_complete or published < 3:
                 messages.error(request, 'Complete your book information and publish at least 3 chapters first.')
             else:
-                ContractApplication.objects.create(story=story, message=request.POST.get('message', '')[:2000])
+                from apps.editorial.history import submit
+                submit(story, request, request.POST.get('message', ''))
                 messages.success(request, 'Applied! Editors usually reply within 30 business days.')
+        elif action == 'completion':
+            from apps.editorial.models import CompletionApplication as Completion
+            open_ = story.completion_applications.filter(
+                status__in=[Completion.STATUS_PENDING, Completion.STATUS_RECOMMENDED]).exists()
+            if story.status != Story.STATUS_COMPLETED or not story.is_signed:
+                messages.error(request, 'Only signed, completed books can apply.')
+            elif open_:
+                messages.error(request, 'This book already has a completion review in progress.')
+            else:
+                Completion.objects.create(story=story, message=request.POST.get('message', '')[:2000])
+                messages.success(request, 'Applied! Your editor will review the full manuscript.')
         elif action == 'sign' and app and app.status == ContractApplication.STATUS_CONTRACT_SENT:
             if not request.POST.get('agree'):
                 messages.error(request, 'Tick the box to accept the contract terms.')
@@ -310,8 +322,11 @@ def signing(request, pk):
                 editorial.sign(app)
                 messages.success(request, f'"{story.display_title}" is signed and now visible in the app 🎉')
         return redirect('dashboard:author_signing', story.pk)
+    completion = story.completion_applications.first()
     return render(request, 'dashboard/author/signing.html', {
         'story': story, 'app': story.applications.first(), 'published': published,
+        'completion': completion,
+        'completion_open': completion and completion.status in ('pending', 'recommended'),
         'ready': story.is_info_complete and published >= 3,
     })
 
@@ -391,8 +406,8 @@ def income(request):
         totals[e.type] += e.amount_cents
     colors = ['#7B3FF2,#A45CFF', '#FF7A7A,#FF4B4B', '#2BD96B,#16B24F', '#FFC23D,#FF8A1F',
               '#2EE6E0,#1AA6F0', '#3FA2FF,#4F5BFF', '#FF4FD8,#B34BFF', '#4C6BFF,#8A4BFF']
-    cards = [{'key': k, 'label': label, 'cents': totals[k], 'colors': colors[i]}
-             for i, (k, label) in enumerate(AuthorEarning.TYPE_CHOICES)]
+    cards = [{'key': k, 'label': label, 'cents': totals[k], 'colors': colors[i % len(colors)]}
+             for i, (k, label) in enumerate(AuthorEarning.TYPE_CHOICES) if k != 'editor_commission']
 
     payout = PayoutMethod.objects.filter(author=request.user).first()
     payout_form = PayoutForm(request.POST or None, instance=payout)

@@ -37,6 +37,8 @@ INSTALLED_APPS = [
     'apps.wallet',
     'apps.engagement',
     'apps.editorial',
+    'apps.drama',
+    'apps.marketing',
     'apps.api',
     'apps.dashboard',
 ]
@@ -49,6 +51,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'apps.users.ip.IPTrackingMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
@@ -145,4 +148,23 @@ BONOVELA = {
     'PROMOTION_DAYS': 7,  # default length of a CE-approved promotion
     'CHECKIN_REWARDS': [15, 20, 20, 20, 20, 20, 20],
     'BONUS_EXPIRY_DAYS': 3,
+    'FREE_EPISODES': 5,  # dramas: episodes 1–5 free
+    'EPISODE_PRICE': 10,  # coins per locked episode (free with Plus)
+    'CREATOR_SHARE': 0.5,  # drama creators' share of episode unlocks
+    'PAYOUT_MINIMUM_CENTS': 1000,  # Finance pays balances of $10 or more
+    # Editorial commission: share of a book's coin revenue (1 coin ≈ 1¢).
+    # Set by the platform admin; editors cannot change it.
+    'EDITOR_COMMISSION': {'se': 0.05, 'ce': 0.01},
+    'AUTHOR_INACTIVE_DAYS': 7,  # flagged "slowing down"
+    'AUTHOR_AT_RISK_DAYS': 14,  # flagged "at risk"
+    'EDITOR_OVERLOAD': 1.5,  # an SE with books above 1.5× the average = overloaded
 }
+
+# AI Completion Review (optional). With no key the review runs the built-in
+# manuscript checks only.
+ANTHROPIC_API_KEY = config('ANTHROPIC_API_KEY', default='')
+AI_REVIEW_MODEL = config('AI_REVIEW_MODEL', default='claude-opus-5-5')
+
+# Set True only behind a reverse proxy that sets X-Forwarded-For; otherwise
+# clients could fake their IP.
+TRUST_X_FORWARDED_FOR = config('TRUST_X_FORWARDED_FOR', default=False, cast=bool)

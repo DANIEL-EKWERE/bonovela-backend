@@ -1,0 +1,29 @@
+{% extends 'dashboard/base.html' %}{% load bv %}
+{% block title %}Plagiarism Checker{% endblock %}
+{% block heading %}Plagiarism Checker{% endblock %}
+{% block content %}
+<div class="notice" style="margin-bottom:12px">Compares chapters with every other book on Bonovela and ignores common phrases. It doesn't search the open web. Treat a match as a lead to check, not proof.</div>
+<div class="grid cols-2 stack-sm">
+  <form class="card" method="get"><h3>Check a book</h3><div class="row" style="gap:6px;margin-top:8px"><select name="book">{% for b in books %}<option value="{{ b.pk }}" {% if story and b.pk == story.pk %}selected{% endif %}>{{ b.title }}</option>{% endfor %}</select><button class="btn sm">Check</button></div></form>
+  <form class="card" method="post">{% csrf_token %}<h3>Check pasted text</h3><textarea name="text" rows="3" style="margin-top:8px" placeholder="Paste a chapter or passage (at least a paragraph)">{{ text }}</textarea><button class="btn sm" style="margin-top:6px">Check text</button></form>
+</div>
+{% if report %}
+<div class="section-title"><h2>{{ story.title }}</h2><span class="hint">{{ report.checked }} chapters checked</span></div>
+{% if report.rows %}
+<div class="table-wrap"><table class="table">
+  <tr><th>Chapter</th><th>Overlap</th><th>Matches</th><th class="hide-mobile">Who was first</th><th></th></tr>
+  {% for r in report.rows %}<tr><td><a href="{% url 'dashboard:editorial_book' story.pk %}?chapter={{ r.chapter.number }}">Ch. {{ r.chapter.number }}</a></td>
+    <td><b class="{% if r.pct >= 40 %}pink{% endif %}">{{ r.pct }}%</b></td>
+    <td>{% if r.match %}<a href="{% url 'dashboard:editorial_book' r.match.story_id %}?chapter={{ r.match.number }}">{{ r.match.story.title|truncatechars:34 }} · ch. {{ r.match.number }}</a>{% endif %}</td>
+    <td class="hide-mobile small">{% if r.ours_first %}This book{% else %}The other book{% endif %}</td>
+    <td><a class="btn sm ghost" href="{% url 'dashboard:editorial_escalations' %}?story={{ story.pk }}&category=plagiarism">Escalate</a></td></tr>{% endfor %}
+</table></div>
+{% else %}<div class="card"><i class="ph-fill ph-shield-check" style="color:var(--success);font-size:22px"></i> No passages shared with other Bonovela books.</div>{% endif %}
+{% endif %}
+{% if text_result %}
+<div class="section-title"><h2>Pasted text</h2></div>
+{% if text_result.too_short %}<div class="card muted">Paste a longer passage.</div>
+{% elif text_result.rows %}<div class="card flush">{% for r in text_result.rows %}<a class="list-item" href="{% url 'dashboard:editorial_book' r.match.story_id %}?chapter={{ r.match.number }}"><div class="grow"><b>{{ r.match.story.title }}</b> · chapter {{ r.match.number }}</div><b>{{ r.pct }}%</b></a>{% endfor %}</div>
+{% else %}<div class="card">No matches in the catalogue.</div>{% endif %}
+{% endif %}
+{% endblock %}

@@ -1,0 +1,17 @@
+{% extends 'dashboard/base.html' %}{% load bv %}
+{% block title %}AI Completion Review{% endblock %}
+{% block heading %}AI Completion Review{% endblock %}
+{% block content %}
+<div class="notice" style="margin-bottom:12px">Authors apply here when a book is finished. Each application gets a full-manuscript analysis (length, numbering, gaps, ending, repeated chapters, matches with other books){% if ai_enabled %} plus a written assessment from Claude{% else %}. Add <code>ANTHROPIC_API_KEY</code> to the server's .env to add a written AI assessment{% endif %}. Editors recommend; the Chief Editor approves the Completion Bonus.</div>
+<div class="card flush">
+  <div class="tabs"><a class="{% if tab == 'open' %}active{% endif %}" href="?tab=open">Open</a><a class="{% if tab != 'open' %}active{% endif %}" href="?tab=done">Decided</a></div>
+  {% for a in apps %}
+  <a class="list-item" href="{% url 'dashboard:editorial_completion_detail' a.pk %}">
+    {% cover a.story 44 %}
+    <div class="grow"><b class="truncate" style="display:block">{{ a.story.title }}</b><div class="hint">{{ a.story.author.display_name }} · editor {{ a.story.editor.display_name|default:'—' }} · applied {{ a.created_at|date:"M d" }}</div>
+      {% if a.analysed_at %}<div class="hint">Analysed {{ a.analysed_at|timesince }} ago · {{ a.analysis.fails }} fail, {{ a.analysis.warns }} warn</div>{% endif %}</div>
+    <span class="chip {% if a.status == 'approved' %}green{% elif a.status == 'rejected' %}grey{% elif a.status == 'changes' %}red{% else %}gold{% endif %}">{{ a.get_status_display }}</span>
+  </a>
+  {% empty %}<div style="padding:28px;text-align:center" class="muted">No completion applications.</div>{% endfor %}
+</div>
+{% endblock %}

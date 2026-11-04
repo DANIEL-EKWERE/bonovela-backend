@@ -2,7 +2,6 @@ from django.contrib import messages
 from django.contrib.auth import views as auth_views
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import redirect
-from django.urls import NoReverseMatch, reverse
 
 
 class LoginView(auth_views.LoginView):
@@ -13,7 +12,10 @@ class LoginView(auth_views.LoginView):
         if form.get_user().is_suspended:
             messages.error(self.request, 'This account is suspended.')
             return redirect('dashboard:login')
-        return super().form_valid(form)
+        response = super().form_valid(form)
+        from apps.users.ip import record
+        record(form.get_user(), self.request, 'login')
+        return response
 
 
 @login_required
@@ -23,8 +25,11 @@ def home(request):
     if user.is_platform_admin:
         return redirect('dashboard:admin_home')
     if user.is_editor:
-        try:
-            return redirect(reverse('dashboard:editorial_home'))
-        except NoReverseMatch:  # editorial area not routed yet
-            pass
+        return redirect('dashboard:editorial_home')
+    if user.is_drama_creator:
+        return redirect('dashboard:drama_list')
+    if user.is_marketing:
+        return redirect('dashboard:marketing_home')
+    if user.is_finance:
+        return redirect('dashboard:finance_home')
     return redirect('dashboard:author_stories')

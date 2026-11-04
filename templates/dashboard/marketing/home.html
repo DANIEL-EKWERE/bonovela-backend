@@ -1,0 +1,26 @@
+{% extends 'dashboard/base.html' %}{% load bv %}
+{% block title %}Marketing{% endblock %}
+{% block heading %}Marketing{% endblock %}
+{% block content %}
+<div class="grid cols-4">
+  <div class="kpi"><div class="l">Readers &amp; authors</div><div class="v">{{ users|compact }}</div><div class="d">+{{ new_week }} this week · +{{ new_month }} in 30 days</div></div>
+  <div class="kpi"><div class="l">Active this week</div><div class="v">{{ active_week|compact }}</div></div>
+  <div class="kpi"><div class="l">Paying users</div><div class="v">{{ payer_rate }}%</div><div class="d">have topped up at least once</div></div>
+  <a class="kpi" href="{% url 'dashboard:marketing_banners' %}"><div class="l">Live banners</div><div class="v">{{ live_banners }}</div><div class="d">{{ code_uses }} code redemptions · {{ broadcasts_month }} broadcasts (30d)</div></a>
+</div>
+
+<div class="section-title"><h2>Sign-ups · last 14 days</h2></div>
+<div class="card"><div class="bars">{% for d in signups %}<div class="bar" title="{{ d.label }}: {{ d.value }}"><span style="height:{{ d.pct }}%"></span><small>{{ d.label|slice:"4:" }}</small></div>{% endfor %}</div></div>
+
+<div class="grid cols-2 stack-sm" style="margin-top:12px">
+  <div>
+    <div class="section-title" style="margin-top:0"><h2>Best banners</h2><a class="small pink" href="{% url 'dashboard:marketing_banners' %}">All ›</a></div>
+    <div class="card flush">{% for b in top_banners %}<div class="list-item"><span class="cover pal-{{ b.color_index }}" style="--w:40px"></span><div class="grow"><b class="truncate" style="display:block">{{ b.title }}</b><div class="hint">{{ b.get_placement_display }}</div></div><div style="text-align:right"><b>{{ b.ctr }}%</b><div class="hint">{{ b.clicks }} / {{ b.impressions|compact }}</div></div></div>
+      {% empty %}<div style="padding:20px" class="muted">No banners yet.</div>{% endfor %}</div>
+  </div>
+  <div>
+    <div class="section-title" style="margin-top:0"><h2>Readers by type</h2></div>
+    <div class="card">{% for r in readers_by_type %}<div class="row between" style="padding:6px 0"><span>{% if r.reader_type == 'female' %}Female novels{% elif r.reader_type == 'male' %}Male novels{% else %}Not chosen{% endif %}</span><b>{{ r.n }}</b></div>{% endfor %}</div>
+  </div>
+</div>
+{% endblock %}
