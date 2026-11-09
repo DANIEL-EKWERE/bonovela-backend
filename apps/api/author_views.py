@@ -195,7 +195,8 @@ def income(request):
         'month': month,
         'total_cents': sum(e.amount_cents for e in qs),
         'month_cents': sum(by_type.values()),
-        'types': [{'type': k, 'label': label, 'amount_cents': by_type[k]} for k, label in AuthorEarning.TYPE_CHOICES],
+        'types': [{'type': k, 'label': label, 'amount_cents': by_type[k]} for k, label in AuthorEarning.TYPE_CHOICES
+                  if k not in AuthorEarning.RETIRED_TYPES],
     })
 
 

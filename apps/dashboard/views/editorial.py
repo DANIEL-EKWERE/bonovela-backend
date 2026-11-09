@@ -9,7 +9,7 @@ from functools import wraps
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, ValidationError
-from django.db.models import Count, Q
+from django.db.models import Count, Prefetch, Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
@@ -18,6 +18,7 @@ from apps.catalog.models import Chapter, Story
 from apps.editorial import services, team
 from apps.editorial.models import BookTransfer, ContractApplication as App
 from apps.editorial.models import EditorialNote, Promotion, PromotionRequest, Recommendation, TeamMessage
+from apps.editorial.models import Shelf, ShelfBook, ShelfCategory
 from apps.engagement.models import InboxMessage
 from apps.users.models import User
 
@@ -315,13 +316,8 @@ def application(request, pk):
                 ok={'se_approve': 'Recommended — the Chief Editor will send the contract.',
                     'se_revise': 'Sent back to the author.', 'se_reject': 'Rejected.'}[action])
         elif action == 'ce_contract':
-            try:
-                bonus = int(float(request.POST.get('signing_bonus') or 0) * 100)
-            except ValueError:
-                bonus = 0
             run(request, services.ce_send_contract, app, request.user,
-                contract_type=request.POST.get('contract_type', 'non_exclusive'), signing_bonus_cents=bonus,
-                ok='Contract sent to the author.')
+                contract_type=request.POST.get('contract_type', 'non_exclusive'), ok='Contract sent to the author.')
         return redirect('dashboard:editorial_application', app.pk)
 
     chapters = story.chapters.filter(status=Chapter.STATUS_PUBLISHED).order_by('number')
@@ -332,6 +328,50 @@ def application(request, pk):
         'chapters': chapters, 'reading': reading or chapters.first(),
         'notes': story.editorial_notes.select_related('editor')[:30],
         'can_act': app.status in ACTIONABLE[lv],
+    })
+
+
+# ── Curated shelves (editors suggest, CE approves and arranges) ──────────────
+@editor_area
+def shelves(request):
+    kind = request.GET.get('kind', ShelfCategory.KIND_NOVEL)
+    if kind not in dict(ShelfCategory.KIND_CHOICES):
+        kind = ShelfCategory.KIND_NOVEL
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        user = request.user
+        if action == 'add':
+            shelf = get_object_or_404(Shelf, pk=request.POST.get('shelf'))
+            story = get_object_or_404(team.scope_books(user), pk=request.POST.get('story'))
+            run(request, services.add_to_shelf, user, shelf, story,
+                ok='Added to the shelf.' if request.level == team.CE else 'Sent to the Chief Editor for approval.')
+        elif action in ('approve', 'reject'):
+            entry = get_object_or_404(ShelfBook, pk=request.POST.get('entry'))
+            run(request, services.decide_shelf_book, user, entry, approve=action == 'approve',
+                ok='Approved.' if action == 'approve' else 'Rejected.')
+        elif action == 'remove':
+            run(request, services.remove_from_shelf, user, get_object_or_404(ShelfBook, pk=request.POST.get('entry')),
+                ok='Removed from the shelf.')
+        elif action in ('up', 'down', 'rename'):
+            model = {'book': ShelfBook, 'shelf': Shelf, 'category': ShelfCategory}.get(request.POST.get('type'))
+            if model:
+                obj = get_object_or_404(model, pk=request.POST.get('id'))
+                if action == 'rename':
+                    run(request, services.rename, user, obj, request.POST.get('name', ''), request.POST.get('layout'),
+                        ok='Saved.')
+                else:
+                    run(request, services.move, user, obj, -1 if action == 'up' else 1, ok='Moved.')
+        return redirect(f"{request.path}?kind={kind}")
+
+    categories = ShelfCategory.objects.filter(kind=kind).prefetch_related(
+        Prefetch('shelves__entries', queryset=ShelfBook.objects.exclude(status=ShelfBook.STATUS_REJECTED)
+                 .select_related('story', 'added_by').order_by('order', 'pk')))
+    books = (team.scope_books(request.user).filter(is_signed=True, is_removed=False,
+                                                   is_short=kind == ShelfCategory.KIND_SHORT).order_by('title'))
+    return render(request, 'dashboard/editorial/shelves.html', {
+        'categories': categories, 'kind': kind, 'kinds': ShelfCategory.KIND_CHOICES, 'books': books,
+        'is_chief': request.level == team.CE, 'layouts': Shelf.LAYOUT_CHOICES,
+        'pending': ShelfBook.objects.filter(status=ShelfBook.STATUS_PENDING, shelf__category__kind=kind).count(),
     })
 
 

@@ -33,7 +33,6 @@
       {% if app.status == 'pending' or app.status == 'recommended' %}
         <label class="field"><span class="label">Note</span><textarea name="note" rows="3" placeholder="For the CE, or for the author if you ask for changes"></textarea></label>
         {% if lv == 'ce' %}
-          <label class="field"><span class="label">Completion Bonus (USD)</span><input type="number" name="bonus" min="0" step="0.01" placeholder="0.00"></label>
           <div class="grid cols-3"><button class="btn ghost" name="action" value="reject">Reject</button><button class="btn outline" name="action" value="changes">Needs changes</button><button class="btn" name="action" value="approve">Approve</button></div>
         {% else %}
           <div class="grid cols-2"><button class="btn outline" name="action" value="changes">Needs changes</button><button class="btn" name="action" value="recommend">Recommend to CE</button></div>

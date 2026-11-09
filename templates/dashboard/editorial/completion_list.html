@@ -2,7 +2,7 @@
 {% block title %}AI Completion Review{% endblock %}
 {% block heading %}AI Completion Review{% endblock %}
 {% block content %}
-<div class="notice" style="margin-bottom:12px">Authors apply here when a book is finished. Each application gets a full-manuscript analysis (length, numbering, gaps, ending, repeated chapters, matches with other books){% if ai_enabled %} plus a written assessment from Claude{% else %}. Add <code>ANTHROPIC_API_KEY</code> to the server's .env to add a written AI assessment{% endif %}. Editors recommend; the Chief Editor approves the Completion Bonus.</div>
+<div class="notice" style="margin-bottom:12px">Authors apply here when a book is finished. Each application gets a full-manuscript analysis (length, numbering, gaps, ending, repeated chapters, matches with other books){% if ai_enabled %} plus a written assessment from Claude{% else %}. Add <code>ANTHROPIC_API_KEY</code> to the server's .env to add a written AI assessment{% endif %}. Editors recommend; the Chief Editor approves.</div>
 <div class="card flush">
   <div class="tabs"><a class="{% if tab == 'open' %}active{% endif %}" href="?tab=open">Open</a><a class="{% if tab != 'open' %}active{% endif %}" href="?tab=done">Decided</a></div>
   {% for a in apps %}

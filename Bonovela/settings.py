@@ -86,9 +86,10 @@ WSGI_APPLICATION = 'Bonovela.wsgi.application'
 # SQLite in development; set DATABASE_URL (Postgres) in production.
 DATABASES = {
     'default': dj_database_url.parse(
-        config('DATABASE_URL', default='') or f'sqlite:///{BASE_DIR / "db.sqlite3"}',
-        conn_max_age=600,
-        conn_health_checks=True,
+        # config('DATABASE_URL', default='') or f'sqlite:///{BASE_DIR / "db.sqlite3"}',
+        # conn_max_age=600,
+        # conn_health_checks=True,
+        "postgresql://bonovela_db_user:uITdUQt1p10swTOPpsfjZnZv0KD3I0vQ@dpg-dbomg82jnfac73fckrc0-a.oregon-postgres.render.com/bonovela_db"
     )
 }
 
@@ -180,6 +181,7 @@ BONOVELA = {
     'FREE_EPISODES': 5,  # dramas: episodes 1–5 free
     'EPISODE_PRICE': 10,  # coins per locked episode (free with Plus)
     'CREATOR_SHARE': 0.5,  # drama creators' share of episode unlocks
+    'MIN_LIVE_CHAPTERS': 20,  # signed novels go live in the app from this many published chapters
     'PAYOUT_MINIMUM_CENTS': 1000,  # Finance pays balances of $10 or more
     # Editorial commission: share of a book's coin revenue (1 coin ≈ 1¢).
     # Set by the platform admin; editors cannot change it.

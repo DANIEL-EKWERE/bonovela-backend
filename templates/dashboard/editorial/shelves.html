@@ -1,0 +1,72 @@
+{% extends 'dashboard/base.html' %}{% load bv %}
+{% block title %}App Shelves{% endblock %}
+{% block heading %}App Shelves{% endblock %}
+{% block content %}
+<div class="notice" style="margin-bottom:12px">{% if is_chief %}Shelves appear in the app in this order. Rename them, reorder them and choose their books. Books editors suggest wait here for your approval.{% else %}Suggest signed books for the app's shelves. The Chief Editor approves them before they go live.{% endif %} Empty spaces on a shelf are filled with popular books from the same genre.</div>
+
+<div class="tabs" style="margin-bottom:12px">{% for k, l in kinds %}<a class="{% if kind == k %}active{% endif %}" href="?kind={{ k }}">{{ l }}</a>{% endfor %}</div>
+{% if is_chief and pending %}<p class="small" style="margin-bottom:10px"><span class="chip gold">{{ pending }} waiting for approval</span></p>{% endif %}
+
+{% for cat in categories %}
+<div class="card" style="margin-bottom:14px">
+  <div class="row between" style="margin-bottom:6px">
+    {% if is_chief %}
+      <form method="post" class="row grow" style="gap:6px">{% csrf_token %}<input type="hidden" name="type" value="category"><input type="hidden" name="id" value="{{ cat.pk }}">
+        <input type="text" name="name" value="{{ cat.name }}" maxlength="60" style="font-weight:700;font-size:17px;max-width:320px">
+        <button class="btn sm ghost" name="action" value="rename">Save</button>
+        <button class="icon-btn" name="action" value="up" title="Move up" {% if forloop.first %}disabled{% endif %}><i class="ph ph-arrow-up"></i></button>
+        <button class="icon-btn" name="action" value="down" title="Move down" {% if forloop.last %}disabled{% endif %}><i class="ph ph-arrow-down"></i></button>
+      </form>
+    {% else %}<h2>{{ cat.name }}</h2>{% endif %}
+  </div>
+
+  {% for shelf in cat.shelves.all %}
+  <div style="border-top:1px solid var(--divider);padding:12px 0">
+    {% if is_chief %}
+      <form method="post" class="row wrap" style="gap:6px;margin-bottom:8px">{% csrf_token %}<input type="hidden" name="type" value="shelf"><input type="hidden" name="id" value="{{ shelf.pk }}">
+        <input type="text" name="name" value="{{ shelf.title }}" maxlength="60" style="font-weight:600;max-width:260px">
+        <select name="layout" style="max-width:200px">{% for k, l in layouts %}<option value="{{ k }}" {% if shelf.layout == k %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+        <button class="btn sm ghost" name="action" value="rename">Save</button>
+        <button class="icon-btn" name="action" value="up" title="Move up" {% if forloop.first %}disabled{% endif %}><i class="ph ph-arrow-up"></i></button>
+        <button class="icon-btn" name="action" value="down" title="Move down" {% if forloop.last %}disabled{% endif %}><i class="ph ph-arrow-down"></i></button>
+      </form>
+    {% else %}<h3 style="margin-bottom:8px">{{ shelf.title }} <span class="hint">· {{ shelf.get_layout_display }}</span></h3>{% endif %}
+
+    <div class="row wrap" style="gap:12px;align-items:flex-start">
+      {% for e in shelf.entries.all %}{% if e.status == 'approved' %}
+        <div style="width:76px">
+          {% cover e.story 76 %}
+          <div class="tiny truncate" title="{{ e.story.display_title }}">{{ e.story.display_title }}</div>
+          {% if is_chief %}
+          <form method="post" class="row" style="gap:2px;margin-top:2px">{% csrf_token %}<input type="hidden" name="type" value="book"><input type="hidden" name="id" value="{{ e.pk }}"><input type="hidden" name="entry" value="{{ e.pk }}">
+            <button class="icon-btn" style="width:24px;height:24px" name="action" value="up" title="Earlier"><i class="ph ph-caret-left"></i></button>
+            <button class="icon-btn" style="width:24px;height:24px" name="action" value="down" title="Later"><i class="ph ph-caret-right"></i></button>
+            <button class="icon-btn" style="width:24px;height:24px;color:var(--error)" name="action" value="remove" title="Remove"><i class="ph ph-x"></i></button>
+          </form>
+          {% endif %}
+        </div>
+      {% endif %}{% empty %}<span class="hint">No picks yet. The app fills this shelf automatically.</span>{% endfor %}
+    </div>
+
+    {% for e in shelf.entries.all %}{% if e.status == 'pending' %}
+      <div class="list-item" style="padding:8px 0">
+        {% cover e.story 36 %}
+        <div class="grow"><b class="small">{{ e.story.display_title }}</b><div class="hint">Suggested by {{ e.added_by.display_name|default:'—' }} · {{ e.created_at|date:"M d" }}</div></div>
+        {% if is_chief %}
+          <form method="post" class="row" style="gap:6px">{% csrf_token %}<input type="hidden" name="entry" value="{{ e.pk }}">
+            <button class="btn sm ghost" name="action" value="reject">Reject</button><button class="btn sm" name="action" value="approve">Approve</button></form>
+        {% else %}<span class="chip gold">Pending</span>{% endif %}
+      </div>
+    {% endif %}{% endfor %}
+
+    {% if books %}
+    <form method="post" class="row" style="gap:6px;margin-top:8px">{% csrf_token %}<input type="hidden" name="shelf" value="{{ shelf.pk }}">
+      <select name="story" required style="max-width:320px"><option value="">Add a book…</option>{% for b in books %}<option value="{{ b.pk }}">{{ b.display_title }}</option>{% endfor %}</select>
+      <button class="btn sm outline" name="action" value="add">{% if is_chief %}Add{% else %}Suggest{% endif %}</button>
+    </form>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% endfor %}
+{% endblock %}

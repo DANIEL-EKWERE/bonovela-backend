@@ -48,6 +48,7 @@ urlpatterns = [
     path('editorial/performance/', people.performance, name='editorial_performance'),
     path('editorial/recruitment/', people.recruitment, name='editorial_recruitment'),
     path('editorial/promotions/', editorial.promotions, name='editorial_promotions'),
+    path('editorial/shelves/', editorial.shelves, name='editorial_shelves'),
     path('editorial/commission/', people.commission, name='editorial_commission'),
     path('editorial/escalations/', people.escalations, name='editorial_escalations'),
     path('editorial/messages/', people.team_messages, name='editorial_messages'),

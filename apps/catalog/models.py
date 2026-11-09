@@ -61,8 +61,14 @@ class Contest(models.Model):
 
 class StoryQuerySet(models.QuerySet):
     def visible_in_app(self):
-        """Signed, live stories. Unsigned books only show on the web."""
-        return self.filter(is_signed=True, is_removed=False).exclude(status=Story.STATUS_DRAFT)
+        """Signed, live stories. Unsigned books only show on the web, and
+        novels need MIN_LIVE_CHAPTERS published chapters (shorts don't)."""
+        long_enough = (
+            Chapter.objects.filter(status=Chapter.STATUS_PUBLISHED).values('story')
+            .annotate(n=models.Count('pk')).filter(n__gte=settings.BONOVELA['MIN_LIVE_CHAPTERS']).values('story')
+        )
+        return (self.filter(is_signed=True, is_removed=False).exclude(status=Story.STATUS_DRAFT)
+                .filter(models.Q(is_short=True) | models.Q(pk__in=long_enough)))
 
 
 class Story(models.Model):

@@ -85,8 +85,6 @@ class Promotion(models.Model):
         ('editors_pick', "Editor's Pick"),
         ('trending', 'Trending'),
         ('new_arrival', 'New Arrival'),
-        ('recommended', 'Recommended For You'),
-        ('love_on_top', 'Love On Top'),
     ]
 
     story = models.ForeignKey('catalog.Story', on_delete=models.CASCADE, related_name='promotions')
@@ -299,3 +297,68 @@ class BookTransfer(models.Model):
 
     class Meta:
         ordering = ['-created_at']
+
+
+# ── Curated shelves ──────────────────────────────────────────────────────────
+class ShelfCategory(models.Model):
+    """A heading in the app that holds shelves: a Discover tab for novels
+    (Romance, Mafia, …) or a group in Short Stories (Love at First Sight, …)."""
+
+    KIND_NOVEL, KIND_SHORT = 'novel', 'short'
+    KIND_CHOICES = [(KIND_NOVEL, 'Novels'), (KIND_SHORT, 'Short Stories')]
+
+    kind = models.CharField(max_length=5, choices=KIND_CHOICES)
+    name = models.CharField(max_length=60)
+    # Novel categories fill empty shelves from these genres.
+    genres = models.ManyToManyField('catalog.Genre', blank=True)
+    order = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        ordering = ['kind', 'order', 'pk']
+        verbose_name_plural = 'shelf categories'
+
+    def __str__(self):
+        return f'{self.get_kind_display()} › {self.name}'
+
+
+class Shelf(models.Model):
+    """A named row of books inside a category. The Chief Editor renames,
+    reorders and fills shelves; editors suggest books for them."""
+
+    LAYOUT_CHOICES = [
+        ('cover_grid', 'Cover grid (4 per row)'),
+        ('cover_row', 'Cover row (swipe)'),
+        ('compact_grid', 'Compact grid'),
+        ('detail_list', 'List with synopsis'),
+        ('rated_list', 'List with rating'),
+    ]
+
+    category = models.ForeignKey(ShelfCategory, on_delete=models.CASCADE, related_name='shelves')
+    title = models.CharField(max_length=60)
+    layout = models.CharField(max_length=20, choices=LAYOUT_CHOICES, default='cover_row')
+    order = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        ordering = ['category', 'order', 'pk']
+
+    def __str__(self):
+        return self.title
+
+
+class ShelfBook(models.Model):
+    """A book on a shelf. Editors' picks wait for the Chief Editor."""
+
+    STATUS_PENDING, STATUS_APPROVED, STATUS_REJECTED = 'pending', 'approved', 'rejected'
+    STATUS_CHOICES = [(STATUS_PENDING, 'Pending'), (STATUS_APPROVED, 'Approved'), (STATUS_REJECTED, 'Rejected')]
+
+    shelf = models.ForeignKey(Shelf, on_delete=models.CASCADE, related_name='entries')
+    story = models.ForeignKey('catalog.Story', on_delete=models.CASCADE, related_name='shelf_entries')
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=STATUS_PENDING, db_index=True)
+    order = models.PositiveSmallIntegerField(default=0)
+    added_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='+')
+    decided_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['order', 'pk']
+        constraints = [models.UniqueConstraint(fields=['shelf', 'story'], name='unique_book_per_shelf')]

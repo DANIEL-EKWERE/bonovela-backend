@@ -1,17 +1,22 @@
 from datetime import timedelta
 
+from django.conf import settings
 from django.core.management import call_command
 from django.utils import timezone
-from django.test import TestCase
+from django.test import TestCase, override_settings
 
 from apps.catalog.models import Chapter, Genre, Story, Tag
 from apps.editorial.models import ContractApplication
 from apps.engagement.models import Report
 from apps.users.models import User
 
+# Tests seed only a few chapters per novel.
+FEW_CHAPTERS = override_settings(BONOVELA={**settings.BONOVELA, 'MIN_LIVE_CHAPTERS': 1})
+
 PASSWORD = 'bonovela1'
 
 
+@FEW_CHAPTERS
 class DashboardTests(TestCase):
     @classmethod
     def setUpTestData(cls):
@@ -148,6 +153,30 @@ class DashboardTests(TestCase):
         self.assertTrue(report.is_resolved)
 
 
+    def test_payout_info_needs_bank_details_and_confirmation(self):
+        from apps.wallet.models import PayoutMethod
+        author = self.login('author@bonovela.app')
+        r = self.client.get('/author/income/')
+        self.assertContains(r, 'IMPORTANT NOTICE')
+        self.assertNotContains(r, 'Signing Bonus')
+        self.assertNotContains(r, 'Completion Bonus')
+        bank = {'method': 'bank', 'country': 'Nigeria', 'currency': 'USD', 'bank_name': 'FCMB',
+                'swift_code': 'FCMBNGLA', 'account_detail': '1047547276', 'account_name': 'Joy Mercy Osemeke',
+                'address': '12 Agbara Road', 'city': 'Lagos', 'state': 'Lagos', 'postal_code': '100001'}
+        self.client.post('/author/income/', bank)  # not confirmed in the dialog
+        self.client.post('/author/income/', {**bank, 'city': '', 'confirmed': 'True'})  # missing bank field
+        self.assertFalse(PayoutMethod.objects.filter(author=author).exists())
+        self.client.post('/author/income/', {**bank, 'confirmed': 'True'})
+        self.assertEqual(PayoutMethod.objects.get(author=author).swift_code, 'FCMBNGLA')
+
+    def test_novels_need_twenty_chapters_to_go_live(self):
+        story = Story.objects.visible_in_app().filter(is_short=False).first()  # seeded with 4 chapters
+        short = Story.objects.visible_in_app().filter(is_short=True).first()
+        with override_settings(BONOVELA={**settings.BONOVELA, 'MIN_LIVE_CHAPTERS': 20}):
+            self.assertFalse(Story.objects.visible_in_app().filter(pk=story.pk).exists())
+            self.assertTrue(Story.objects.visible_in_app().filter(pk=short.pk).exists())
+
+@FEW_CHAPTERS
 class EditorialDashboardTests(TestCase):
     """Senior Editor and Chief Editor workspaces (there is no AE level)."""
 
@@ -237,7 +266,7 @@ class EditorialDashboardTests(TestCase):
         self.as_role('ce')
         self.client.post(url, {'action': 'ce_contract', 'contract_type': 'exclusive', 'signing_bonus': '25.50'})
         self.app.refresh_from_db()
-        self.assertEqual(self.app.signing_bonus_cents, 2550)
+        self.assertEqual(self.app.signing_bonus_cents, 0)  # no signing bonus any more
         self.client.logout()
         self.client.force_login(self.story.author)
         self.client.post(f'/author/stories/{self.story.pk}/signing/', {'action': 'sign', 'agree': 'on'})
@@ -350,7 +379,7 @@ class EditorialDashboardTests(TestCase):
         self.client.post(f'/editorial/completion/{app.pk}/', {'action': 'approve', 'bonus': '50'})
         app.refresh_from_db()
         self.assertEqual(app.status, CompletionApplication.STATUS_APPROVED)
-        self.assertTrue(AuthorEarning.objects.filter(author=self.story.author, type='completion', amount_cents=5000).exists())
+        self.assertFalse(AuthorEarning.objects.filter(author=self.story.author, type='completion').exists())
 
     def test_commission_booking(self):
         from apps.editorial import team
@@ -368,6 +397,28 @@ class EditorialDashboardTests(TestCase):
         self.assertEqual(AuthorEarning.objects.filter(author=self.se, type='editor_commission').count(), 1)
 
 
+    def test_shelves_page_se_suggests_ce_approves_and_renames(self):
+        from apps.editorial.models import Shelf, ShelfBook
+        shelf = Shelf.objects.get(title='Love on Top')
+        story = Story.objects.filter(editor=self.se, is_signed=True, is_short=False).first()
+        self.as_role('se')
+        self.assertEqual(self.client.get('/editorial/shelves/').status_code, 200)
+        self.client.post('/editorial/shelves/?kind=novel', {'action': 'add', 'shelf': shelf.pk, 'story': story.pk})
+        entry = ShelfBook.objects.get(shelf=shelf, story=story)
+        self.assertEqual(entry.status, ShelfBook.STATUS_PENDING)
+        self.client.post('/editorial/shelves/', {'action': 'rename', 'type': 'shelf', 'id': shelf.pk, 'name': 'Hacked'})
+        self.as_role('ce')
+        self.assertContains(self.client.get('/editorial/shelves/'), '1 waiting for approval')
+        self.client.post('/editorial/shelves/', {'action': 'approve', 'entry': entry.pk})
+        self.client.post('/editorial/shelves/', {'action': 'rename', 'type': 'shelf', 'id': shelf.pk,
+                                                 'name': 'Love On Top', 'layout': 'cover_row'})
+        entry.refresh_from_db()
+        shelf.refresh_from_db()
+        self.assertEqual(entry.status, ShelfBook.STATUS_APPROVED)
+        self.assertEqual((shelf.title, shelf.layout), ('Love On Top', 'cover_row'))  # SE rename was refused
+        self.assertEqual(self.client.get('/editorial/shelves/?kind=short').status_code, 200)
+
+@FEW_CHAPTERS
 class ResubmissionFlagTests(TestCase):
     """Books turned down by one editor and sent again are flagged."""
 
@@ -448,6 +499,7 @@ class ResubmissionFlagTests(TestCase):
         self.assertEqual(history.submit(story).prior_flag, '')
 
 
+@FEW_CHAPTERS
 class NewDashboardTests(TestCase):
     """Drama Studio, Marketing and Finance."""
 

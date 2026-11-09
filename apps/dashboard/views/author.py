@@ -4,6 +4,7 @@ import calendar
 from datetime import date, datetime, timedelta
 from functools import wraps
 
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db.models import Max, Q
@@ -20,6 +21,9 @@ from apps.users.models import User
 from apps.wallet.models import AuthorEarning, PayoutMethod
 
 from ..forms import ChapterForm, PayoutForm, StoryBasicsForm, StoryDetailsForm
+
+# Commission is editors' income, not an author card.
+HIDDEN_INCOME = AuthorEarning.RETIRED_TYPES | {'editor_commission'}
 
 TIPS = [
     ('Hook readers in the first 300 words', 'Open on conflict, not backstory. Readers decide fast.'),
@@ -61,12 +65,15 @@ def become_author(request):
 def stories(request):
     qs = (Story.objects.filter(author=request.user)
           .prefetch_related('chapters', 'applications', 'reviews'))
+    min_live = settings.BONOVELA['MIN_LIVE_CHAPTERS']
     cards = []
     for s in qs:
         pub = [c for c in s.chapters.all() if c.status == Chapter.STATUS_PUBLISHED]
         cards.append({
             'story': s,
             'chapters': len(pub),
+            'not_live': s.is_signed and not s.is_short and len(pub) < min_live,
+            'min_live': min_live,
             'words': sum(c.word_count for c in pub),
             'comments': len(s.reviews.all()),
             'application': next(iter(s.applications.all()), None),
@@ -404,10 +411,8 @@ def income(request):
     totals = {k: 0 for k, _ in AuthorEarning.TYPE_CHOICES}
     for e in in_month:
         totals[e.type] += e.amount_cents
-    colors = ['#7B3FF2,#A45CFF', '#FF7A7A,#FF4B4B', '#2BD96B,#16B24F', '#FFC23D,#FF8A1F',
-              '#2EE6E0,#1AA6F0', '#3FA2FF,#4F5BFF', '#FF4FD8,#B34BFF', '#4C6BFF,#8A4BFF']
-    cards = [{'key': k, 'label': label, 'cents': totals[k], 'colors': colors[i % len(colors)]}
-             for i, (k, label) in enumerate(AuthorEarning.TYPE_CHOICES) if k != 'editor_commission']
+    cards = [{'key': k, 'label': label, 'cents': totals[k], 'colors': '#2BD96B,#16B24F'}  # all MAB green
+             for k, label in AuthorEarning.TYPE_CHOICES if k not in HIDDEN_INCOME]
 
     payout = PayoutMethod.objects.filter(author=request.user).first()
     payout_form = PayoutForm(request.POST or None, instance=payout)

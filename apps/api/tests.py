@@ -1,5 +1,6 @@
+from django.conf import settings
 from django.core.management import call_command
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from rest_framework.test import APIClient
 
 from apps.catalog.models import Chapter, Story, Tag
@@ -8,7 +9,11 @@ from apps.editorial.models import ContractApplication, Promotion, PromotionReque
 from apps.users.models import User
 from apps.wallet.models import GiftItem, Wallet
 
+# Tests seed only a few chapters per novel.
+FEW_CHAPTERS = override_settings(BONOVELA={**settings.BONOVELA, 'MIN_LIVE_CHAPTERS': 1})
 
+
+@FEW_CHAPTERS
 class BonovelaAPITests(TestCase):
     @classmethod
     def setUpTestData(cls):
@@ -36,10 +41,32 @@ class BonovelaAPITests(TestCase):
         self.assertEqual(r.status_code, 400)
 
     def test_romance_discover_sections(self):
-        titles = [s['title'] for s in APIClient().get('/api/books/discover/?tab=Romance').data]
-        self.assertEqual(
-            titles, ['Recommended For You', "Editor's Pick", 'Completed', 'Love On Top', 'Erotica', 'MM Romance']
-        )
+        sections = APIClient().get('/api/books/discover/?tab=Romance').data
+        self.assertEqual([s['title'] for s in sections], ['Love on Top', 'Best Romance', "Editor's Picks", 'Recommended'])
+        self.assertEqual(sections[0]['layout'], 'cover_grid')
+
+    def test_shelf_picks_need_ce_approval_and_come_first(self):
+        from apps.editorial.models import Shelf, ShelfBook
+        shelf = Shelf.objects.get(title='Best Romance')
+        story = Story.objects.visible_in_app().filter(is_short=False).exclude(genre__name='Romance').first()
+        se = User.objects.get(email='se@bonovela.app')
+        ce = User.objects.get(email='ce@bonovela.app')
+
+        def shelf_ids():
+            data = APIClient().get('/api/books/discover/?tab=Romance').data
+            return [b['id'] for b in next(s for s in data if s['title'] == 'Best Romance')['books']]
+
+        entry = editorial.add_to_shelf(se, shelf, story)
+        self.assertEqual(entry.status, ShelfBook.STATUS_PENDING)
+        self.assertNotIn(story.id, shelf_ids())
+        editorial.decide_shelf_book(ce, entry, approve=True)
+        self.assertEqual(shelf_ids()[0], story.id)
+
+    def test_short_collections(self):
+        data = APIClient().get('/api/shorts/collections/').data
+        self.assertEqual(data[0]['title'], 'Love at First Sight')
+        self.assertEqual(data[0]['sections'][0]['title'], 'Hearts in Bloom')
+        self.assertTrue(all(b['is_short'] for b in data[0]['sections'][0]['books']))
 
     def test_book_fields_match_app_model(self):
         book = APIClient().get('/api/books/').data['results'][0]
@@ -130,6 +157,7 @@ class BonovelaAPITests(TestCase):
         self.assertEqual(picks['books'][0]['id'], story.id)
 
 
+@FEW_CHAPTERS
 class DramaAPITests(TestCase):
     @classmethod
     def setUpTestData(cls):

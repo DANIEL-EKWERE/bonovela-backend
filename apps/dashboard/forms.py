@@ -62,9 +62,25 @@ class ChapterForm(forms.ModelForm):
 
 
 class PayoutForm(forms.ModelForm):
+    # Set by the "Please check your information" dialog.
+    confirmed = forms.BooleanField(required=False, widget=forms.HiddenInput)
+
     class Meta:
         model = PayoutMethod
-        fields = ['method', 'account_name', 'bank_name', 'account_detail']
+        fields = ['method', 'country', 'currency', 'bank_name', 'swift_code', 'account_detail', 'account_name',
+                  'address', 'city', 'state', 'postal_code']
+
+    def clean(self):
+        data = super().clean()
+        if data.get('method') == 'bank':
+            for name in PayoutMethod.BANK_FIELDS:
+                if not data.get(name):
+                    self.add_error(name, 'Required for bank transfers.')
+        if (data.get('address') or '').strip().upper().startswith(('PO BOX', 'P.O. BOX', 'GPO BOX')):
+            self.add_error('address', 'Use a street address, not a PO or GPO box.')
+        if not data.get('confirmed'):
+            raise forms.ValidationError('Please check your information and confirm before submitting.')
+        return data
 
 
 def _check_image(f):

@@ -7,7 +7,6 @@ from django.shortcuts import get_object_or_404, redirect, render
 from apps.editorial import completion, similarity, team
 from apps.editorial.models import CompletionApplication as Completion
 from apps.engagement.models import InboxMessage
-from apps.wallet.models import AuthorEarning
 
 from .editorial import editor_area
 
@@ -49,22 +48,13 @@ def completion_detail(request, pk):
         elif action in ('approve', 'reject') and lv == team.CE:
             app.decided_by = request.user
             app.status = Completion.STATUS_APPROVED if action == 'approve' else Completion.STATUS_REJECTED
-            if action == 'approve':
-                try:
-                    app.bonus_cents = int(float(request.POST.get('bonus') or 0) * 100)
-                except ValueError:
-                    app.bonus_cents = 0
-                if app.bonus_cents:
-                    AuthorEarning.objects.create(author=story.author, story=story, type='completion',
-                                                 amount_cents=app.bonus_cents, note='Completion Bonus')
             app.reviewer_note = note or app.reviewer_note
             app.save()
             InboxMessage.objects.create(
                 user=story.author, story=story,
                 title='Completion review approved 🎉' if action == 'approve' else 'Completion review result',
-                body=(f'Congratulations on finishing "{story.title}". A ${app.bonus_cents / 100:,.2f} Completion Bonus '
-                      'has been added to your income.' if action == 'approve' and app.bonus_cents
-                      else note or ('Approved.' if action == 'approve' else 'Not approved this time.')))
+                body=note or (f'Congratulations on finishing "{story.title}".' if action == 'approve'
+                              else 'Not approved this time.'))
             messages.success(request, f'Application {app.get_status_display().lower()}.')
         return redirect('dashboard:editorial_completion_detail', app.pk)
     if not app.analysed_at:

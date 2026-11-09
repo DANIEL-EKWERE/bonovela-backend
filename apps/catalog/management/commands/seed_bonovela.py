@@ -94,7 +94,7 @@ class Command(BaseCommand):
 
     def _taxonomy(self):
         tax = json.loads((DATA / 'taxonomy.json').read_text())
-        app_tabs = {'Werewolf', 'Romance', 'Mafia', 'Fantasy', 'Urban'}
+        app_tabs = {'Werewolf', 'Romance', 'Mafia', 'Fantasy', 'LGBTQ+'}
         for i, name in enumerate(tax['genres']):
             Genre.objects.update_or_create(
                 name=name, defaults={'slug': slugify(name), 'order': i, 'show_in_app': name in app_tabs}

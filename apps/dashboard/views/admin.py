@@ -112,7 +112,7 @@ def books(request):
     ).order_by('-updated_at')
     f = request.GET.get('f', 'all')
     filters = {
-        'live': Q(is_signed=True, is_removed=False) & ~Q(status=Story.STATUS_DRAFT),
+        'live': Q(pk__in=Story.objects.visible_in_app().values('pk')),
         'unsigned': Q(is_signed=False),
         'removed': Q(is_removed=True),
         'drafts': Q(status=Story.STATUS_DRAFT),

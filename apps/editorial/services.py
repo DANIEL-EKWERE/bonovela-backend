@@ -3,6 +3,7 @@ notifies the author through their inbox."""
 
 from datetime import timedelta
 
+from django.conf import settings
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
 from django.utils import timezone
@@ -12,7 +13,7 @@ from apps.users.models import User
 from apps.wallet.models import AuthorEarning
 
 from .models import ContractApplication as App
-from .models import Promotion, PromotionRequest
+from .models import Promotion, PromotionRequest, Shelf, ShelfBook, ShelfCategory
 
 
 def _require(editor, *roles):
@@ -83,7 +84,10 @@ def sign(app):
     if app.signing_bonus_cents:
         AuthorEarning.objects.create(author=story.author, story=story, type='signing_bonus',
                                      amount_cents=app.signing_bonus_cents, note='Contract signed')
-    _notify(story, 'Welcome aboard 💗', f'"{story.display_title}" is now signed and visible to readers in the app.')
+    live = story.is_short or story.published_chapters().count() >= settings.BONOVELA['MIN_LIVE_CHAPTERS']
+    _notify(story, 'Welcome aboard 💗', f'"{story.display_title}" is now signed and '
+            + ('visible to readers in the app.' if live else
+               f'will go live in the app once it has {settings.BONOVELA["MIN_LIVE_CHAPTERS"]} published chapters.'))
 
 
 # ── Promotions ───────────────────────────────────────────────────────────────
@@ -137,3 +141,78 @@ def end_promotion(editor, promotion):
     _require(editor, User.ROLE_CE)
     promotion.ends_at = timezone.now()
     promotion.save(update_fields=['ends_at'])
+
+
+# ── Curated shelves ──────────────────────────────────────────────────────────
+def add_to_shelf(editor, shelf, story) -> ShelfBook:
+    """Editors suggest books; the CE's own picks go straight onto the shelf."""
+    _require(editor, User.ROLE_SE, User.ROLE_CE)
+    if story.is_short != (shelf.category.kind == ShelfCategory.KIND_SHORT):
+        raise ValidationError('Short stories go on Short Stories shelves, novels on novel shelves.')
+    if not story.is_signed or story.is_removed:
+        raise ValidationError('Only signed books can be shelved.')
+    chief = editor.role == User.ROLE_CE or editor.is_platform_admin
+    entry, created = ShelfBook.objects.get_or_create(shelf=shelf, story=story, defaults={'added_by': editor})
+    if not created and entry.status != ShelfBook.STATUS_REJECTED:
+        raise ValidationError('That book is already on this shelf.')
+    entry.added_by = editor
+    entry.status = ShelfBook.STATUS_APPROVED if chief else ShelfBook.STATUS_PENDING
+    entry.decided_by = editor if chief else None
+    entry.order = _next_order(shelf) if chief else 0
+    entry.save()
+    return entry
+
+
+def _next_order(shelf):
+    last = shelf.entries.filter(status=ShelfBook.STATUS_APPROVED).order_by('-order').first()
+    return last.order + 1 if last else 0
+
+
+def decide_shelf_book(editor, entry, approve: bool):
+    _require(editor, User.ROLE_CE)
+    if entry.status != ShelfBook.STATUS_PENDING:
+        raise ValidationError('Already decided.')
+    entry.status = ShelfBook.STATUS_APPROVED if approve else ShelfBook.STATUS_REJECTED
+    entry.decided_by = editor
+    entry.order = _next_order(entry.shelf) if approve else 0
+    entry.save()
+
+
+def remove_from_shelf(editor, entry):
+    _require(editor, User.ROLE_CE)
+    entry.delete()
+
+
+def move(editor, obj, step: int):
+    """Swap a shelf book, shelf or category with its neighbour (step ±1)."""
+    _require(editor, User.ROLE_CE)
+    if isinstance(obj, ShelfBook):
+        siblings = obj.shelf.entries.filter(status=ShelfBook.STATUS_APPROVED)
+    elif isinstance(obj, Shelf):
+        siblings = obj.category.shelves.all()
+    else:
+        siblings = ShelfCategory.objects.filter(kind=obj.kind)
+    items = list(siblings.order_by('order', 'pk'))
+    i = items.index(obj)
+    j = i + step
+    if 0 <= j < len(items):
+        items[i], items[j] = items[j], items[i]
+        for n, item in enumerate(items):
+            if item.order != n:
+                item.order = n
+                item.save(update_fields=['order'])
+
+
+def rename(editor, obj, name: str, layout: str | None = None):
+    """Rename a shelf or category; shelves can also change layout."""
+    _require(editor, User.ROLE_CE)
+    name = name.strip()
+    if not name:
+        raise ValidationError('Give it a name.')
+    if isinstance(obj, Shelf):
+        obj.title = name[:60]
+        if layout in dict(Shelf.LAYOUT_CHOICES):
+            obj.layout = layout
+    else:
+        obj.name = name[:60]
+    obj.save()

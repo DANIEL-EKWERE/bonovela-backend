@@ -21,6 +21,7 @@ urlpatterns = [
     path('books/', v.BookListView.as_view()),
     path('books/discover/', v.discover),
     path('books/rankings/', v.rankings),
+    path('shorts/collections/', v.short_collections),
     path('books/<int:pk>/', v.BookDetailView.as_view()),
     path('books/<int:pk>/related/', v.related),
     path('books/<int:pk>/chapters/', v.chapters),

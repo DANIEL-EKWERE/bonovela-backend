@@ -209,6 +209,8 @@ class AuthorEarning(models.Model):
         ('reward_share', 'Reward Share'),
         ('editor_commission', 'Editorial Commission'),
     ]
+    # No longer paid; old rows still count toward totals but get no card.
+    RETIRED_TYPES = {'signing_bonus', 'completion'}
 
     author = models.ForeignKey(User, on_delete=models.CASCADE, related_name='earnings')
     story = models.ForeignKey('catalog.Story', on_delete=models.SET_NULL, null=True, blank=True)
@@ -247,11 +249,25 @@ class Payout(models.Model):
 
 
 class PayoutMethod(models.Model):
+    """Where an author's earnings go. The account must be in the author's own
+    legal name; third-party accounts aren't accepted."""
+
+    CURRENCY_CHOICES = [('USD', 'USD'), ('NGN', 'NGN')]
+    # Required on top of the base fields when paying by bank.
+    BANK_FIELDS = ('bank_name', 'swift_code', 'country', 'currency', 'address', 'city', 'state', 'postal_code')
+
     author = models.OneToOneField(User, on_delete=models.CASCADE, related_name='payout_method')
     method = models.CharField(max_length=20, choices=[('bank', 'Bank transfer'), ('paypal', 'PayPal')])
-    account_name = models.CharField(max_length=120)
+    account_name = models.CharField(max_length=120, help_text="Author's full legal name, exactly as on the account")
     account_detail = models.CharField(max_length=120, help_text='Account number or PayPal email')
     bank_name = models.CharField(max_length=120, blank=True)
+    swift_code = models.CharField('SWIFT code / BIC', max_length=11, blank=True)
+    country = models.CharField('Account country / region', max_length=60, blank=True)
+    currency = models.CharField(max_length=3, choices=CURRENCY_CHOICES, blank=True)
+    address = models.CharField(max_length=160, blank=True, help_text='Not a PO or GPO box')
+    city = models.CharField(max_length=80, blank=True)
+    state = models.CharField('State / Province', max_length=80, blank=True)
+    postal_code = models.CharField(max_length=20, blank=True)
     updated_at = models.DateTimeField(auto_now=True)
 
 

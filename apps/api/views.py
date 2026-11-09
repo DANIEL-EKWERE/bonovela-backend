@@ -79,8 +79,8 @@ def onboarding(request):
     user = request.user
     user.reader_type = reader_type if reader_type in ('female', 'male') else ''
     user.save(update_fields=['reader_type'])
-    genres = {'female': ['Romance', 'Werewolf', 'Mafia'], 'male': ['Urban', 'Fantasy']}.get(
-        user.reader_type, ['Romance', 'Werewolf', 'Mafia', 'Urban', 'Fantasy']
+    genres = {'female': ['Romance', 'Werewolf', 'Mafia', 'LGBTQ+'], 'male': ['Fantasy']}.get(
+        user.reader_type, ['Romance', 'Werewolf', 'Mafia', 'LGBTQ+', 'Fantasy']
     )
     picks = feeds.books().filter(genre__name__in=genres, is_short=False).order_by('-avg_stars', '-views')[:9]
     for story in picks:
@@ -125,15 +125,27 @@ class BookListView(generics.ListAPIView):
         return qs.order_by(order)
 
 
+def _sections(request, sections):
+    ctx = {'request': request}
+    return [
+        {'title': sec['title'], 'layout': sec['layout'], 'books': s.BookSerializer(sec['books'], many=True, context=ctx).data}
+        for sec in sections
+        if sec['books']
+    ]
+
+
 @api_view(['GET'])
 @permission_classes([permissions.AllowAny])
 def discover(request):
-    tab = request.query_params.get('tab', 'Discover')
-    ctx = {'request': request}
+    return Response(_sections(request, feeds.discover_feed(request.query_params.get('tab', 'Discover'))))
+
+
+@api_view(['GET'])
+@permission_classes([permissions.AllowAny])
+def short_collections(request):
+    """Short Stories: [{title, sections: [{title, layout, books}]}]."""
     return Response([
-        {'title': sec['title'], 'layout': sec['layout'], 'books': s.BookSerializer(sec['books'], many=True, context=ctx).data}
-        for sec in feeds.discover_feed(tab)
-        if sec['books']
+        {'title': c['title'], 'sections': _sections(request, c['sections'])} for c in feeds.short_collections()
     ])
 
 

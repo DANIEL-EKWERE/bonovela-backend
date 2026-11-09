@@ -4,8 +4,9 @@
 {% block actions %}<a class="btn sm" href="{% url 'dashboard:author_story_new' %}"><i class="ph ph-plus"></i><span class="hide-mobile">New story</span></a>{% endblock %}
 {% block content %}
 <details class="tips" style="margin-bottom:14px">
-  <summary style="cursor:pointer">TIPS: Unsigned books can't show in the app but can still show on the web…</summary>
-  <p style="margin-top:6px">Once a book is signed it's promoted to readers in the app and you earn from every unlocked chapter. Publish at least 3 chapters, then apply for signing from the story's page.</p>
+  <summary style="cursor:pointer">TIPS: Unsigned books cannot be displayed in the app.</summary>
+  <p style="margin-top:6px">Once a book is signed, it will be eligible to go live in the app. However, books with fewer than 20 chapters cannot go live, even after signing.</p>
+  <p style="margin-top:6px"><b>Need more information?</b><br>Please contact your assigned Editor for assistance.</p>
 </details>
 
 {% if not cards %}
@@ -39,6 +40,7 @@
         <div class="row wrap" style="gap:6px;margin:6px 0 10px">
           <span class="chip pink">{{ s.get_status_display }}</span>
           {% if s.is_signed %}<span class="chip green">Signed</span>{% else %}<span class="chip grey">Unsigned</span>{% endif %}
+          {% if c.not_live %}<span class="chip gold">Not live yet · {{ c.chapters }}/{{ c.min_live }} chapters</span>{% endif %}
           {% if c.application and c.application.is_open %}<span class="chip gold">{{ c.application.get_status_display }}</span>{% endif %}
         </div>
         <div class="row wrap small muted" style="gap:16px">

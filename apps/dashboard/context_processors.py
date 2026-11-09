@@ -23,6 +23,7 @@ EDITORIAL_NAV = [
     ('dashboard:editorial_duplicates', 'copy', 'Duplicate Chapter Detector', {}),
     ('dashboard:editorial_performance', 'chart-line-up', 'Team Performance', {'levels': 'ce'}),
     ('dashboard:editorial_recruitment', 'user-plus', 'Recruitment', {}),
+    ('dashboard:editorial_shelves', 'books', 'App Shelves', {'levels': 'se ce', 'hint': 'Curated shelves in the app and Short Stories', 'short': 'Shelves'}),
     ('dashboard:editorial_promotions', 'megaphone', 'Promotions', {'levels': 'se ce'}),
     ('dashboard:editorial_commission', 'coins', 'Commission', {}),
     ('dashboard:editorial_escalations', 'warning-octagon', 'Escalations', {}),
