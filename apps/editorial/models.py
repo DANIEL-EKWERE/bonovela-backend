@@ -16,7 +16,12 @@ class _PrivateStorage(LazyObject):
         self._wrapped = FileSystemStorage(location=settings.PRIVATE_MEDIA_ROOT, base_url=None)
 
 
-private_storage = _PrivateStorage()
+_private = _PrivateStorage()
+
+
+def private_storage():
+    # A callable, so migrations record this function, not a machine's path.
+    return _private
 
 
 def _id_upload(instance, filename):
@@ -378,6 +383,7 @@ class Shelf(models.Model):
     LAYOUT_CHOICES = [
         ('cover_grid', 'Cover grid (4 per row)'),
         ('cover_row', 'Cover row (swipe)'),
+        ('paged_list', 'Paged list: cover, title, blurb (swipe)'),
         ('compact_grid', 'Compact grid'),
         ('detail_list', 'List with synopsis'),
         ('rated_list', 'List with rating'),

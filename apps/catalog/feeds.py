@@ -56,7 +56,7 @@ def section(title: str, layout: str, items):
 
 SHELF_SIZE = 8
 # Rotated across a category's shelves so filled-in shelves don't all match.
-FILL_ORDER = ['views', 'avg_stars', 'updated_at', 'created_at']
+FILL_ORDER = ['views', 'avg_stars', 'updated_at', 'views', 'created_at']
 # Fill candidates per request, most-read first. Filtering happens in Python
 # so a page of shelves costs a handful of queries, not several per shelf.
 FILL_POOL = 300
@@ -82,9 +82,10 @@ def shelf_sections(categories, base):
     for cat in categories:
         genre_ids = {g.id for g in cat.genres.all()}
         out[cat] = []
+        shown = set()  # filled-in books aren't repeated across a category's shelves
         for i, shelf in enumerate(cat.shelves.all()):
             picks = [by_id[e.story_id] for e in shelf.approved if e.story_id in by_id]
-            seen = {b.id for b in picks}
+            seen = {b.id for b in picks} | shown
             candidates = ranked(FILL_ORDER[i % len(FILL_ORDER)])
             tagged = [b for b in candidates if any(t.name == shelf.title for t in b.tags.all())]
             in_genre = [b for b in candidates if b.genre_id in genre_ids] if genre_ids else candidates
@@ -94,6 +95,7 @@ def shelf_sections(categories, base):
                 if b.id not in seen:
                     picks.append(b)
                     seen.add(b.id)
+            shown.update(b.id for b in picks)
             out[cat].append(section(shelf.title, shelf.layout, picks))
     return out
 

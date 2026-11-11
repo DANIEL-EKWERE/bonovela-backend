@@ -18,6 +18,7 @@ class BannerQuerySet(models.QuerySet):
 class Banner(models.Model):
     PLACEMENT_CHOICES = [
         ('discover', 'Discover (top carousel)'),
+        ('free', 'Free tab (top carousel)'),
         ('drama', 'Drama tab'),
         ('store', 'Top Up / Store'),
         ('rewards', 'Rewards'),

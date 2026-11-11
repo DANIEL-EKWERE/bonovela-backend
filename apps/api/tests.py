@@ -62,6 +62,14 @@ class BonovelaAPITests(TestCase):
         editorial.decide_shelf_book(ce, entry, approve=True)
         self.assertEqual(shelf_ids()[0], story.id)
 
+    def test_free_tab_sections(self):
+        sections = APIClient().get('/api/books/discover/?tab=Free').data
+        self.assertEqual([s['title'] for s in sections],
+                         ['Free for now', 'Free Reads', 'Rising Stars', 'Featured for you', 'New Arrivals'])
+        self.assertEqual(sections[2]['layout'], 'paged_list')
+        ids = [b['id'] for s in sections for b in s['books']]
+        self.assertEqual(len(ids), len(set(ids)))  # filled-in books aren't repeated across shelves
+
     def test_shelf_feeds_use_few_queries(self):
         from django.db import connection
         from django.test.utils import CaptureQueriesContext
