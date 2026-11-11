@@ -50,6 +50,24 @@ services:
       - key: SEED_DEMO
         value: "false"
 
+  # Publishes chapters authors scheduled ("Auto-publish") when they're due.
+  - type: cron
+    name: bonovela-publish-scheduled
+    runtime: python
+    region: frankfurt
+    schedule: "*/5 * * * *"
+    buildCommand: pip install -r requirements.txt
+    startCommand: python manage.py publish_scheduled
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.3
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: bonovela-db
+          property: connectionString
+
 databases:
   - name: bonovela-db
     plan: 0.1c-256mb

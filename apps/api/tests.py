@@ -86,6 +86,18 @@ class BonovelaAPITests(TestCase):
         self.assertGreater(len(countries), 240)
         self.assertIn('Lagos', [s['name'] for s in APIClient().get('/api/geo/countries/NG/states/').data])
 
+    def test_payout_method_needs_confirmation_and_bank_details(self):
+        c = self.login('author@bonovela.app')
+        bank = {'method': 'bank', 'country': 'Nigeria', 'currency': 'USD', 'bank_name': 'FCMB',
+                'swift_code': 'FCMBNGLA', 'account_detail': '1047547276', 'account_name': 'Ada Okafor',
+                'address': '12 Allen Avenue', 'city': 'Lagos', 'state': 'Lagos', 'postal_code': '100001'}
+        self.assertEqual(c.put('/api/author/payout-method/', bank, format='json').status_code, 400)  # not confirmed
+        r = c.put('/api/author/payout-method/', {**bank, 'city': '', 'confirmed': True}, format='json')
+        self.assertIn('city', r.data['errors'])
+        r = c.put('/api/author/payout-method/', {**bank, 'confirmed': True}, format='json')
+        self.assertEqual(r.status_code, 200, r.data)
+        self.assertEqual(c.get('/api/author/payout-method/').data['swift_code'], 'FCMBNGLA')
+
     def test_income_has_available_to_withdraw_not_mab(self):
         data = self.login('author@bonovela.app').get('/api/author/income/').data
         self.assertIn('available_cents', data)
@@ -214,6 +226,11 @@ class DramaAPITests(TestCase):
         r = client.post('/api/auth/token/', {'email': email, 'password': 'bonovela1'}, format='json')
         client.credentials(HTTP_AUTHORIZATION='Bearer ' + r.data['access'])
         return client
+
+    def test_all_dramas_list(self):
+        data = APIClient().get('/api/dramas/?all=1').data
+        self.assertIsInstance(data, list)
+        self.assertTrue(data and 'episode_count' in data[0])
 
     def test_feed_sections(self):
         r = APIClient().get('/api/dramas/')

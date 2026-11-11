@@ -225,6 +225,22 @@ class DashboardTests(TestCase):
             self.assertFalse(Story.objects.visible_in_app().filter(pk=story.pk).exists())
             self.assertTrue(Story.objects.visible_in_app().filter(pk=short.pk).exists())
 
+    def test_publish_scheduled_publishes_due_chapters_only(self):
+        from io import StringIO
+        story = Story.objects.visible_in_app().filter(is_short=False).first()
+        due = Chapter.objects.create(story=story, number=900, content='word ' * 700,
+                                     status=Chapter.STATUS_SCHEDULED, scheduled_for=timezone.now() - timedelta(minutes=1))
+        later = Chapter.objects.create(story=story, number=901, content='word ' * 700,
+                                       status=Chapter.STATUS_SCHEDULED, scheduled_for=timezone.now() + timedelta(hours=1))
+        short = Chapter.objects.create(story=story, number=902, content='word ' * 100,
+                                       status=Chapter.STATUS_SCHEDULED, scheduled_for=timezone.now() - timedelta(minutes=1))
+        call_command('publish_scheduled', stdout=StringIO())
+        for c in (due, later, short):
+            c.refresh_from_db()
+        self.assertEqual((due.status, later.status, short.status),
+                         (Chapter.STATUS_PUBLISHED, Chapter.STATUS_SCHEDULED, Chapter.STATUS_DRAFT))
+        self.assertTrue(story.author.inbox.filter(title__contains="902 wasn't published").exists())
+
 @FEW_CHAPTERS
 class EditorialDashboardTests(TestCase):
     """Senior Editor and Chief Editor workspaces (there is no AE level)."""

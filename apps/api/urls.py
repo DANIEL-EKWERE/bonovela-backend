@@ -85,5 +85,6 @@ urlpatterns = [
     path('author/comments/', author.comments),
     path('author/comments/<int:review_id>/reply/', author.reply),
     path('author/income/', author.income),
+    path('author/payout-method/', author.payout_method),
     path('author/contests/', author.contests),
 ]

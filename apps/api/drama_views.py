@@ -61,8 +61,10 @@ def _ser(request, qs):
 @permission_classes([permissions.AllowAny])
 def feed(request):
     """Same sections as the app: Popular Picks, New Release, You May Also
-    Like, Trending."""
+    Like, Trending. ?all=1 returns every drama as a plain list instead."""
     base = _dramas()
+    if request.query_params.get('all') in ('1', 'true'):
+        return Response(_ser(request, base.order_by('-released_at')))
     popular = list(base.order_by('-plays')[:6])
     new = list(base.order_by('-released_at')[:9])
     shown = {d.pk for d in popular + new}

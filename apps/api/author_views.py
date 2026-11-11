@@ -32,6 +32,7 @@ Author = [IsAuthor]
 class StoryListCreate(generics.ListCreateAPIView):
     serializer_class = s.AuthorStorySerializer
     permission_classes = Author
+    pagination_class = None  # the app syncs an author's whole list
 
     def get_queryset(self):
         return Story.objects.filter(author=self.request.user).prefetch_related('tags', 'applications')
@@ -57,6 +58,7 @@ class ChapterListCreate(generics.ListCreateAPIView):
 
     serializer_class = s.AuthorChapterSerializer
     permission_classes = Author
+    pagination_class = None  # the app syncs every chapter of a book
 
     def get_queryset(self):
         qs = _own_story(self.request, self.kwargs['pk']).chapters.order_by('-number')
@@ -228,6 +230,31 @@ def income(request):
                   if k not in AuthorEarning.RETIRED_TYPES and k != 'editor_commission'],
     })
 
+
+
+PAYOUT_FIELDS = ['method', 'country', 'currency', 'bank_name', 'swift_code', 'account_detail', 'account_name',
+                 'address', 'city', 'state', 'postal_code']
+
+
+@api_view(['GET', 'PUT'])
+@permission_classes(Author)
+def payout_method(request):
+    """Where earnings are paid. PUT needs every bank field and "confirmed":
+    true (the app's "Please check your information" step), like the web."""
+    from apps.dashboard.forms import PayoutForm
+    from apps.wallet.models import PayoutMethod
+
+    current = PayoutMethod.objects.filter(author=request.user).first()
+    if request.method == 'PUT':
+        form = PayoutForm({**{k: request.data.get(k, '') for k in PAYOUT_FIELDS},
+                           'confirmed': request.data.get('confirmed') in (True, 'true', 'True', 'on')},
+                          instance=current)
+        if not form.is_valid():
+            return Response({'detail': 'Please check the highlighted fields.', 'errors': form.errors}, status=400)
+        current = form.save(commit=False)
+        current.author = request.user
+        current.save()
+    return Response({k: getattr(current, k) for k in PAYOUT_FIELDS} if current else None)
 
 @api_view(['GET'])
 @permission_classes(Author)
