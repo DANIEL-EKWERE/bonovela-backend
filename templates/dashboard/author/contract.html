@@ -1,0 +1,236 @@
+{% extends 'dashboard/base.html' %}{% load bv %}
+{% block title %}Apply for Contract{% endblock %}
+{% block back %}<a class="back" href="{% url 'dashboard:author_signing' story.pk %}"><i class="ph ph-caret-left"></i></a>{% endblock %}
+{% block heading %}Apply for Contract{% endblock %}
+{% block content_class %}narrow{% endblock %}
+{% block head %}
+<style>
+  .ca-steps { display: flex; gap: 6px; margin-bottom: 14px; }
+  .ca-steps span { flex: 1; height: 4px; border-radius: 4px; background: var(--divider); }
+  .ca-steps span.on { background: var(--primary); }
+  .ca-step { display: none; } .ca-step.on { display: block; }
+  .ca-id { border: 1.5px dashed var(--divider); border-radius: 12px; padding: 14px; text-align: center; }
+  .ca-id img { max-width: 100%; max-height: 220px; border-radius: 8px; margin: 0 auto 10px; }
+  .ca-review h3 { display: flex; justify-content: space-between; align-items: center; margin: 18px 0 8px; }
+  .ca-review dl { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); gap: 6px 12px; font-size: 14px; }
+  .ca-review dt { color: var(--text-secondary, #888); } .ca-review dd { margin: 0; overflow-wrap: anywhere; white-space: pre-line; }
+  .ca-review .ids { display: flex; gap: 10px; } .ca-review .ids img { width: 50%; border-radius: 8px; }
+  .errorlist { color: var(--error); font-size: 13px; margin-top: 4px; list-style: none; padding: 0; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="card row top" style="margin-bottom:12px">{% cover story 48 %}<div><b>{{ story.display_title }}</b><div class="hint">{% if story.is_short %}Short Story{% else %}Novel{% endif %} · {{ story.total_words|compact }} words</div></div></div>
+{% if form.errors %}<div class="notice bad" style="margin-bottom:12px">Please fix the highlighted fields{% if form.id_front.value or form.id_back.value %}{% else %} and attach your ID photos again{% endif %}.{{ form.non_field_errors }}</div>{% endif %}
+
+<form id="ca" class="card" method="post" enctype="multipart/form-data" novalidate>{% csrf_token %}
+  <div class="ca-steps"><span></span><span></span><span></span><span></span></div>
+  <p class="hint" id="caLabel"></p>
+
+  {# ── Step 1 · Personal information and identity ───────────────────────── #}
+  <section class="ca-step" data-step="1" data-title="Step 1 of 4 · Personal information and identity">
+    <h2 style="margin-bottom:12px">Legal name</h2>
+    <label class="field"><span class="label req">First Name</span><input name="first_name" value="{{ form.first_name.value|default:'' }}" maxlength="60" required autocomplete="given-name">{{ form.first_name.errors }}</label>
+    <label class="field"><span class="label">Middle Name</span><input name="middle_name" value="{{ form.middle_name.value|default:'' }}" maxlength="60" autocomplete="additional-name">{{ form.middle_name.errors }}</label>
+    <label class="field"><span class="label req">Surname</span><input name="surname" value="{{ form.surname.value|default:'' }}" maxlength="60" required autocomplete="family-name">{{ form.surname.errors }}</label>
+
+    <h2 style="margin:18px 0 6px">Government ID verification</h2>
+    {% for side, label in id_sides %}{% endfor %}
+    <div class="field" id="idFrontBox">
+      <span class="label req">Front of ID</span>
+      <p class="hint" style="margin-bottom:8px">Take a clear, readable photo of the <b>front</b> of your government-issued ID (passport, national ID card or driver's licence). Lay it flat in good light, fill the frame, and make sure all text and your photo are sharp, with no glare.</p>
+      <div class="ca-id"><img data-preview="id_front" hidden alt="Front of ID">
+        <input type="file" name="id_front" accept="image/jpeg,image/png,image/webp" hidden required>
+        <div class="grid cols-2"><button type="button" class="btn outline" data-capture="id_front"><i class="ph ph-camera"></i> Take photo</button><button type="button" class="btn outline" data-upload="id_front"><i class="ph ph-upload-simple"></i> Upload</button></div>
+      </div>{{ form.id_front.errors }}
+    </div>
+    <div class="field" id="idBackBox" hidden>
+      <span class="label req">Back of ID</span>
+      <p class="hint" style="margin-bottom:8px">Now the <b>back</b> of the same ID. Same tips: flat, well lit, every line readable.</p>
+      <div class="ca-id"><img data-preview="id_back" hidden alt="Back of ID">
+        <input type="file" name="id_back" accept="image/jpeg,image/png,image/webp" hidden required>
+        <div class="grid cols-2"><button type="button" class="btn outline" data-capture="id_back"><i class="ph ph-camera"></i> Take photo</button><button type="button" class="btn outline" data-upload="id_back"><i class="ph ph-upload-simple"></i> Upload</button></div>
+      </div>{{ form.id_back.errors }}
+    </div>
+
+    <h2 style="margin:18px 0 6px">Social media</h2>
+    <p class="hint" style="margin-bottom:10px">Optional. You can continue without either account.</p>
+    <label class="field"><span class="label">Facebook Profile Link</span><input type="url" name="facebook_url" value="{{ form.facebook_url.value|default:'' }}" placeholder="https://facebook.com/…">{{ form.facebook_url.errors }}</label>
+    <label class="field"><span class="label">Instagram Profile Link</span><input type="url" name="instagram_url" value="{{ form.instagram_url.value|default:'' }}" placeholder="https://instagram.com/…">{{ form.instagram_url.errors }}</label>
+  </section>
+
+  {# ── Step 2 · Residential address and contact ─────────────────────────── #}
+  <section class="ca-step" data-step="2" data-title="Step 2 of 4 · Residential address and contact information">
+    <label class="field"><span class="label req">House Address</span><input name="house_address" value="{{ form.house_address.value|default:'' }}" maxlength="200" required autocomplete="street-address">{{ form.house_address.errors }}</label>
+    <div class="grid cols-2 stack-sm">
+      <label class="field"><span class="label req">Street Name</span><input name="street_name" value="{{ form.street_name.value|default:'' }}" maxlength="120" required>{{ form.street_name.errors }}</label>
+      <label class="field"><span class="label req">House Number</span><input name="house_number" value="{{ form.house_number.value|default:'' }}" maxlength="20" required>{{ form.house_number.errors }}</label>
+    </div>
+    <label class="field"><span class="label req">Country</span>
+      <input id="countrySearch" list="countryList" placeholder="Search for your country" autocomplete="off" required>
+      <datalist id="countryList">{% for c in countries %}<option value="{{ c.name }}">{% endfor %}</datalist>
+      <input type="hidden" name="country" value="{{ form.country.value|default:'' }}">{{ form.country.errors }}</label>
+    <label class="field" id="stateField"><span class="label req">State</span>
+      <select name="state" required><option value="">Choose your country first</option></select>{{ form.state.errors }}</label>
+    <div class="field"><span class="label req">Phone Number</span>
+      <div class="row" style="gap:8px">
+        <select name="phone_dial" style="max-width:120px" required>{% for c in countries %}{% if c.dial %}<option value="{{ c.dial }}" data-code="{{ c.code }}" {% if form.phone_dial.value == c.dial %}selected{% endif %}>{{ c.code }} {{ c.dial }}</option>{% endif %}{% endfor %}</select>
+        <input name="phone_number" type="tel" inputmode="tel" value="{{ form.phone_number.value|default:'' }}" placeholder="801 234 5678" required class="grow" autocomplete="tel-national">
+      </div>{{ form.phone_number.errors }}{{ form.phone_dial.errors }}
+    </div>
+
+    <label class="check-row" style="margin-top:6px"><input type="checkbox" name="is_minor" value="on" {% if form.is_minor.value %}checked{% endif %}><b>Are you under 18 years old?</b> Tick if yes.</label>
+    <div id="guardian" hidden style="margin-top:10px">
+      <div class="notice warn" style="margin-bottom:12px">Authors under 18 need a parent or guardian's details.</div>
+      <label class="field"><span class="label req">Parent's or Guardian's Full Name</span><input name="guardian_name" value="{{ form.guardian_name.value|default:'' }}" maxlength="120" data-minor>{{ form.guardian_name.errors }}</label>
+      <label class="field"><span class="label req">Parent's or Guardian's Phone Number</span><input name="guardian_phone" type="tel" value="{{ form.guardian_phone.value|default:'' }}" placeholder="+234 801 234 5678" data-minor>{{ form.guardian_phone.errors }}</label>
+      <label class="field"><span class="label req">Parent's or Guardian's Email Address</span><input name="guardian_email" type="email" value="{{ form.guardian_email.value|default:'' }}" data-minor>{{ form.guardian_email.errors }}</label>
+      <label class="field"><span class="label req">Parent's or Guardian's Residential Address</span><input name="guardian_address" value="{{ form.guardian_address.value|default:'' }}" maxlength="200" data-minor>{{ form.guardian_address.errors }}</label>
+      <label class="field"><span class="label req">Relationship to the Author</span><textarea name="guardian_relationship" rows="3" placeholder="e.g. She is my mother and lives with me." data-minor>{{ form.guardian_relationship.value|default:'' }}</textarea>{{ form.guardian_relationship.errors }}</label>
+    </div>
+  </section>
+
+  {# ── Step 3 · Contract and book ───────────────────────────────────────── #}
+  <section class="ca-step" data-step="3" data-title="Step 3 of 4 · Contract and book information">
+    <div class="field"><span class="label req">Contract Type</span>
+      <label class="check-row"><input type="radio" checked disabled><b>Non-Exclusive Contract</b></label></div>
+    <label class="field"><span class="label req">Choose Editor</span>
+      {% if editors %}
+      <select name="chosen_editor" required><option value="">Choose a {% if story.is_short %}Short Stories{% else %}Long Story{% endif %} editor</option>{% for e in editors %}<option value="{{ e.pk }}" {% if form.chosen_editor.value|stringformat:'s' == e.pk|stringformat:'s' %}selected{% endif %}>{{ e.display_name }}</option>{% endfor %}</select>
+      {% else %}<div class="notice warn">No {% if story.is_short %}Short Stories{% else %}Long Story{% endif %} editors are available right now. Please try again later.</div>
+      <select name="chosen_editor" required hidden><option value=""></option></select>{% endif %}
+      {{ form.chosen_editor.errors }}</label>
+    <label class="field"><span class="label req">Character Details</span>
+      <span class="hint">Main characters: names, ages, personalities, and how they relate.</span>
+      <textarea name="character_details" rows="8" required style="margin-top:6px">{{ form.character_details.value|default:'' }}</textarea>{{ form.character_details.errors }}</label>
+    <label class="field"><span class="label req">Book Outline</span>
+      <span class="hint">How the story begins, develops and ends.</span>
+      <textarea name="outline" rows="10" required style="margin-top:6px">{{ form.outline.value|default:'' }}</textarea>{{ form.outline.errors }}</label>
+  </section>
+
+  {# ── Step 4 · Review and submit ───────────────────────────────────────── #}
+  <section class="ca-step ca-review" data-step="4" data-title="Step 4 of 4 · Review your application">
+    <p class="hint">Check everything below. Tap Edit to change a section.</p>
+    <div id="review"></div>
+    <label class="check-row" style="margin-top:18px;align-items:flex-start"><input type="checkbox" name="confirm" value="on" required>I confirm that the information I have provided is true and correct, and that the ID belongs to me{% if form.is_minor.value %} or my parent/guardian has agreed to this application{% endif %}.</label>
+    {{ form.confirm.errors }}
+  </section>
+
+  <div class="grid cols-2" style="margin-top:16px">
+    <button type="button" class="btn outline lg" id="caBack">Back</button>
+    <button type="button" class="btn lg" id="caNext">Next</button>
+  </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+{{ countries|json_script:'countries' }}
+<script>
+(() => {
+  const form = document.getElementById('ca');
+  const steps = [...form.querySelectorAll('.ca-step')];
+  const COUNTRIES = JSON.parse(document.getElementById('countries').textContent);
+  let step = {{ step }};
+  const f = (n) => form.elements[n];
+
+  // ── ID photos: one file input per side; Take photo uses the camera.
+  const preview = (name) => {
+    const input = f(name), img = form.querySelector(`[data-preview=${name}]`);
+    if (input.files[0]) { img.src = URL.createObjectURL(input.files[0]); img.hidden = false; }
+    if (name === 'id_front' && input.files[0]) document.getElementById('idBackBox').hidden = false;
+  };
+  form.querySelectorAll('[data-capture],[data-upload]').forEach((b) => b.addEventListener('click', () => {
+    const input = f(b.dataset.capture || b.dataset.upload);
+    if (b.dataset.capture) input.setAttribute('capture', 'environment'); else input.removeAttribute('capture');
+    input.click();
+  }));
+  ['id_front', 'id_back'].forEach((n) => f(n).addEventListener('change', () => preview(n)));
+
+  // ── Country (searchable) → states and dialing code.
+  const search = document.getElementById('countrySearch');
+  const loadStates = async (code, selected) => {
+    const sel = f('state'), box = document.getElementById('stateField');
+    sel.innerHTML = '<option value="">Loading…</option>';
+    const list = code ? await fetch(`/api/geo/countries/${code}/states/`).then((r) => r.json()).catch(() => []) : [];
+    sel.innerHTML = '<option value="">Choose your state</option>' + list.map((s) => `<option value="${s.code}">${s.name}</option>`).join('');
+    sel.value = selected || '';
+    box.hidden = code && !list.length; sel.required = !box.hidden;
+  };
+  const setCountry = (c, selectedState) => {
+    f('country').value = c ? c.code : '';
+    search.setCustomValidity(c ? '' : 'Choose your country from the list.');
+    if (c) {
+      search.value = c.name;
+      const dial = [...f('phone_dial').options].find((o) => o.dataset.code === c.code);
+      if (dial) f('phone_dial').value = dial.value;
+    }
+    loadStates(c && c.code, selectedState);
+  };
+  search.addEventListener('change', () => setCountry(COUNTRIES.find((c) => c.name.toLowerCase() === search.value.trim().toLowerCase())));
+  const initial = COUNTRIES.find((c) => c.code === f('country').value);
+  if (initial) setCountry(initial, '{{ form.state.value|default:""|escapejs }}'); else search.setCustomValidity('Choose your country from the list.');
+
+  // ── Under 18 → guardian fields required.
+  const minor = () => {
+    const on = f('is_minor').checked;
+    document.getElementById('guardian').hidden = !on;
+    form.querySelectorAll('[data-minor]').forEach((el) => el.required = on);
+  };
+  f('is_minor').addEventListener('change', minor); minor();
+
+  // ── Review.
+  const esc = (s) => String(s || '—').replace(/[&<>"]/g, (ch) => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[ch]));
+  const val = (n) => { const el = f(n); return el.tagName === 'SELECT' ? (el.value ? el.options[el.selectedIndex].text : '') : el.value; };
+  const section = (title, to, rows, extra = '') =>
+    `<h3><span>${title}</span><a href="#" class="pink small" data-goto="${to}">Edit</a></h3>${extra}` +
+    (rows.length ? `<dl>${rows.map(([k, v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join('')}</dl>` : '');
+  const buildReview = () => {
+    const img = (n) => { const i = form.querySelector(`[data-preview=${n}]`); return i.hidden ? '<span class="hint">Not attached</span>' : `<img src="${i.src}" alt="">`; };
+    let html = section('Personal Information', 1, [['First Name', val('first_name')], ['Middle Name', val('middle_name')], ['Surname', val('surname')]]);
+    html += section('Government ID – Front and Back', 1, [], `<div class="ids">${img('id_front')}${img('id_back')}</div>`);
+    html += section('Social Media Links', 1, [['Facebook', val('facebook_url')], ['Instagram', val('instagram_url')]]);
+    html += section('Residential Address', 2, [['House Address', val('house_address')], ['Street Name', val('street_name')], ['House Number', val('house_number')], ['Country', search.value], ['State', val('state')]]);
+    html += section('Contact Information', 2, [['Phone Number', `${f('phone_dial').value} ${val('phone_number')}`]]);
+    if (f('is_minor').checked) html += section('Parent/Guardian Information', 2, [['Full Name', val('guardian_name')], ['Phone', val('guardian_phone')], ['Email', val('guardian_email')], ['Address', val('guardian_address')], ['Relationship', val('guardian_relationship')]]);
+    html += section('Contract Type', 3, [['Contract', 'Non-Exclusive Contract'], ['Editor', val('chosen_editor')]]);
+    html += section('Character Details', 3, [['', val('character_details')]]);
+    html += section('Book Outline', 3, [['', val('outline')]]);
+    document.getElementById('review').innerHTML = html;
+  };
+  document.getElementById('review').addEventListener('click', (e) => {
+    const a = e.target.closest('[data-goto]'); if (a) { e.preventDefault(); show(+a.dataset.goto); }
+  });
+
+  // ── Steps: validate the current one before moving on.
+  const valid = (n) => {
+    for (const el of steps[n - 1].querySelectorAll('input,select,textarea')) {
+      if (el.type === 'file' && el.required && !el.files.length) {
+        el.closest('.field').scrollIntoView({behavior: 'smooth', block: 'center'});
+        alert(el.name === 'id_front' ? 'Add a photo of the front of your ID.' : 'Add a photo of the back of your ID.');
+        return false;
+      }
+      if (!el.hidden && !el.disabled && !el.checkValidity()) { el.reportValidity(); return false; }
+    }
+    return true;
+  };
+  const show = (n) => {
+    step = n;
+    steps.forEach((s) => s.classList.toggle('on', +s.dataset.step === n));
+    form.querySelectorAll('.ca-steps span').forEach((b, i) => b.classList.toggle('on', i < n));
+    document.getElementById('caLabel').textContent = steps[n - 1].dataset.title;
+    document.getElementById('caBack').style.visibility = n === 1 ? 'hidden' : '';
+    document.getElementById('caNext').textContent = n === 4 ? 'Submit Application' : 'Next';
+    if (n === 4) buildReview();
+    window.scrollTo({top: 0, behavior: 'smooth'});
+  };
+  document.getElementById('caBack').addEventListener('click', () => show(step - 1));
+  document.getElementById('caNext').addEventListener('click', () => {
+    if (step < 4) { if (valid(step)) show(step + 1); return; }
+    for (let n = 1; n <= 3; n++) if (!valid(n)) { show(n); valid(n); return; }
+    if (!f('confirm').checked) { f('confirm').reportValidity(); return; }
+    document.getElementById('caNext').disabled = true;
+    form.submit();
+  });
+  show(step);
+})();
+</script>
+{% endblock %}

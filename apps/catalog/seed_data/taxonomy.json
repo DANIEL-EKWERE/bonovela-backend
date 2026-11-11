@@ -8,6 +8,7 @@
   "Fantasy",
   "Urban",
   "LGBTQ+",
+  "Erotic",
   "YA/TEEN",
   "Paranormal",
   "Mystery/Thriller",
@@ -166,5 +167,11 @@
    "Terminal Illness Countdown",
    "Death Countdown"
   ]
- }
+ },
+ "retired_genres": [
+  "Apocalypse",
+  "Urban",
+  "Eastern",
+  "History"
+ ]
 }

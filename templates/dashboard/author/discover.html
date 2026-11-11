@@ -1,30 +1,198 @@
-{% extends 'dashboard/base.html' %}
-{% block title %}Discover{% endblock %}
-{% block heading %}Discover{% endblock %}
+{% extends 'dashboard/base.html' %}{% load static %}
+{% block title %}Writer's Benefits 2026{% endblock %}
+{% block heading %}Benefits{% endblock %}
+{% block head %}
+<style>
+  .wb { --wb-pink: #ED4F98; --wb-ink: #492F42; --wb-soft: #F58AB8; --wb-light: #FFEAF4;
+        --wb-line: #F7BEDA; --wb-shadow: 0 12px 32px -20px var(--wb-pink);
+        background: var(--wb-light); color: var(--wb-ink); border-radius: 24px; overflow: hidden; margin: -4px 0 0; }
+  .wb h1, .wb h2, .wb h3 { color: inherit; margin: 0; }
+  .wb img { height: auto; }
+  .wb-hero { background: linear-gradient(160deg, var(--wb-soft), var(--wb-light)); padding: 40px 20px 32px; text-align: center; }
+  .wb-hero-in { max-width: 960px; margin: 0 auto; display: flex; flex-direction: column; align-items: center; }
+  .wb-logo { display: inline-flex; align-items: center; gap: 12px; margin-bottom: 32px; }
+  .wb-logo b { display: grid; place-items: center; width: 56px; height: 56px; border-radius: 16px; background: #fff; color: var(--wb-pink); font-size: 36px; font-weight: 900; }
+  .wb-logo span { font-size: 36px; font-weight: 900; color: #fff; text-shadow: 0 3px 3px rgba(73,47,66,.3); }
+  .wb-tag { font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: .16em; color: #fff; margin-bottom: 16px; }
+  .wb-hero h1 { font-size: 40px; font-weight: 800; line-height: 1.05; color: #fff; text-shadow: 0 4px 4px rgba(237,79,152,.45); }
+  .wb-pill { margin-top: 24px; border-radius: 999px; background: #fff; padding: 12px 20px; font-size: 14px; font-weight: 700; color: var(--wb-pink); }
+  .wb-img { margin-top: 28px; width: 100%; border-radius: 32px; background: #fff; padding: 12px; }
+  .wb-img img { display: block; width: 100%; max-width: 896px; margin: 0 auto; aspect-ratio: 1.54; object-fit: cover; border-radius: 24px; }
+  .wb-intro { margin-top: 24px; border-radius: 28px; background: var(--wb-pink); padding: 24px; text-align: left; font-size: 18px; font-weight: 700; line-height: 32px; color: #fff; box-shadow: var(--wb-shadow); }
+  .wb-body { max-width: 1152px; margin: 0 auto; display: flex; flex-direction: column; gap: 56px; padding: 40px 16px; }
+  .wb-excl { position: relative; margin-top: 8px; border: 3px dashed var(--wb-soft); border-radius: 32px; background: rgba(255,255,255,.8); padding: 48px 20px 32px; text-align: center; }
+  .wb-excl-badge { position: absolute; left: 50%; top: 0; transform: translate(-50%,-50%); width: min(82%, 31rem); border-radius: 24px; background: var(--wb-pink); padding: 12px 16px; font-size: 18px; font-weight: 800; text-transform: uppercase; letter-spacing: .12em; color: #fff; }
+  .wb-excl h2 { font-size: 24px; font-weight: 700; color: var(--wb-pink); }
+  .wb-excl p { max-width: 768px; margin: 16px auto 0; font-size: 18px; line-height: 32px; color: rgba(73,47,66,.7); }
+  .wb-h2 { margin-bottom: 36px !important; text-align: center; font-size: 30px; font-weight: 800; text-transform: uppercase; line-height: 1.25; color: var(--wb-pink) !important; }
+  .wb-grid { display: grid; gap: 28px; }
+  .wb-card, .wb-faq { border: 1px solid var(--wb-line); border-radius: 28px; background: rgba(255,255,255,.82); box-shadow: var(--wb-shadow); }
+  .wb-card { overflow: hidden; padding-bottom: 28px; }
+  .wb-ribbon { display: inline-flex; align-items: center; min-height: 48px; margin-top: 16px; padding: 12px 20px; border-radius: 0 999px 999px 0; background: var(--wb-soft); color: #fff; font-size: 16px; font-weight: 700; font-style: italic; }
+  .wb-card-in { padding: 24px 20px 0; }
+  .wb-card h3 { margin-bottom: 24px; text-align: center; font-size: 24px; font-weight: 700; line-height: 1.25; color: var(--wb-pink); }
+  .wb-table { border: 1px solid var(--wb-line); border-radius: 0; overflow: hidden; }
+  .wb-table table { width: 100%; table-layout: fixed; border-collapse: collapse; text-align: center; }
+  .wb-table th { background: var(--wb-soft); color: #fff; padding: 16px 8px; font-size: 14px; font-weight: 700; line-height: 1.375; }
+  .wb-table td { padding: 20px 8px; font-size: 14px; font-weight: 700; line-height: 1.375; color: var(--wb-ink); }
+  .wb-text { margin-top: 24px; font-size: 16px; line-height: 28px; color: rgba(73,47,66,.75); }
+  .wb-text p + p { margin-top: 16px; }
+  .wb-text strong, .wb-q { font-weight: 700; color: var(--wb-pink); }
+  .wb-text ol { list-style: decimal; padding-left: 28px; margin: 0; }
+  .wb-text li + li { margin-top: 12px; }
+  .wb-note { margin-top: 28px; border-left: 5px solid var(--wb-pink); border-radius: 0 16px 16px 0; background: var(--wb-light); padding: 20px; font-size: 16px; line-height: 28px; color: rgba(73,47,66,.8); }
+  .wb-note strong { color: var(--wb-ink); }
+  .wb-withdraw { border-radius: 32px; background: var(--wb-pink); padding: 32px 20px; text-align: center; color: #fff; box-shadow: var(--wb-shadow); }
+  .wb-withdraw h2 { font-size: 20px; font-weight: 800; text-transform: uppercase; line-height: 1.25; }
+  .wb-withdraw .big { margin-top: 8px; font-size: 48px; font-weight: 800; line-height: 1.1; }
+  .wb-withdraw p:last-child { max-width: 896px; margin: 12px auto 0; font-size: 16px; font-weight: 700; line-height: 28px; }
+  .wb-faqs { display: flex; flex-direction: column; gap: 16px; }
+  .wb-faq { padding: 20px; }
+  .wb-faq h3 { font-size: 18px; font-weight: 700; line-height: 28px; color: var(--wb-pink); }
+  .wb-faq p { margin-top: 12px; font-size: 16px; line-height: 28px; color: rgba(73,47,66,.75); }
+  .wb-foot { text-align: center; }
+  .wb-foot-card { overflow: hidden; border: 1px solid var(--wb-soft); border-radius: 32px; background: rgba(255,255,255,.7); padding: 12px; }
+  .wb-foot-card img { display: block; width: 100%; max-width: 768px; margin: 0 auto; aspect-ratio: 1.5; object-fit: contain; }
+  .wb-foot-card p { padding-bottom: 8px; font-size: 14px; font-weight: 800; text-transform: uppercase; color: var(--wb-pink); }
+  .wb-guide { margin-top: 32px; font-size: 18px; font-weight: 700; line-height: 32px; color: rgba(73,47,66,.75); }
+  .wb-guide span { color: var(--wb-pink); text-decoration: underline; text-underline-offset: 4px; }
+  .wb-legal { max-width: 1024px; margin: 24px auto 0; font-size: 14px; line-height: 28px; color: rgba(73,47,66,.6); }
+  .wb-band { margin: 48px -16px -40px; background: var(--wb-pink); padding: 28px 20px; font-size: 18px; font-weight: 800; text-transform: uppercase; line-height: 32px; letter-spacing: .08em; color: #fff; }
+  .wb-br-sm { display: inline; }
+  @media (min-width: 640px) {
+    .wb-hero { padding: 56px 32px 48px; }
+    .wb-logo { margin-bottom: 40px; }
+    .wb-logo b { width: 64px; height: 64px; font-size: 48px; }
+    .wb-logo span { font-size: 48px; }
+    .wb-tag { font-size: 18px; }
+    .wb-hero h1 { font-size: 60px; }
+    .wb-pill { padding: 12px 32px; font-size: 18px; }
+    .wb-img { margin-top: 36px; padding: 20px; }
+    .wb-intro { padding: 28px 32px; font-size: 24px; line-height: 40px; }
+    .wb-body { gap: 80px; padding: 56px 32px; }
+    .wb-excl { padding: 56px 40px 40px; }
+    .wb-excl-badge { border-radius: 24px; padding: 16px 28px; font-size: 24px; }
+    .wb-excl h2 { font-size: 30px; }
+    .wb-excl p { font-size: 24px; line-height: 40px; }
+    .wb-h2 { margin-bottom: 48px !important; font-size: 36px; }
+    .wb-card { padding-bottom: 36px; }
+    .wb-ribbon { font-size: 18px; }
+    .wb-card-in { padding: 24px 28px 0; }
+    .wb-card h3 { font-size: 30px; }
+    .wb-table th { padding: 16px; font-size: 16px; }
+    .wb-table td { padding: 24px 16px; font-size: 16px; }
+    .wb-text, .wb-note { font-size: 18px; line-height: 32px; }
+    .wb-withdraw { padding: 40px; }
+    .wb-withdraw h2 { font-size: 30px; }
+    .wb-withdraw .big { font-size: 72px; }
+    .wb-withdraw p:last-child { font-size: 20px; line-height: 36px; }
+    .wb-faq { padding: 24px 28px; }
+    .wb-faq h3 { font-size: 20px; line-height: 32px; }
+    .wb-faq p { font-size: 18px; line-height: 32px; }
+    .wb-foot-card { padding: 20px 24px; }
+    .wb-foot-card p { font-size: 16px; }
+    .wb-guide { margin-top: 40px; font-size: 20px; }
+    .wb-legal { margin-top: 32px; font-size: 16px; line-height: 32px; }
+    .wb-band { margin: 64px -32px -56px; padding: 32px; font-size: 24px; }
+    .wb-br-sm { display: none; }
+  }
+  @media (min-width: 768px) { .wb-grid.two { grid-template-columns: 1fr 1fr; gap: 32px; } }
+</style>
+{% endblock %}
 {% block content %}
-<div class="section-title" style="margin-top:4px"><h2>Writing Contests</h2></div>
-<div class="grid fill">
-{% for c in contests %}
-  <div class="card">
-    <div class="row"><i class="ph-fill ph-medal" style="color:var(--gold);font-size:24px"></i><h3 class="grow">{{ c.contest.title }}</h3></div>
-    <p class="muted small" style="margin:8px 0 12px">{{ c.contest.brief }}</p>
-    <div class="row">
-      <b style="color:var(--star)">Prize {{ c.contest.prize }}</b><span class="hint">Ends {{ c.contest.deadline|date:"M d, Y" }}</span>
-      <span class="grow"></span>
-      <a class="btn sm" href="{% if has_stories %}{% url 'dashboard:author_stories' %}{% else %}{% url 'dashboard:author_story_new' %}{% endif %}">Join</a>
-    </div>
-    {% if c.entries %}<p class="small success-text" style="margin-top:8px">Entered: {{ c.entries|join:", " }}</p>
-    {% else %}<p class="hint" style="margin-top:8px">Enter from a story's Novel Information → Participate.</p>{% endif %}
-  </div>
-{% empty %}
-  <div class="card muted">No contests right now.</div>
-{% endfor %}
-</div>
+<div class="wb">
+  <header class="wb-hero"><div class="wb-hero-in">
+    <div class="wb-logo"><b>B</b><span>bonovela</span></div>
+    <p class="wb-tag">A celebration of your creativity</p>
+    <h1>WRITER'S<br>BENEFITS 2026</h1>
+    <p class="wb-pill">BONOVELA AUTHOR BENEFIT PROGRAMME</p>
+    <div class="wb-img"><img src="{% static 'img/benefits/hero.webp' %}" alt="A Bonovela author reading and writing among flowers" width="1200" height="777"></div>
+    <p class="wb-intro">Discover the rewards available to Bonovela authors. Keep writing, grow your readership, and reach exciting royalty and completion milestones!</p>
+  </div></header>
 
-<div class="section-title"><h2>Writing Tips</h2></div>
-<div class="card flush">
-  {% for title, body in tips %}
-    <div class="list-item"><i class="ph ph-lightbulb pink" style="font-size:24px"></i><div><b>{{ title }}</b><p class="small muted">{{ body }}</p></div></div>
-  {% endfor %}
+  <div class="wb-body">
+    <section class="wb-excl">
+      <p class="wb-excl-badge">Exclusive · Coming Soon</p>
+      <h2>Benefits for Exclusive Contracts</h2>
+      <p>Exclusive contracts are not currently available. Stay tuned for future updates.</p>
+    </section>
+
+    <section>
+      <h2 class="wb-h2">Short Stories<br class="wb-br-sm"> Performance Benefits</h2>
+      <div class="wb-grid two">
+        <article class="wb-card">
+          <div class="wb-ribbon">First milestone bonus</div>
+          <div class="wb-card-in">
+            <h3>$50 Performance Bonus</h3>
+            <div class="wb-table"><table><thead><tr><th>Royalty Share Target</th><th>Bonus</th></tr></thead><tbody><tr><td>$100</td><td>$50 USD</td></tr></tbody></table></div>
+            <div class="wb-text">
+              <p><strong>How to qualify:</strong> Generate at least $100 in royalty share within 136 days. Once the earnings are verified, the author can claim the $50 performance bonus.</p>
+              <p>The 136-day qualifying period applies to this first milestone.</p>
+            </div>
+          </div>
+        </article>
+        <article class="wb-card">
+          <div class="wb-ribbon">Second milestone bonus</div>
+          <div class="wb-card-in">
+            <h3>$120 Performance Bonus</h3>
+            <div class="wb-table"><table><thead><tr><th>Additional Royalty Share</th><th>Bonus</th></tr></thead><tbody><tr><td>$500</td><td>$120 USD</td></tr></tbody></table></div>
+            <div class="wb-text">
+              <p><strong>How to qualify:</strong> After claiming the first $50 bonus, generate an additional $500 in royalty share to qualify for the $120 bonus.</p>
+              <p><strong>No extra deadline:</strong> Authors can take the time they need to reach this second milestone.</p>
+            </div>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section>
+      <h2 class="wb-h2">Non-Exclusive Contract Benefits</h2>
+      <article class="wb-card">
+        <div class="wb-ribbon">Completion bonus</div>
+        <div class="wb-card-in">
+          <h3>$40 USD Completion Bonus</h3>
+          <div class="wb-table"><table><thead><tr><th>Minimum Completed Word Count</th><th>Required Profit Share</th><th>Bonus</th></tr></thead><tbody><tr><td>150,000 words</td><td>$60</td><td>$40 USD</td></tr></tbody></table></div>
+          <div class="wb-text">
+            <p class="wb-q" style="margin-bottom:12px">How to qualify:</p>
+            <ol>
+              <li>Sign a Non-Exclusive Contract with Bonovela.</li>
+              <li>Publish the book on Bonovela before publishing it on another platform.</li>
+              <li>Complete the book with at least 150,000 original words.</li>
+              <li>Reach at least $60 in total author profit share when the book is marked as completed.</li>
+              <li>Mark the book as completed within 136 days from the contract signing date.</li>
+            </ol>
+          </div>
+          <p class="wb-note"><strong>Understanding the word count:</strong> The 150,000-word requirement means the completed manuscript must contain at least 150,000 words in total. It is the book's overall word count—not 150,000 words per month. The $60 profit-share requirement is a separate earnings condition. Reaching the word count alone does not qualify a book for the bonus.</p>
+        </div>
+      </article>
+    </section>
+
+    <section class="wb-withdraw">
+      <h2>Minimum Withdrawal Threshold</h2>
+      <p class="big">$100 USD</p>
+      <p>Authors can request a withdrawal once their eligible account balance reaches $100, subject to Bonovela's withdrawal rules.</p>
+    </section>
+
+    <section>
+      <h2 class="wb-h2">Questions &amp; Answers</h2>
+      <div class="wb-faqs">
+        <article class="wb-faq"><h3>1. Does Bonovela currently offer Exclusive Contracts?</h3><p>No. Exclusive benefits are marked as coming soon. The current contract benefit described here is for Non-Exclusive authors.</p></article>
+        <article class="wb-faq"><h3>2. How is the first Short Stories bonus calculated?</h3><p>The author must accumulate $100 in royalty share within the 136-day qualifying period. After verification, the author can claim a $50 bonus.</p></article>
+        <article class="wb-faq"><h3>3. Does the second Short Stories bonus have a deadline?</h3><p>No. After claiming the first $50 reward, the author can continue toward an additional $500 in royalty share without another time limit.</p></article>
+        <article class="wb-faq"><h3>4. Does 150,000 words guarantee the Non-Exclusive Completion Bonus?</h3><p>No. The book must also be published on Bonovela first, reach at least $60 in total author profit share, and be marked completed within 136 days after signing.</p></article>
+        <article class="wb-faq"><h3>5. What is the minimum withdrawal amount?</h3><p>The minimum withdrawal threshold is $100 USD. A request can be made when the eligible balance reaches this amount, in line with Bonovela's payment procedures.</p></article>
+      </div>
+    </section>
+
+    <footer class="wb-foot">
+      <div class="wb-foot-card">
+        <img src="{% static 'img/benefits/pencil.webp' %}" alt="A writer sitting on a giant pink pencil" width="1200" height="800" loading="lazy">
+        <p>Keep writing. Your story matters.</p>
+      </div>
+      <p class="wb-guide">For more details, please refer to the <span>Bonovela Author's Guidebook</span>.</p>
+      <p class="wb-legal">All rewards are subject to eligibility checks and verification. Content containing plagiarism, copied material, repetitive or meaningless chapters, or other policy violations may be disqualified from writer benefits. Bonovela reserves the right to review reward eligibility in accordance with its publishing policies.</p>
+      <div class="wb-band">Bonovela · Write your story. Grow with us.</div>
+    </footer>
+  </div>
 </div>
 {% endblock %}

@@ -7,7 +7,7 @@ tabs (Romance, Mafia, …) and Short Stories are built from curated shelves.
 
 from datetime import timedelta
 
-from django.db.models import Avg, Count, Q, Sum
+from django.db.models import Avg, Count, Prefetch, Q, Sum
 from django.utils import timezone
 
 from apps.editorial.models import Promotion, ShelfBook, ShelfCategory
@@ -56,45 +56,52 @@ def section(title: str, layout: str, items):
 
 SHELF_SIZE = 8
 # Rotated across a category's shelves so filled-in shelves don't all match.
-FILL_ORDER = ['-views', '-avg_stars', '-updated_at', '-created_at']
+FILL_ORDER = ['views', 'avg_stars', 'updated_at', 'created_at']
+# Fill candidates per request, most-read first. Filtering happens in Python
+# so a page of shelves costs a handful of queries, not several per shelf.
+FILL_POOL = 300
 
 
-def shelf_books(shelf, base, fill_order='-views'):
-    """Approved picks in the Chief Editor's order, then books with a tag named
-    like the shelf (or else from the category's genres) up to SHELF_SIZE."""
-    picked_ids = list(shelf.entries.filter(status=ShelfBook.STATUS_APPROVED).values_list('story_id', flat=True))
-    by_id = {b.id: b for b in base.filter(id__in=picked_ids)}
-    picks = [by_id[i] for i in picked_ids if i in by_id]
-    if base.filter(tags__name=shelf.title).exists():
-        fill = base.filter(tags__name=shelf.title)
-    elif shelf.category.kind == ShelfCategory.KIND_NOVEL:
-        fill = base.filter(genre__in=shelf.category.genres.all())
-    else:
-        fill = base
-    seen = {b.id for b in picks}
-    for b in fill.order_by(fill_order).distinct()[:SHELF_SIZE * 2]:
-        if len(picks) >= SHELF_SIZE:
-            break
-        if b.id not in seen:
-            picks.append(b)
-            seen.add(b.id)
-    return picks
+def shelf_sections(categories, base):
+    """{category: [section, …]}. Each shelf shows the Chief Editor's approved
+    picks in order, then books tagged like the shelf's name, then books from
+    the category's genres (novels) or any short, up to SHELF_SIZE."""
+    categories = list(categories.prefetch_related(
+        'genres', Prefetch('shelves__entries', queryset=ShelfBook.objects.filter(status=ShelfBook.STATUS_APPROVED),
+                           to_attr='approved')))
+    shelves = [sh for cat in categories for sh in cat.shelves.all()]
+    pool = list(base.order_by('-views')[:FILL_POOL])
+    by_id = {b.id: b for b in pool}
+    missing = {e.story_id for sh in shelves for e in sh.approved} - by_id.keys()
+    by_id.update({b.id: b for b in base.filter(id__in=missing)})
 
+    def ranked(order):
+        return sorted(pool, key=lambda b: getattr(b, order) or 0, reverse=True)
 
-def shelf_sections(category, base):
-    return [
-        section(shelf.title, shelf.layout, shelf_books(shelf, base, FILL_ORDER[i % len(FILL_ORDER)]))
-        for i, shelf in enumerate(category.shelves.all())
-    ]
+    out = {}
+    for cat in categories:
+        genre_ids = {g.id for g in cat.genres.all()}
+        out[cat] = []
+        for i, shelf in enumerate(cat.shelves.all()):
+            picks = [by_id[e.story_id] for e in shelf.approved if e.story_id in by_id]
+            seen = {b.id for b in picks}
+            candidates = ranked(FILL_ORDER[i % len(FILL_ORDER)])
+            tagged = [b for b in candidates if any(t.name == shelf.title for t in b.tags.all())]
+            in_genre = [b for b in candidates if b.genre_id in genre_ids] if genre_ids else candidates
+            for b in tagged + in_genre:
+                if len(picks) >= SHELF_SIZE:
+                    break
+                if b.id not in seen:
+                    picks.append(b)
+                    seen.add(b.id)
+            out[cat].append(section(shelf.title, shelf.layout, picks))
+    return out
 
 
 def short_collections():
     """Short Stories categories, each a list of shelf sections."""
-    shorts = books().filter(is_short=True)
-    return [
-        {'title': cat.name, 'sections': shelf_sections(cat, shorts)}
-        for cat in ShelfCategory.objects.filter(kind=ShelfCategory.KIND_SHORT).prefetch_related('shelves')
-    ]
+    cats = shelf_sections(ShelfCategory.objects.filter(kind=ShelfCategory.KIND_SHORT), books().filter(is_short=True))
+    return [{'title': cat.name, 'sections': sections} for cat, sections in cats.items()]
 
 
 def discover_feed(tab: str):
@@ -116,9 +123,9 @@ def discover_feed(tab: str):
             section('Picks for You', 'rated_list', novels.order_by('?')[:5]),
         ]
 
-    category = ShelfCategory.objects.filter(kind=ShelfCategory.KIND_NOVEL, name=tab).first()
-    if category:
-        return shelf_sections(category, novels)
+    cats = shelf_sections(ShelfCategory.objects.filter(kind=ShelfCategory.KIND_NOVEL, name=tab), novels)
+    if cats:
+        return next(iter(cats.values()))
     genre_books = novels.filter(genre__name=tab)
     return [
         section('New Arrival', 'compact_grid', with_promoted('new_arrival', genre_books, genre_books.order_by('-updated_at'), 6)),

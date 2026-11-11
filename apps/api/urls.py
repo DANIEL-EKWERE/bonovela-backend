@@ -8,6 +8,8 @@ from . import wallet_views as w
 
 urlpatterns = [
     path('health/', v.health),
+    path('geo/countries/', v.countries),
+    path('geo/countries/<str:code>/states/', v.states),
     # Auth
     path('auth/register/', v.RegisterView.as_view()),
     path('auth/email-status/', v.email_status),
@@ -77,6 +79,7 @@ urlpatterns = [
     path('author/stories/<int:pk>/chapters/<int:chapter_id>/', author.ChapterDetail.as_view()),
     path('author/stories/<int:pk>/chapters/<int:chapter_id>/<slug:action>/', author.chapter_action),
     path('author/stories/<int:pk>/application/', author.application),
+    path('author/stories/<int:pk>/editors/', author.editors),
     path('author/stories/<int:pk>/sign/', author.sign_contract),
     path('author/stories/<int:pk>/stats/', author.stats),
     path('author/comments/', author.comments),

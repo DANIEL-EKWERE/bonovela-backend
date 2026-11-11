@@ -209,8 +209,9 @@ class AuthorEarning(models.Model):
         ('reward_share', 'Reward Share'),
         ('editor_commission', 'Editorial Commission'),
     ]
-    # No longer paid; old rows still count toward totals but get no card.
-    RETIRED_TYPES = {'signing_bonus', 'completion'}
+    # No card on the Income page: no longer paid (signing, completion) or
+    # replaced by "Available to withdraw" (MAB). Old rows still count in totals.
+    RETIRED_TYPES = {'signing_bonus', 'completion', 'attendance'}
 
     author = models.ForeignKey(User, on_delete=models.CASCADE, related_name='earnings')
     story = models.ForeignKey('catalog.Story', on_delete=models.SET_NULL, null=True, blank=True)

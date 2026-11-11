@@ -11,7 +11,8 @@
   {% if application and application.is_open %}
     <div class="notice warn" style="margin-bottom:12px"><b>Applied:</b> {{ application.get_status_display }}. If you don't hear back within 30 business days, contact support@bonovela.app. <a class="pink" href="{% url 'dashboard:author_signing' story.pk %}">Details ›</a></div>
   {% else %}
-    <div class="notice" style="margin-bottom:12px">This book is unsigned, so it's visible on the web only. <a class="pink" href="{% url 'dashboard:author_signing' story.pk %}">Apply for signing ›</a></div>
+    <div class="notice" style="margin-bottom:12px">This book isn't under contract yet, so it can't be displayed in the app.
+      {% if story.can_apply_for_contract %}<a class="pink" href="{% url 'dashboard:author_signing' story.pk %}">Apply for Contract ›</a>{% else %}You can apply for a contract once it reaches {{ min_contract_words|stringformat:'d' }} published words ({{ story.total_words }} so far).{% endif %}</div>
   {% endif %}
 {% endif %}
 

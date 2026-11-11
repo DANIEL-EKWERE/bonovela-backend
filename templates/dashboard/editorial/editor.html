@@ -4,6 +4,13 @@
 {% block heading %}{{ ed.display_name }}{% endblock %}
 {% block actions %}<span class="chip grey">{{ ed.get_role_display }}</span>{% endblock %}
 {% block content %}
+{% if ed.role == 'se' %}
+<form class="card row wrap" method="post" style="gap:10px;margin-bottom:12px">{% csrf_token %}
+  <span class="grow"><b>Desk</b> <span class="hint">· authors choose an editor from the desk that matches their book</span></span>
+  <select name="desk" style="max-width:180px">{% for k, l in desks %}<option value="{{ k }}" {% if ed.desk == k %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+  <button class="btn sm" name="action" value="desk">Save</button>
+</form>
+{% endif %}
 <div class="grid cols-4">
   <div class="kpi"><div class="l">Performance score</div><div class="v">{{ score }}</div></div>
   <div class="kpi"><div class="l">Books</div><div class="v">{{ stats.books }}</div><div class="d">{{ stats.active_books }} active · {{ stats.completed_books }} completed</div></div>

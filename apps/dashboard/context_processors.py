@@ -4,7 +4,7 @@ from django.urls import NoReverseMatch, reverse
 
 AUTHOR_NAV = [
     ('dashboard:author_stories', 'books', 'Stories'),
-    ('dashboard:author_discover', 'compass', 'Discover'),
+    ('dashboard:author_discover', 'gift', 'Benefits'),
     ('dashboard:author_calendar', 'calendar-blank', 'Calendar'),
     ('dashboard:author_comments', 'chat-circle-dots', 'Comments'),
     ('dashboard:author_income', 'wallet', 'Income'),

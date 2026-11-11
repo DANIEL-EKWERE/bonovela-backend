@@ -34,7 +34,8 @@
   </label>
 
   <label class="field"><span class="label req">Language</span>
-    <select name="language">{% for l in languages %}<option {% if l == form.language.value %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+    {% if languages|length == 1 %}<input type="hidden" name="language" value="{{ languages.0 }}"><div style="padding:10px 0;font-weight:500">{{ languages.0 }}</div>
+    {% else %}<select name="language">{% for l in languages %}<option {% if l == form.language.value %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>{% endif %}
   </label>
 
   <div class="field"><span class="label req">Target Audience</span>
@@ -69,6 +70,15 @@
   <label class="field"><span class="label req">Novel Type</span>
     <select name="novel_type">{% for v, l in types %}<option value="{{ v }}" {% if form.novel_type.value == v %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
   </label>
+  <div class="field"><span class="label req">Story Length</span>
+    <div class="grid cols-2" style="margin-top:6px">
+      {% for v, l in form.fields.is_short.choices %}
+      <label class="pill" style="justify-content:center;padding:10px"><input type="radio" name="is_short" value="{{ v }}" {% if form.is_short.value|stringformat:'s' == v %}checked{% endif %} {% if form.is_short.field.disabled %}disabled{% endif %} required><span>{{ l }}</span></label>
+      {% endfor %}
+    </div>
+    {% if form.is_short.field.disabled %}<span class="hint">Signed books can't change length.</span>{% endif %}
+    {{ form.is_short.errors }}
+  </div>
   <label class="field"><span class="label req">Genre</span>
     <select name="genre"><option value="">Choose a genre</option>{% for g in genres %}<option value="{{ g.pk }}" {% if form.genre.value|stringformat:'s' == g.pk|stringformat:'s' %}selected{% endif %}>{{ g.name }}</option>{% endfor %}</select>
   </label>
@@ -90,19 +100,11 @@
   </div>
 
   <label class="field"><span class="label req">Synopsis</span>
-    <span class="hint">Please write a description for your story with 20 to 300 words.</span>
-    <textarea name="synopsis" rows="8" data-words="#synWords" style="margin-top:8px">{{ form.synopsis.value|default:'' }}</textarea>
-    <span class="hint" style="display:block;text-align:right"><span id="synWords">0</span> Words</span>
+    <span class="hint">Please write a description for your story with {{ synopsis_words.0 }} to {{ synopsis_words.1 }} words.</span>
+    <textarea name="synopsis" rows="8" data-words="#synWords" data-range="{{ synopsis_words.0 }}-{{ synopsis_words.1 }}" style="margin-top:8px">{{ form.synopsis.value|default:'' }}</textarea>
+    <span class="hint" style="display:block;text-align:right"><span id="synWords">0</span> / {{ synopsis_words.0 }}–{{ synopsis_words.1 }} words</span>
+    {{ form.synopsis.errors }}
   </label>
-
-  {% if contests %}
-  <div class="field"><span class="label">Participate</span>
-    {% for ct in contests %}
-      <label class="check-row"><input type="checkbox" name="contests" value="{{ ct.pk }}" {% if ct.pk in selected_contests %}checked{% endif %}>
-        <span class="grow">{{ ct.title }}</span><span class="nowrap" style="color:var(--star)">({{ ct.prize }})</span></label>
-    {% endfor %}
-  </div>
-  {% endif %}
 
   <div class="grid cols-2">
     <button class="btn outline lg" name="action" value="back" formnovalidate>BACK</button>
@@ -120,6 +122,7 @@
   </div>
   <div class="card stack">
     <div><div class="hint">Novel Type</div><div>{{ story.get_novel_type_display }}</div></div>
+    <div><div class="hint">Story Length</div><div>{% if story.is_short %}Short Story{% else %}Novel{% endif %}</div></div>
     <div><div class="hint">Genre</div><div>{{ story.genre|default:'—' }}</div></div>
     <div><div class="hint">Tags</div><div class="row wrap" style="gap:6px;margin-top:4px">{% for t in story.tags.all %}<span class="tag on">{{ t.name }}</span>{% endfor %}</div></div>
   </div>
@@ -128,7 +131,6 @@
     <div><div class="hint">Content Rating</div><div>{{ story.content_rating|default:'—' }}</div></div>
   </div>
   <div class="card"><div class="hint">Synopsis</div><p style="white-space:pre-line;margin-top:4px">{{ story.synopsis }}</p></div>
-  {% if story.contests.exists %}<div class="card"><div class="hint">Participating in</div>{% for ct in story.contests.all %}<div>{{ ct.title }}</div>{% endfor %}</div>{% endif %}
   <div class="grid cols-2" style="margin-top:14px">
     <button class="btn outline lg" name="action" value="back">BACK</button>
     <button class="btn lg" name="action" value="complete">COMPLETE</button>

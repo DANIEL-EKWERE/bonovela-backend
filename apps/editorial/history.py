@@ -126,10 +126,19 @@ def flag(app):
     return app
 
 
-def submit(story, request=None, message=''):
-    """Create a contract application, record the IP and run the check."""
+def submit(story, request=None, message='', form=None):
+    """Create a contract application (from a valid ContractApplicationForm
+    when given), record the IP, hand an unassigned book to the editor the
+    author chose, and run the prior-rejection check."""
+    from django.utils import timezone
+
+    from apps.catalog.models import Story
     from apps.users.ip import record
 
     ip = record(story.author, request, 'submit') if request else None
-    app = App.objects.create(story=story, message=message[:2000], submitted_ip=ip)
+    app = form.save(commit=False) if form else App(story=story)
+    app.message, app.submitted_ip = message[:2000], ip
+    app.save()
+    if app.chosen_editor_id and not story.editor_id:
+        Story.objects.filter(pk=story.pk).update(editor=app.chosen_editor, assigned_at=timezone.now())
     return flag(app)

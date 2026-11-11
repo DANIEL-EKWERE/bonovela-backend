@@ -54,7 +54,7 @@
     <div class="divider"></div>
     {% if s.is_info_complete %}
       <div class="row between">
-        {% if not s.is_signed %}<a class="small pink" href="{% url 'dashboard:author_signing' s.pk %}">Apply for signing ›</a>{% else %}<span></span>{% endif %}
+        {% if not s.is_signed and c.can_apply %}<a class="small pink" href="{% url 'dashboard:author_signing' s.pk %}">Apply for Contract ›</a>{% else %}<span></span>{% endif %}
         <a class="btn sm" href="{% url 'dashboard:author_chapter_new' s.pk %}">Add new chapter</a>
       </div>
     {% else %}

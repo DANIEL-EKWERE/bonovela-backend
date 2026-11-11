@@ -12,9 +12,10 @@
   <div class="card flush">
     <input class="editor-title" type="text" name="title" maxlength="120" value="{{ form.title.value|default:'' }}" placeholder="Chapter {{ chapter.number }} title" style="border-radius:0">
     <div style="padding:0 16px">
-      <textarea class="editor-body" name="content" data-words="#words" placeholder="Start writing your chapter…">{{ form.content.value|default:'' }}</textarea>
+      <textarea class="editor-body" name="content" data-words="#words" data-range="{{ chapter_words.0 }}-{{ chapter_words.1 }}" data-draft placeholder="Start writing your chapter…">{{ form.content.value|default:'' }}</textarea>
     </div>
-    <div class="hint" style="text-align:right;padding:10px 16px;background:var(--surface)"><span id="words">0</span> Words (Ideal word count: 600–1,000)</div>
+    <div class="hint" style="text-align:right;padding:10px 16px;background:var(--surface)"><span id="words">0</span> / {{ chapter_words.0|stringformat:'d' }}–{{ chapter_words.1|stringformat:'d' }} words · chapters must be in this range to publish</div>
+    {% if form.content.errors %}<div class="notice bad" style="margin:0;border-radius:0">{{ form.content.errors|join:' ' }}</div>{% endif %}
   </div>
 
   <div class="sheet" id="settings"><div class="panel">
@@ -34,6 +35,7 @@
     <p class="truncate" style="font-weight:600">{{ story.display_title }}</p>
     <div class="field-row"><span>Chapter type</span><span class="hint">Normal chapter</span></div>
     <div class="field-row"><span>Word counts</span><span class="hint" id="words2">0</span></div>
+    <p class="notice bad small" id="lengthWarn" style="display:none;margin-top:10px"></p>
     <div class="field-row">
       <span>Auto-publish</span>
       <label class="switch"><input type="checkbox" id="autoPub" onchange="document.getElementById('schedBox').style.display=this.checked?'':'none'"><span></span></label>
@@ -51,7 +53,17 @@
 {% block scripts %}
 <script>
   const w = document.getElementById('words'), w2 = document.getElementById('words2');
-  w.addEventListener('change', () => w2.textContent = w.textContent); w2.textContent = w.textContent;
+  const [MIN, MAX] = [{{ chapter_words.0|stringformat:'d' }}, {{ chapter_words.1|stringformat:'d' }}];
+  const words = () => parseInt(w.textContent.replace(/\D/g, ''), 10) || 0;
+  const checkLength = () => {
+    const n = words(), ok = n >= MIN && n <= MAX, warn = document.getElementById('lengthWarn');
+    w2.textContent = w.textContent;
+    warn.style.display = ok ? 'none' : '';
+    warn.textContent = n < MIN ? `Add ${(MIN - n).toLocaleString()} more words to publish (minimum ${MIN.toLocaleString()}).`
+                               : `Remove ${(n - MAX).toLocaleString()} words to publish (maximum ${MAX.toLocaleString()}).`;
+    document.getElementById('releaseBtn').disabled = !ok;
+  };
+  w.addEventListener('change', checkLength); checkLength();
   document.getElementById('autoPub').addEventListener('change', (e) => {
     const b = document.getElementById('releaseBtn');
     b.value = e.target.checked ? 'schedule' : 'release'; b.textContent = e.target.checked ? 'Schedule' : 'Release';

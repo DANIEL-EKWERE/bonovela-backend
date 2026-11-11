@@ -56,6 +56,11 @@ class User(AbstractUser):
     # Editor who brought this author to Bonovela.
     recruited_by = models.ForeignKey('self', on_delete=models.SET_NULL, null=True, blank=True, related_name='recruits')
     kyc_verified = models.BooleanField(default=False, help_text='Identity checked for contract payments')
+    # Senior Editors work on one desk; authors choose an editor from the desk
+    # matching their book when they apply for a contract.
+    DESK_NOVELS, DESK_SHORTS = 'novels', 'shorts'
+    DESK_CHOICES = [(DESK_NOVELS, 'Novels'), (DESK_SHORTS, 'Short Stories')]
+    desk = models.CharField(max_length=6, choices=DESK_CHOICES, default=DESK_NOVELS)
 
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = ['username']

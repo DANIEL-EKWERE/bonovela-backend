@@ -103,10 +103,23 @@
       e.target.closest('.sheet')?.classList.remove('open');
     }
   });
-  // Live word counters: <textarea data-words="#counter">
+  // Live word counters: <textarea data-words="#counter" [data-range="min-max"]>.
+  // With a range the counter turns red outside it and the form won't submit;
+  // add data-draft to only block going over the maximum (drafts may be short).
   document.querySelectorAll('[data-words]').forEach((el) => {
     const out = document.querySelector(el.dataset.words);
-    const update = () => { const n = el.value.trim() ? el.value.trim().split(/\s+/).length : 0; out.textContent = n.toLocaleString(); out.dispatchEvent(new Event('change')); };
+    const [min, max] = (el.dataset.range || '').split('-').map(Number);
+    const update = () => {
+      const n = el.value.trim() ? el.value.trim().split(/\s+/).length : 0;
+      out.textContent = n.toLocaleString();
+      if (el.dataset.range) {
+        const ok = n >= min && n <= max;
+        out.style.color = ok ? 'var(--success)' : 'var(--error)';
+        const blocked = 'draft' in el.dataset ? n > max : !ok;
+        el.setCustomValidity(blocked ? `Write ${min.toLocaleString()}–${max.toLocaleString()} words (now ${n.toLocaleString()}).` : '');
+      }
+      out.dispatchEvent(new Event('change'));
+    };
     el.addEventListener('input', update); update();
   });
 </script>

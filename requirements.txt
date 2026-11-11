@@ -12,3 +12,5 @@ anthropic==2.4.0
 gunicorn==26.2.0
 psycopg[binary]==3.3.8
 django-storages[s3]==1.14.6
+pycountry==24.6.1
+phonenumbers==8.13.55

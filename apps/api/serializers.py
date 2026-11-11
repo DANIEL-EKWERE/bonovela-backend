@@ -1,9 +1,10 @@
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 from django.db.models import Avg
 from rest_framework import serializers
 
-from apps.catalog.models import Chapter, Contest, Genre, Story, Tag
+from apps.catalog.models import Chapter, Contest, Genre, Story, Tag, word_count
 from apps.editorial.models import ContractApplication
 from apps.engagement.models import InboxMessage, Review, ReviewReply
 from apps.wallet import services
@@ -262,9 +263,10 @@ class AuthorStorySerializer(serializers.ModelSerializer):
     """Novel Information, as edited in Author Center."""
 
     tags = serializers.SlugRelatedField(many=True, slug_field='name', queryset=Tag.objects.all(), required=False)
-    genre = serializers.SlugRelatedField(slug_field='name', queryset=Genre.objects.all(), allow_null=True, required=False)
-    contests = serializers.PrimaryKeyRelatedField(many=True, queryset=Contest.objects.filter(is_active=True), required=False)
+    genre = serializers.SlugRelatedField(slug_field='name', queryset=Genre.objects.filter(is_active=True), allow_null=True,
+                                         required=False)
     is_info_complete = serializers.BooleanField(read_only=True)
+    can_apply_for_contract = serializers.BooleanField(read_only=True)
     chapter_count = serializers.SerializerMethodField()
     word_count = serializers.SerializerMethodField()
     application_status = serializers.SerializerMethodField()
@@ -273,10 +275,28 @@ class AuthorStorySerializer(serializers.ModelSerializer):
         model = Story
         fields = [
             'id', 'title', 'synopsis', 'cover', 'cover_index', 'language', 'audience', 'content_rating',
-            'novel_type', 'genre', 'tags', 'contests', 'status', 'is_short', 'is_signed', 'is_info_complete',
-            'chapter_count', 'word_count', 'application_status', 'views', 'created_at', 'updated_at',
+            'novel_type', 'genre', 'tags', 'status', 'is_short', 'is_signed', 'is_info_complete',
+            'can_apply_for_contract', 'chapter_count', 'word_count', 'application_status', 'views', 'created_at',
+            'updated_at',
         ]
         read_only_fields = ['is_signed', 'views', 'created_at', 'updated_at']
+
+    def validate_language(self, value):
+        if value not in Story.LANGUAGES:
+            raise serializers.ValidationError(f"Books can be written in {', '.join(Story.LANGUAGES)} for now.")
+        return value
+
+    def validate_synopsis(self, value):
+        lo, hi = settings.BONOVELA['SYNOPSIS_WORDS']
+        n = word_count(value)
+        if value and not lo <= n <= hi:
+            raise serializers.ValidationError(f'Synopsis must be {lo}–{hi} words (now {n}).')
+        return value
+
+    def validate_is_short(self, value):
+        if self.instance and self.instance.is_signed and value != self.instance.is_short:
+            raise serializers.ValidationError("Signed books can't change length.")
+        return value
 
     def validate_tags(self, value):
         if len(value) > 10:
@@ -303,11 +323,21 @@ class AuthorChapterSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['number', 'status', 'word_count', 'published_at', 'updated_at']
 
+    def validate_content(self, value):
+        # Drafts may be short; nothing may exceed the maximum, and a live
+        # chapter must stay within the range.
+        live = bool(self.instance and self.instance.status == Chapter.STATUS_PUBLISHED)
+        error = Chapter.length_error(word_count(value), publishing=live)
+        if error:
+            raise serializers.ValidationError(error)
+        return value
+
 
 class ApplicationSerializer(serializers.ModelSerializer):
     status_label = serializers.CharField(source='get_status_display', read_only=True)
 
     class Meta:
         model = ContractApplication
-        fields = ['id', 'story', 'status', 'status_label', 'message', 'contract_type', 'feedback', 'created_at', 'updated_at']
-        read_only_fields = ['story', 'status', 'contract_type', 'feedback', 'created_at', 'updated_at']
+        fields = ['id', 'story', 'status', 'status_label', 'message', 'contract_type', 'feedback', 'legal_name',
+                  'chosen_editor', 'created_at', 'updated_at']
+        read_only_fields = ['story', 'status', 'contract_type', 'feedback', 'chosen_editor', 'created_at', 'updated_at']

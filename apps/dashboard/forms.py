@@ -1,6 +1,7 @@
 from django import forms
+from django.conf import settings
 
-from apps.catalog.models import Chapter, Contest, Genre, Story, Tag, word_count
+from apps.catalog.models import Chapter, Genre, Story, Tag, word_count
 from apps.drama.models import Drama, Episode
 from apps.marketing.models import Banner, Broadcast
 from apps.wallet.models import PayoutMethod, RedeemCode
@@ -8,7 +9,7 @@ from apps.wallet.models import PayoutMethod, RedeemCode
 VIDEO_TYPES = ('video/mp4', 'video/quicktime', 'video/webm', 'video/x-m4v')
 MAX_VIDEO_MB = 500
 
-LANGUAGES = ['English', 'Français', 'Español', 'Português', 'Deutsch', 'Bahasa Indonesia', 'Filipino']
+LANGUAGES = Story.LANGUAGES
 
 
 class StoryBasicsForm(forms.ModelForm):
@@ -33,13 +34,20 @@ class StoryBasicsForm(forms.ModelForm):
 class StoryDetailsForm(forms.ModelForm):
     """Novel Information · step 2."""
 
-    genre = forms.ModelChoiceField(queryset=Genre.objects.all(), required=False)
+    genre = forms.ModelChoiceField(queryset=Genre.objects.filter(is_active=True), required=False)
     tags = forms.ModelMultipleChoiceField(queryset=Tag.objects.all(), required=False)
-    contests = forms.ModelMultipleChoiceField(queryset=Contest.objects.filter(is_active=True), required=False)
+    is_short = forms.TypedChoiceField(choices=[('0', 'Novel'), ('1', 'Short Story')], coerce=lambda v: v == '1',
+                                      label='Story Length')
 
     class Meta:
         model = Story
-        fields = ['novel_type', 'genre', 'tags', 'synopsis', 'contests']
+        fields = ['novel_type', 'is_short', 'genre', 'tags', 'synopsis']
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.initial['is_short'] = '1' if self.instance.is_short else '0'
+        if self.instance.is_signed:  # pricing and shelves depend on it
+            self.fields['is_short'].disabled = True
 
     def clean_tags(self):
         tags = self.cleaned_data['tags']
@@ -49,9 +57,10 @@ class StoryDetailsForm(forms.ModelForm):
 
     def clean_synopsis(self):
         text = self.cleaned_data['synopsis']
+        lo, hi = settings.BONOVELA['SYNOPSIS_WORDS']
         n = word_count(text)
-        if text and not 20 <= n <= 300:
-            raise forms.ValidationError(f'Synopsis must be 20–300 words (now {n}).')
+        if not lo <= n <= hi:
+            raise forms.ValidationError(f'Synopsis must be {lo}–{hi} words (now {n}).')
         return text
 
 
@@ -59,6 +68,15 @@ class ChapterForm(forms.ModelForm):
     class Meta:
         model = Chapter
         fields = ['title', 'content', 'note']
+
+    def clean_content(self):
+        # Drafts may be short; nothing may exceed the maximum, and a live
+        # chapter must stay within the range.
+        text = self.cleaned_data['content']
+        error = Chapter.length_error(word_count(text), publishing=self.instance.status == Chapter.STATUS_PUBLISHED)
+        if error:
+            raise forms.ValidationError(error)
+        return text
 
 
 class PayoutForm(forms.ModelForm):
@@ -144,13 +162,18 @@ class EpisodeForm(forms.ModelForm):
 class BannerForm(forms.ModelForm):
     starts_at = forms.DateTimeField(widget=forms.DateTimeInput(attrs={'type': 'datetime-local'}))
     ends_at = forms.DateTimeField(required=False, widget=forms.DateTimeInput(attrs={'type': 'datetime-local'}))
-    story = forms.ModelChoiceField(queryset=Story.objects.visible_in_app().order_by('title'), required=False)
+    story = forms.ModelChoiceField(queryset=Story.objects.none(), required=False)
     drama = forms.ModelChoiceField(queryset=Drama.objects.visible_in_app().order_by('title'), required=False)
 
     class Meta:
         model = Banner
         fields = ['title', 'subtitle', 'image', 'color_index', 'placement', 'target', 'story', 'drama', 'url',
                   'order', 'starts_at', 'ends_at', 'is_active']
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Built per form: app visibility depends on settings (chapter minimum).
+        self.fields['story'].queryset = Story.objects.visible_in_app().order_by('title')
 
     def clean_image(self):
         return _check_image(self.cleaned_data.get('image'))
@@ -187,11 +210,15 @@ class RedeemCodeForm(forms.ModelForm):
 
 
 class BroadcastForm(forms.ModelForm):
-    story = forms.ModelChoiceField(queryset=Story.objects.visible_in_app().order_by('title'), required=False)
+    story = forms.ModelChoiceField(queryset=Story.objects.none(), required=False)
 
     class Meta:
         model = Broadcast
         fields = ['title', 'body', 'audience', 'story', 'bonus']
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['story'].queryset = Story.objects.visible_in_app().order_by('title')
 
     def clean_bonus(self):
         bonus = self.cleaned_data['bonus'] or 0

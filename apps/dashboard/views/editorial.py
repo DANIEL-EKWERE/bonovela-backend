@@ -3,6 +3,7 @@
 and promotions live here; people and quality tools are in the sibling
 modules."""
 
+import mimetypes
 from datetime import datetime, timedelta
 from functools import wraps
 
@@ -10,6 +11,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db.models import Count, Prefetch, Q
+from django.http import FileResponse, Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
@@ -299,6 +301,20 @@ def queue(request):
 
 
 @editor_area
+def application_id(request, pk, side):
+    """An applicant's ID photo, for editors who can see the book only. Files
+    live outside MEDIA_ROOT, so this is the only way to open them."""
+    app = get_object_or_404(App.objects.select_related('story'), pk=pk)
+    _book_or_403(request, app.story_id)
+    image = {'front': app.id_front, 'back': app.id_back}.get(side)
+    if not image:
+        raise Http404
+    response = FileResponse(image.open('rb'), content_type=mimetypes.guess_type(image.name)[0] or 'image/jpeg')
+    response['Cache-Control'] = 'private, no-store'
+    response['X-Content-Type-Options'] = 'nosniff'
+    return response
+
+@editor_area
 def application(request, pk):
     app = get_object_or_404(App.objects.select_related('story__author', 'story__genre'), pk=pk)
     story = app.story
@@ -322,9 +338,12 @@ def application(request, pk):
 
     chapters = story.chapters.filter(status=Chapter.STATUS_PUBLISHED).order_by('number')
     reading = chapters.filter(number=request.GET['chapter']).first() if request.GET.get('chapter') else None
+    from apps.editorial import geo
     return render(request, 'dashboard/editorial/application.html', {
         **_prior_context(app),
         'app': app, 'story': story, 'role': request.user.role, 'lv': lv, 'is_chief': lv == team.CE,
+        'id_sides': [('front', 'Front of ID'), ('back', 'Back of ID')],
+        'app_country': geo.country_name(app.country), 'app_state': geo.state_name(app.state),
         'chapters': chapters, 'reading': reading or chapters.first(),
         'notes': story.editorial_notes.select_related('editor')[:30],
         'can_act': app.status in ACTIONABLE[lv],

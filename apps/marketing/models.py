@@ -21,6 +21,10 @@ class Banner(models.Model):
         ('drama', 'Drama tab'),
         ('store', 'Top Up / Store'),
         ('rewards', 'Rewards'),
+        # Shown once per device when the app opens: image, title and a View More button.
+        ('popup', 'Pop-up when the app opens'),
+        # Full-screen image before the app loads, with a Skip countdown and View More.
+        ('splash', 'Open-screen ad (full screen)'),
     ]
     TARGET_CHOICES = [('story', 'Book'), ('drama', 'Drama'), ('url', 'Link'), ('store', 'Top Up page'),
                       ('plus', 'Plus subscription')]

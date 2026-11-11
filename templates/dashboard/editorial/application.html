@@ -21,6 +21,7 @@
     </div>
     <div class="card"><div class="hint">Synopsis</div><p style="white-space:pre-line">{{ story.synopsis }}</p></div>
     {% if app.message %}<div class="card"><div class="hint">Author's message</div><p style="white-space:pre-line">{{ app.message }}</p></div>{% endif %}
+    {% if app.legal_name %}{% include 'dashboard/editorial/_application_details.html' %}{% endif %}
 
     {% if can_act %}
     <form class="card" method="post">{% csrf_token %}

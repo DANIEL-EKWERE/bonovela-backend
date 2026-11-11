@@ -62,6 +62,35 @@ class BonovelaAPITests(TestCase):
         editorial.decide_shelf_book(ce, entry, approve=True)
         self.assertEqual(shelf_ids()[0], story.id)
 
+    def test_shelf_feeds_use_few_queries(self):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+        from apps.catalog import feeds
+        with CaptureQueriesContext(connection) as q:
+            cats = feeds.short_collections()
+        self.assertEqual(len(cats), 6)
+        self.assertLess(len(q), 12)  # not several per shelf (18 shelves)
+        with CaptureQueriesContext(connection) as q:
+            feeds.discover_feed('Mafia')
+        self.assertLess(len(q), 12)
+
+    def test_tag_shelves_top_up_from_the_category_genre(self):
+        mafia = APIClient().get('/api/books/discover/?tab=Mafia').data
+        dark = next(s for s in mafia if s['title'] == 'Dark Romance')
+        mafia_books = Story.objects.visible_in_app().filter(genre__name='Mafia', is_short=False).count()
+        self.assertGreaterEqual(len(dark['books']), min(8, mafia_books))
+
+    def test_geo_lists(self):
+        countries = APIClient().get('/api/geo/countries/').data
+        self.assertIn({'code': 'NG', 'name': 'Nigeria', 'dial': '+234'}, countries)
+        self.assertGreater(len(countries), 240)
+        self.assertIn('Lagos', [s['name'] for s in APIClient().get('/api/geo/countries/NG/states/').data])
+
+    def test_income_has_available_to_withdraw_not_mab(self):
+        data = self.login('author@bonovela.app').get('/api/author/income/').data
+        self.assertIn('available_cents', data)
+        self.assertNotIn('attendance', [t['type'] for t in data['types']])
+
     def test_short_collections(self):
         data = APIClient().get('/api/shorts/collections/').data
         self.assertEqual(data[0]['title'], 'Love at First Sight')
@@ -120,19 +149,36 @@ class BonovelaAPITests(TestCase):
         c = self.login('author@bonovela.app')
         r = c.post('/api/author/stories/', {
             'title': 'Love and Lies', 'cover_index': 2, 'audience': 'female', 'content_rating': '16+',
-            'genre': 'Romance', 'tags': ['Contemporary', 'Divorce'], 'synopsis': ' '.join(['word'] * 25),
+            'genre': 'Romance', 'tags': ['Contemporary', 'Divorce'], 'synopsis': ' '.join(['word'] * 60),
+            'language': 'English',
         }, format='json')
         self.assertEqual(r.status_code, 201, r.content)
         sid = r.data['id']
         self.assertTrue(r.data['is_info_complete'])
+        self.assertFalse(r.data['can_apply_for_contract'])
+        # Chapters: drafts may be short, nothing over 2,000 words, publishing needs 600+.
+        short = c.post(f'/api/author/stories/{sid}/chapters/', {'title': 'S', 'content': 'text ' * 100}, format='json').data
+        self.assertEqual(c.post(f'/api/author/stories/{sid}/chapters/{short["id"]}/publish/').data['code'],
+                         'chapter_length')
+        self.assertEqual(c.post(f'/api/author/stories/{sid}/chapters/', {'title': 'L', 'content': 'text ' * 2001},
+                                format='json').status_code, 400)
+        self.assertEqual(c.post(f'/api/author/stories/{sid}/application/', {}).status_code, 400)  # < 5,000 words
         for _ in range(3):
-            ch = c.post(f'/api/author/stories/{sid}/chapters/', {'title': 'T', 'content': 'text ' * 700}, format='json').data
+            ch = c.post(f'/api/author/stories/{sid}/chapters/', {'title': 'T', 'content': 'text ' * 1800}, format='json').data
             self.assertEqual(c.post(f'/api/author/stories/{sid}/chapters/{ch["id"]}/publish/').status_code, 200)
 
         # Unsigned books don't show in the app.
         self.assertEqual(APIClient().get(f'/api/books/{sid}/').status_code, 404)
 
-        self.assertEqual(c.post(f'/api/author/stories/{sid}/application/', {'message': 'Hi'}).status_code, 201)
+        from apps.editorial.testdata import application_data
+        editors = c.get(f'/api/author/stories/{sid}/editors/').data
+        self.assertNotIn(User.objects.get(email='se5@bonovela.app').id, [e['id'] for e in editors])  # shorts desk
+        se = User.objects.get(pk=editors[0]['id'])
+        r = c.post(f'/api/author/stories/{sid}/application/', application_data(se, house_number=''), format='multipart')
+        self.assertEqual((r.status_code, r.data['step']), (400, 2))
+        r = c.post(f'/api/author/stories/{sid}/application/', application_data(se), format='multipart')
+        self.assertEqual(r.status_code, 201, r.data)
+        self.assertEqual(r.data['status_label'], 'Pending review')
         app = ContractApplication.objects.get(story_id=sid)
         editorial.se_decide(app, User.objects.get(email='se@bonovela.app'), 'approve')
         editorial.ce_send_contract(app, User.objects.get(email='ce@bonovela.app'), signing_bonus_cents=5000)

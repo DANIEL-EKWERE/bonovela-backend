@@ -1,0 +1,23 @@
+{# Contract application details (Apply for Contract form). #}
+<div class="card stack small">
+  <h3>Applicant</h3>
+  <div><div class="hint">Legal name</div><b>{{ app.legal_name }}</b>{% if app.is_minor %} <span class="chip gold">Under 18</span>{% endif %}</div>
+  <div><div class="hint">Government ID</div>
+    <div class="row" style="gap:8px;margin-top:4px">
+      {% for side, label in id_sides %}
+        <a href="{% url 'dashboard:editorial_application_id' app.pk side %}" target="_blank" rel="noopener" style="flex:1">
+          <img src="{% url 'dashboard:editorial_application_id' app.pk side %}" alt="{{ label }}" style="width:100%;border-radius:8px;border:1px solid var(--divider)">
+          <span class="hint">{{ label }}</span></a>
+      {% endfor %}
+    </div>
+  </div>
+  {% if app.facebook_url or app.instagram_url %}<div><div class="hint">Social media</div>
+    {% if app.facebook_url %}<div><a class="pink" href="{{ app.facebook_url }}" target="_blank" rel="noopener nofollow">Facebook</a></div>{% endif %}
+    {% if app.instagram_url %}<div><a class="pink" href="{{ app.instagram_url }}" target="_blank" rel="noopener nofollow">Instagram</a></div>{% endif %}</div>{% endif %}
+  <div><div class="hint">Residential address</div>{{ app.house_number }} {{ app.street_name }}<br>{{ app.house_address }}<br>{{ app_state }}{% if app_state %}, {% endif %}{{ app_country }}</div>
+  <div><div class="hint">Phone</div>{{ app.phone }}</div>
+  {% if app.is_minor %}<div><div class="hint">Parent / guardian</div>{{ app.guardian_name }} · {{ app.guardian_phone }} · {{ app.guardian_email }}<br>{{ app.guardian_address }}<p style="white-space:pre-line;margin-top:4px">{{ app.guardian_relationship }}</p></div>{% endif %}
+  <div><div class="hint">Contract · editor chosen</div>{{ app.get_contract_type_display }} · {{ app.chosen_editor.display_name|default:'—' }}</div>
+</div>
+<div class="card"><div class="hint">Character details</div><p style="white-space:pre-line">{{ app.character_details }}</p></div>
+<div class="card"><div class="hint">Book outline</div><p style="white-space:pre-line">{{ app.outline }}</p></div>

@@ -112,6 +112,10 @@ STATICFILES_DIRS = [BASE_DIR / 'static']
 MEDIA_URL = '/media/'
 # On Render this points at the persistent disk (see render.yaml).
 MEDIA_ROOT = config('MEDIA_ROOT', default=str(BASE_DIR / 'media'))
+# Identity documents. Never under MEDIA_ROOT (which is public); only editors
+# can open them, through the dashboard. Defaults to a sibling of MEDIA_ROOT so
+# it lands on the same persistent disk.
+PRIVATE_MEDIA_ROOT = config('PRIVATE_MEDIA_ROOT', default=str(Path(MEDIA_ROOT).parent / 'private'))
 
 STORAGES = {
     'default': {'BACKEND': 'django.core.files.storage.FileSystemStorage'},
@@ -181,6 +185,9 @@ BONOVELA = {
     'FREE_EPISODES': 5,  # dramas: episodes 1–5 free
     'EPISODE_PRICE': 10,  # coins per locked episode (free with Plus)
     'CREATOR_SHARE': 0.5,  # drama creators' share of episode unlocks
+    'SYNOPSIS_WORDS': (50, 300),
+    'CHAPTER_WORDS': (600, 2000),  # a chapter must be in this range to publish
+    'CONTRACT_MIN_WORDS': 5000,  # published words before an author can apply for a contract
     'MIN_LIVE_CHAPTERS': 20,  # signed novels go live in the app from this many published chapters
     'PAYOUT_MINIMUM_CENTS': 1000,  # Finance pays balances of $10 or more
     # Editorial commission: share of a book's coin revenue (1 coin ≈ 1¢).

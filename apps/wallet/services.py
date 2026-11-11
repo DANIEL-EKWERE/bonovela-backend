@@ -81,6 +81,18 @@ def spend(user, amount: int, *, title: str, kind: str, story=None, chapter=None)
     return left, bonus_spent
 
 
+def available_to_withdraw(user) -> int:
+    """Earnings (USD cents) not yet paid out or already queued for payout."""
+    from django.db.models import Sum
+
+    from .models import AuthorEarning, Payout
+
+    earned = AuthorEarning.objects.filter(author=user).aggregate(t=Sum('amount_cents'))['t'] or 0
+    out = Payout.objects.filter(author=user, status__in=[Payout.STATUS_PAID, Payout.STATUS_PENDING]).aggregate(
+        t=Sum('amount_cents'))['t'] or 0
+    return max(0, earned - out)
+
+
 def has_plus(user) -> bool:
     now = timezone.now()
     return Subscription.objects.filter(user=user, starts_at__lte=now, ends_at__gt=now).exists()

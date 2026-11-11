@@ -1,6 +1,7 @@
 import re
 
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils import timezone
 from django.utils.text import slugify
@@ -16,6 +17,8 @@ class Genre(models.Model):
     slug = models.SlugField(max_length=50, unique=True)
     # Genres shown as Discover / Rank tabs in the app.
     show_in_app = models.BooleanField(default=True)
+    # Authors can choose it for new books; retired genres stay on old books.
+    is_active = models.BooleanField(default=True)
     order = models.PositiveSmallIntegerField(default=0)
 
     class Meta:
@@ -78,6 +81,7 @@ class Story(models.Model):
     AUDIENCE_CHOICES = [('female', 'Female'), ('male', 'Male')]
     RATING_CHOICES = [('4+', '4+'), ('12+', '12+'), ('16+', '16+'), ('18+', '18+')]
     TYPE_CHOICES = [('original', 'Original'), ('fan_fiction', 'Fan-fiction'), ('translation', 'Translation')]
+    LANGUAGES = ['English']  # more once Bonovela publishes in other languages
 
     # Content-rating explanations shown in Novel Information.
     RATING_INFO = {
@@ -150,7 +154,8 @@ class Story(models.Model):
 
     @property
     def synopsis_ok(self):
-        return 20 <= word_count(self.synopsis) <= 300
+        lo, hi = settings.BONOVELA['SYNOPSIS_WORDS']
+        return lo <= word_count(self.synopsis) <= hi
 
     @property
     def has_details(self):
@@ -166,6 +171,10 @@ class Story(models.Model):
     @property
     def total_words(self):
         return sum(c.word_count for c in self.published_chapters())
+
+    @property
+    def can_apply_for_contract(self):
+        return self.is_info_complete and self.total_words >= settings.BONOVELA['CONTRACT_MIN_WORDS']
 
 
 class Chapter(models.Model):
@@ -234,7 +243,20 @@ class Chapter(models.Model):
         rules = settings.BONOVELA
         return 0 if self.is_free else (rules['SHORT_CHAPTER_PRICE'] if self.story.is_short else rules['CHAPTER_PRICE'])
 
+    @staticmethod
+    def length_error(words: int, publishing=True):
+        """Why a chapter of [words] can't be saved (over the maximum) or
+        published (outside the range), or ''."""
+        lo, hi = settings.BONOVELA['CHAPTER_WORDS']
+        if words > hi or (publishing and words < lo):
+            return f'Chapters must be {lo:,}–{hi:,} words. This one has {words:,}.'
+        return ''
+
     def publish(self):
+        """Raises ValidationError when the chapter is outside the word range."""
+        error = self.length_error(word_count(self.content))
+        if error:
+            raise ValidationError(error)
         self.status = self.STATUS_PUBLISHED
         self.published_at = self.published_at or timezone.now()
         self.scheduled_for = None

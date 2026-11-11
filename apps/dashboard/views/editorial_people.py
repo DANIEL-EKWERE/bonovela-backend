@@ -49,6 +49,12 @@ def team_view(request):
 @chief_area
 def editor_detail(request, pk):
     ed = get_object_or_404(team.team_editors(request.user), pk=pk)
+    if request.method == 'POST' and request.POST.get('action') == 'desk':
+        if request.POST.get('desk') in dict(User.DESK_CHOICES):
+            ed.desk = request.POST['desk']
+            ed.save(update_fields=['desk'])
+            messages.success(request, f'{ed.display_name} is now on the {ed.get_desk_display()} desk.')
+        return redirect('dashboard:editorial_editor', ed.pk)
     stats = team.editor_stats(ed)
     targets = team.targets_for(ed)
     books = team.annotate_books(Story.objects.filter(editor=ed).exclude(status=Story.STATUS_DRAFT)).order_by('-updated_at')
@@ -58,6 +64,7 @@ def editor_detail(request, pk):
         'ed': ed, 'stats': stats, 'progress': team.target_progress(stats, targets),
         'score': team.performance_score(stats, targets), 'books': books,
         'recruits': ed.recruits.filter(role=User.ROLE_AUTHOR)[:20], 'lv': request.level,
+        'desks': User.DESK_CHOICES,
     })
 
 

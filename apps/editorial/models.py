@@ -1,8 +1,27 @@
+import uuid
+
 from django.conf import settings
+from django.core.files.storage import FileSystemStorage
 from django.db import models
 from django.utils import timezone
+from django.utils.functional import LazyObject
 
 User = settings.AUTH_USER_MODEL
+
+
+class _PrivateStorage(LazyObject):
+    """Uploads outside MEDIA_ROOT, so they're never served publicly."""
+
+    def _setup(self):
+        self._wrapped = FileSystemStorage(location=settings.PRIVATE_MEDIA_ROOT, base_url=None)
+
+
+private_storage = _PrivateStorage()
+
+
+def _id_upload(instance, filename):
+    ext = (filename.rsplit('.', 1)[-1] if '.' in filename else 'jpg').lower()[:5]
+    return f'id-documents/{uuid.uuid4().hex}.{ext}'
 
 
 class ContractApplication(models.Model):
@@ -20,7 +39,7 @@ class ContractApplication(models.Model):
     STATUS_SIGNED = 'signed'
     STATUS_REJECTED = 'rejected'
     STATUS_CHOICES = [
-        (STATUS_PENDING, 'Under review'),
+        (STATUS_PENDING, 'Pending review'),
         (STATUS_REVISION, 'Needs revision'),
         (STATUS_SE_APPROVED, 'Approved'),
         (STATUS_CONTRACT_SENT, 'Contract sent'),
@@ -49,6 +68,33 @@ class ContractApplication(models.Model):
     FLAG_REJECTED, FLAG_REVISION = 'rejected', 'revision'
     prior_flag = models.CharField(max_length=10, blank=True, db_index=True)
     prior_matches = models.JSONField(default=list, blank=True)
+
+    # Step 1 · legal name, ID and socials
+    first_name = models.CharField(max_length=60, blank=True)
+    middle_name = models.CharField(max_length=60, blank=True)
+    surname = models.CharField(max_length=60, blank=True)
+    id_front = models.ImageField(upload_to=_id_upload, storage=private_storage, blank=True)
+    id_back = models.ImageField(upload_to=_id_upload, storage=private_storage, blank=True)
+    facebook_url = models.URLField(blank=True)
+    instagram_url = models.URLField(blank=True)
+    # Step 2 · residential address and contact
+    house_address = models.CharField(max_length=200, blank=True)
+    street_name = models.CharField(max_length=120, blank=True)
+    house_number = models.CharField(max_length=20, blank=True)
+    country = models.CharField(max_length=2, blank=True, help_text='ISO 3166 code')
+    state = models.CharField(max_length=10, blank=True, help_text='ISO 3166-2 code')
+    phone = models.CharField(max_length=24, blank=True, help_text='E.164, e.g. +2348012345678')
+    is_minor = models.BooleanField(default=False)
+    guardian_name = models.CharField(max_length=120, blank=True)
+    guardian_phone = models.CharField(max_length=24, blank=True)
+    guardian_email = models.EmailField(blank=True)
+    guardian_address = models.CharField(max_length=200, blank=True)
+    guardian_relationship = models.TextField(blank=True)
+    # Step 3 · book
+    chosen_editor = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    character_details = models.TextField(blank=True)
+    outline = models.TextField(blank=True)
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -57,6 +103,10 @@ class ContractApplication(models.Model):
 
     def __str__(self):
         return f'{self.story} · {self.get_status_display()}'
+
+    @property
+    def legal_name(self):
+        return ' '.join(p for p in (self.first_name, self.middle_name, self.surname) if p)
 
     @property
     def is_open(self):

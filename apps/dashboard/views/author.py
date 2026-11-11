@@ -7,30 +7,25 @@ from functools import wraps
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.core.exceptions import ValidationError
 from django.db.models import Max, Q
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
-from apps.catalog.models import Chapter, Contest, Genre, Story, Tag
+from apps.catalog.models import Chapter, Genre, Story, Tag, word_count
 from apps.editorial import services as editorial
 from apps.editorial.models import ContractApplication
 from apps.engagement.models import Review, ReviewReply
 from apps.users.models import User
 from apps.wallet.models import AuthorEarning, PayoutMethod
+from apps.wallet.services import available_to_withdraw
 
-from ..forms import ChapterForm, PayoutForm, StoryBasicsForm, StoryDetailsForm
+from ..forms import LANGUAGES, ChapterForm, PayoutForm, StoryBasicsForm, StoryDetailsForm
 
 # Commission is editors' income, not an author card.
 HIDDEN_INCOME = AuthorEarning.RETIRED_TYPES | {'editor_commission'}
-
-TIPS = [
-    ('Hook readers in the first 300 words', 'Open on conflict, not backstory. Readers decide fast.'),
-    ('End every chapter on a question', 'Cliffhangers keep readers unlocking the next chapter.'),
-    ('Update consistently', 'Steady daily updates count toward the Monthly Attendance Bonus.'),
-    ('Pick tags carefully', 'Tags decide who sees your story first. Choose the 5–8 that fit best.'),
-]
 
 
 def author_area(view):
@@ -73,6 +68,7 @@ def stories(request):
             'story': s,
             'chapters': len(pub),
             'not_live': s.is_signed and not s.is_short and len(pub) < min_live,
+            'can_apply': s.is_info_complete and sum(c.word_count for c in pub) >= settings.BONOVELA['CONTRACT_MIN_WORDS'],
             'min_live': min_live,
             'words': sum(c.word_count for c in pub),
             'comments': len(s.reviews.all()),
@@ -121,11 +117,12 @@ def story_info(request, pk=None):
             form = StoryDetailsForm(request.POST, instance=story)
             if form.is_valid():
                 story = form.save()
-                if action == 'back':
-                    return redirect(f"{_url('dashboard:author_story_info', story.pk)}?step=1")
-                if story.has_details:
-                    return redirect(f"{_url('dashboard:author_story_info', story.pk)}?step=3")
-                messages.error(request, 'Pick a genre, at least one tag, and write a 20–300 word synopsis.')
+                if action != 'back':
+                    if story.has_details:
+                        return redirect(f"{_url('dashboard:author_story_info', story.pk)}?step=3")
+                    messages.error(request, 'Pick a genre and at least one tag.')
+            if action == 'back':  # leave without forcing the step to be finished
+                return redirect(f"{_url('dashboard:author_story_info', story.pk)}?step=1")
         elif step == 3:
             if action == 'back':
                 return redirect(f"{_url('dashboard:author_story_info', story.pk)}?step=2")
@@ -147,15 +144,14 @@ def story_info(request, pk=None):
         'step': step,
         'form': form,
         'palettes': range(8),
-        'languages': ['English', 'Français', 'Español', 'Português', 'Deutsch', 'Bahasa Indonesia', 'Filipino'],
+        'languages': LANGUAGES,
         'ratings': Story.RATING_CHOICES,
         'rating_info': Story.RATING_INFO,
-        'genres': Genre.objects.all(),
+        'genres': Genre.objects.filter(is_active=True),
         'tag_groups': tag_groups,
         'selected_tags': selected,
-        'selected_contests': set(story.contests.values_list('id', flat=True)) if story.pk else set(),
-        'contests': Contest.objects.filter(is_active=True),
         'types': Story.TYPE_CHOICES,
+        'synopsis_words': settings.BONOVELA['SYNOPSIS_WORDS'],
     })
 
 
@@ -181,6 +177,7 @@ def chapters(request, pk):
         'story': story, 'tab': tab, 'chapters': qs,
         'application': story.applications.first(),
         'counts': {k: story.chapters.filter(status__in=v).count() for k, v in groups.items()},
+        'min_contract_words': settings.BONOVELA['CONTRACT_MIN_WORDS'],
     })
 
 
@@ -196,8 +193,11 @@ def chapter_action(request, pk, chapter_id, action):
         if not chapter.word_count:
             messages.error(request, 'Write something first.')
         else:
-            chapter.publish()
-            messages.success(request, f'Chapter {chapter.label} published.')
+            try:
+                chapter.publish()
+                messages.success(request, f'Chapter {chapter.label} published.')
+            except ValidationError as e:
+                messages.error(request, e.messages[0])
     elif action == 'trash':
         chapter.move_to_trash()
         messages.success(request, 'Moved to Trash.')
@@ -238,8 +238,12 @@ def chapter_editor(request, pk, chapter_id=None):
                     messages.success(request, 'Chapter updated.' if chapter.status == Chapter.STATUS_PUBLISHED
                                      else 'Saved to drafts.')
                 return redirect('dashboard:author_chapters', story.pk)
+            length_error = Chapter.length_error(word_count(chapter.content))
             if chapter.word_count == 0 and not chapter.content.strip():
                 messages.error(request, 'Write something first.')
+            elif length_error:
+                chapter.save()  # keep the work as a draft
+                messages.error(request, length_error)
             elif action == 'release':
                 chapter.save()
                 chapter.publish()
@@ -260,7 +264,9 @@ def chapter_editor(request, pk, chapter_id=None):
                     return redirect('dashboard:author_chapters', story.pk)
     else:
         form = ChapterForm(instance=chapter)
-    return render(request, 'dashboard/author/editor.html', {'story': story, 'chapter': chapter, 'form': form})
+    return render(request, 'dashboard/author/editor.html', {
+        'story': story, 'chapter': chapter, 'form': form, 'chapter_words': settings.BONOVELA['CHAPTER_WORDS'],
+    })
 
 
 # ── Statistics & signing ─────────────────────────────────────────────────────
@@ -302,16 +308,7 @@ def signing(request, pk):
     published = story.published_chapters().count()
     if request.method == 'POST':
         action = request.POST.get('action')
-        if action == 'apply':
-            if app and (app.is_open or app.status == ContractApplication.STATUS_SIGNED):
-                messages.error(request, 'This story already has an open application.')
-            elif not story.is_info_complete or published < 3:
-                messages.error(request, 'Complete your book information and publish at least 3 chapters first.')
-            else:
-                from apps.editorial.history import submit
-                submit(story, request, request.POST.get('message', ''))
-                messages.success(request, 'Applied! Editors usually reply within 30 business days.')
-        elif action == 'completion':
+        if action == 'completion':
             from apps.editorial.models import CompletionApplication as Completion
             open_ = story.completion_applications.filter(
                 status__in=[Completion.STATUS_PENDING, Completion.STATUS_RECOMMENDED]).exists()
@@ -334,18 +331,50 @@ def signing(request, pk):
         'story': story, 'app': story.applications.first(), 'published': published,
         'completion': completion,
         'completion_open': completion and completion.status in ('pending', 'recommended'),
-        'ready': story.is_info_complete and published >= 3,
+        'min_words': settings.BONOVELA['CONTRACT_MIN_WORDS'],
+    })
+
+
+def _can_start_application(request, story):
+    app = story.applications.first()
+    if app and (app.is_open or app.status == ContractApplication.STATUS_SIGNED):
+        messages.error(request, 'This story already has an open application.')
+        return False
+    if not story.can_apply_for_contract:
+        need = settings.BONOVELA['CONTRACT_MIN_WORDS']
+        messages.error(request, f'Complete your book information and publish at least {need:,} words first.')
+        return False
+    return True
+
+
+@author_area
+def contract_application(request, pk):
+    """Apply for Contract: personal & ID → address → contract & book →
+    review & submit. One form; the steps are shown one at a time."""
+    from apps.editorial import geo
+    from apps.editorial.forms import ContractApplicationForm, editors_for
+    from apps.editorial.history import submit
+
+    story = _story(request, pk)
+    if not _can_start_application(request, story):
+        return redirect('dashboard:author_signing', story.pk)
+    form = ContractApplicationForm(request.POST or None, request.FILES or None, story=story)
+    if request.method == 'POST' and form.is_valid():
+        submit(story, request, form=form)
+        messages.success(request, 'Application submitted. Status: Pending review. Editors usually reply within '
+                                  '30 business days.')
+        return redirect('dashboard:author_signing', story.pk)
+    return render(request, 'dashboard/author/contract.html', {
+        'story': story, 'form': form, 'editors': editors_for(story), 'countries': geo.countries(),
+        'step': form.first_error_step() if form.errors else 1,
     })
 
 
 # ── Discover / Calendar / Comments / Income tabs ─────────────────────────────
 @author_area
 def discover(request):
-    mine = Story.objects.filter(author=request.user)
-    contests = []
-    for ct in Contest.objects.filter(is_active=True):
-        contests.append({'contest': ct, 'entries': [s.display_title for s in mine if ct in s.contests.all()]})
-    return render(request, 'dashboard/author/discover.html', {'contests': contests, 'tips': TIPS, 'has_stories': mine.exists()})
+    """Writer's Benefits 2026."""
+    return render(request, 'dashboard/author/discover.html')
 
 
 @author_area
@@ -411,8 +440,11 @@ def income(request):
     totals = {k: 0 for k, _ in AuthorEarning.TYPE_CHOICES}
     for e in in_month:
         totals[e.type] += e.amount_cents
-    cards = [{'key': k, 'label': label, 'cents': totals[k], 'colors': '#2BD96B,#16B24F'}  # all MAB green
-             for k, label in AuthorEarning.TYPE_CHOICES if k not in HIDDEN_INCOME]
+    cards = [{'key': k, 'label': label, 'cents': totals[k]} for k, label in AuthorEarning.TYPE_CHOICES
+             if k not in HIDDEN_INCOME]
+    # Second card, where MAB used to be: the balance the author can withdraw now.
+    cards.insert(1, {'key': 'available', 'label': 'Available to withdraw',
+                     'cents': available_to_withdraw(request.user)})
 
     payout = PayoutMethod.objects.filter(author=request.user).first()
     payout_form = PayoutForm(request.POST or None, instance=payout)

@@ -193,7 +193,7 @@ def related(request, pk):
 @permission_classes([permissions.AllowAny])
 def taxonomy(request):
     return Response({
-        'genres': s.GenreSerializer(Genre.objects.all(), many=True).data,
+        'genres': s.GenreSerializer(Genre.objects.filter(is_active=True), many=True).data,
         'tags': s.TagSerializer(Tag.objects.all(), many=True).data,
     })
 
@@ -432,3 +432,20 @@ def inbox_read_all(request):
 @permission_classes([permissions.AllowAny])
 def health(request):
     return Response({'ok': True, 'time': timezone.now()})
+
+
+# ── Places (contract application) ────────────────────────────────────────────
+@api_view(['GET'])
+@permission_classes([permissions.AllowAny])
+def countries(request):
+    """[{code, name, dial}] for every country."""
+    from apps.editorial import geo
+    return Response(geo.countries())
+
+
+@api_view(['GET'])
+@permission_classes([permissions.AllowAny])
+def states(request, code):
+    """[{code, name}] states/regions of a country (may be empty)."""
+    from apps.editorial import geo
+    return Response(geo.states(code))

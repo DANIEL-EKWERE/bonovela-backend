@@ -35,6 +35,14 @@ from apps.wallet.models import (AuthorEarning, CoinPackage, GiftItem, RedeemCode
                                 SubscriptionPlan, Transaction)
 
 DATA = Path(__file__).resolve().parents[2] / 'seed_data'
+# Demo synopses are short; authors now need SYNOPSIS_WORDS (50–300).
+SYNOPSIS_TAIL = ('Secrets surface, loyalties are tested, and every choice costs something. What begins as one '
+                 'reckless decision becomes a fight for love, family and the life she was always meant to have, '
+                 'and nothing will be the same again.')
+
+
+def _synopsis(text):
+    return text if len(text.split()) >= 50 else f'{text} {SYNOPSIS_TAIL}'
 PASSWORD = 'bonovela1'
 
 # Same prose as the app's MockData.chapterText, so chapters read identically.
@@ -95,9 +103,11 @@ class Command(BaseCommand):
     def _taxonomy(self):
         tax = json.loads((DATA / 'taxonomy.json').read_text())
         app_tabs = {'Werewolf', 'Romance', 'Mafia', 'Fantasy', 'LGBTQ+'}
+        retired = set(tax['retired_genres'])  # kept for existing books, not offered to authors
         for i, name in enumerate(tax['genres']):
             Genre.objects.update_or_create(
-                name=name, defaults={'slug': slugify(name), 'order': i, 'show_in_app': name in app_tabs}
+                name=name, defaults={'slug': slugify(name), 'order': i, 'show_in_app': name in app_tabs,
+                                     'is_active': name not in retired}
             )
         for group, names in tax['tags'].items():
             for name in names:
@@ -178,7 +188,7 @@ class Command(BaseCommand):
                 title=b['title'],
                 author=author,
                 defaults=dict(
-                    synopsis=b['synopsis'],
+                    synopsis=_synopsis(b['synopsis']),
                     cover_index=int(b['id']) % 8,
                     audience='male' if b['genre'] in ('Urban', 'Fantasy') else 'female',
                     content_rating=f'{b.get("age", 16)}+',
@@ -296,6 +306,7 @@ class Command(BaseCommand):
         get = lambda e: User.objects.get(email=f'{e}@bonovela.app')  # noqa: E731
         ce, se, se2, se3, se4, se5 = (get(x) for x in ('ce', 'se', 'se2', 'se3', 'se4', 'se5'))
         User.objects.filter(role=User.ROLE_SE).update(supervisor=ce)
+        User.objects.filter(pk=se5.pk).update(desk=User.DESK_SHORTS)  # the Short Stories desk
         if Story.objects.filter(editor__isnull=False).exists():
             return
         now = timezone.now()

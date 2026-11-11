@@ -1,5 +1,8 @@
 """Author Center API: the app's Author Center talks to these."""
 
+from datetime import datetime
+
+from django.conf import settings
 from django.db.models import Max
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -11,6 +14,7 @@ from apps.catalog.models import Chapter, Contest, Story
 from apps.editorial.models import ContractApplication
 from apps.engagement.models import Review, ReviewReply
 from apps.wallet.models import AuthorEarning
+from apps.wallet.services import available_to_withdraw
 
 from . import serializers as s
 
@@ -30,7 +34,7 @@ class StoryListCreate(generics.ListCreateAPIView):
     permission_classes = Author
 
     def get_queryset(self):
-        return Story.objects.filter(author=self.request.user).prefetch_related('tags', 'contests', 'applications')
+        return Story.objects.filter(author=self.request.user).prefetch_related('tags', 'applications')
 
     def perform_create(self, serializer):
         serializer.save(author=self.request.user)
@@ -85,15 +89,21 @@ class ChapterDetail(generics.RetrieveUpdateDestroyAPIView):
 def chapter_action(request, pk, chapter_id, action):
     """publish | schedule | trash | restore"""
     chapter = get_object_or_404(Chapter, pk=chapter_id, story_id=pk, story__author=request.user)
-    if action == 'publish':
+    if action in ('publish', 'schedule'):
         if not chapter.story.is_info_complete:
             return Response({'detail': 'Complete your book information before publishing.'}, status=400)
-        if not chapter.word_count:
-            return Response({'detail': 'Write something first.'}, status=400)
+        error = Chapter.length_error(chapter.word_count)
+        if error:
+            return Response({'detail': error, 'code': 'chapter_length'}, status=400)
+    if action == 'publish':
         chapter.publish()
     elif action == 'schedule':
-        when = request.data.get('scheduled_for')
-        dt = when and timezone.datetime.fromisoformat(when)
+        try:
+            dt = datetime.fromisoformat(request.data.get('scheduled_for') or '')
+        except ValueError:
+            dt = None
+        if dt and timezone.is_naive(dt):
+            dt = timezone.make_aware(dt)
         if not dt or dt <= timezone.now():
             return Response({'detail': 'scheduled_for must be a future ISO date-time.'}, status=400)
         chapter.status, chapter.scheduled_for = Chapter.STATUS_SCHEDULED, dt
@@ -110,18 +120,36 @@ def chapter_action(request, pk, chapter_id, action):
 @api_view(['GET', 'POST'])
 @permission_classes(Author)
 def application(request, pk):
-    """Apply to sign a story (needs complete info and 3+ published chapters)."""
+    """GET: the latest application. POST (multipart): Apply for Contract with
+    every step of the form; needs complete book info and CONTRACT_MIN_WORDS
+    published words. Errors: {"errors": {field: [msg]}, "step": n}."""
     story = _own_story(request, pk)
     if request.method == 'GET':
         app = story.applications.first()
         return Response(s.ApplicationSerializer(app).data if app else None)
     if story.applications.filter(status__in=ContractApplication.OPEN_STATUSES + (ContractApplication.STATUS_SIGNED,)).exists():
         return Response({'detail': 'This story already has an open application.'}, status=400)
-    if not story.is_info_complete or story.published_chapters().count() < 3:
-        return Response({'detail': 'Complete your book information and publish at least 3 chapters first.'}, status=400)
+    if not story.can_apply_for_contract:
+        need = settings.BONOVELA['CONTRACT_MIN_WORDS']
+        return Response({'detail': f'Complete your book information and publish at least {need:,} words first.'},
+                        status=400)
+    from apps.editorial.forms import ContractApplicationForm
     from apps.editorial.history import submit
-    app = submit(story, request, request.data.get('message', '') or '')
+    form = ContractApplicationForm(request.data, request.FILES, story=story)
+    if not form.is_valid():
+        return Response({'detail': 'Please check the highlighted fields.', 'errors': form.errors,
+                         'step': form.first_error_step()}, status=400)
+    app = submit(story, request, request.data.get('message', '') or '', form=form)
     return Response(s.ApplicationSerializer(app).data, status=201)
+
+
+@api_view(['GET'])
+@permission_classes(Author)
+def editors(request, pk):
+    """Editors an author can choose for this book (its desk only)."""
+    from apps.editorial.forms import editors_for
+    story = _own_story(request, pk)
+    return Response([{'id': e.id, 'name': e.display_name} for e in editors_for(story)])
 
 
 @api_view(['POST'])
@@ -195,8 +223,9 @@ def income(request):
         'month': month,
         'total_cents': sum(e.amount_cents for e in qs),
         'month_cents': sum(by_type.values()),
+        'available_cents': available_to_withdraw(request.user),
         'types': [{'type': k, 'label': label, 'amount_cents': by_type[k]} for k, label in AuthorEarning.TYPE_CHOICES
-                  if k not in AuthorEarning.RETIRED_TYPES],
+                  if k not in AuthorEarning.RETIRED_TYPES and k != 'editor_commission'],
     })
 
 

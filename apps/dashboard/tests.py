@@ -87,16 +87,38 @@ class DashboardTests(TestCase):
         self.assertRedirects(r, f'/author/stories/{story.pk}/info/?step=2')
 
         tag = Tag.objects.first()
-        r = self.client.post(f'/author/stories/{story.pk}/info/?step=2', {
-            'novel_type': 'original', 'genre': Genre.objects.first().pk, 'tags': [tag.pk],
-            'synopsis': ' '.join(['word'] * 30), 'action': 'next'})
+        details = {'novel_type': 'original', 'is_short': '0', 'genre': Genre.objects.filter(is_active=True).first().pk,
+                   'tags': [tag.pk], 'action': 'next'}
+        r = self.client.post(f'/author/stories/{story.pk}/info/?step=2', {**details, 'synopsis': 'word ' * 49})
+        self.assertContains(r, 'Synopsis must be 50–300 words')  # too short
+        retired = Genre.objects.get(name='Urban')
+        r = self.client.post(f'/author/stories/{story.pk}/info/?step=2', {**details, 'genre': retired.pk,
+                                                                         'synopsis': 'word ' * 60})
+        self.assertEqual(r.status_code, 200)  # retired genres can't be picked
+        r = self.client.post(f'/author/stories/{story.pk}/info/?step=2', {**details, 'synopsis': 'word ' * 60})
         self.assertRedirects(r, f'/author/stories/{story.pk}/info/?step=3')
         story.refresh_from_db()
         self.assertTrue(story.is_info_complete)
+        self.assertNotContains(self.client.get(f'/author/stories/{story.pk}/info/?step=2'), 'Participate')
 
-        for i in range(3):
+        # Chapters must be 600–2,000 words to go out; short ones stay as drafts.
+        self.client.post(f'/author/stories/{story.pk}/chapters/new/', {
+            'title': 'Too short', 'content': 'She ran. ' * 299, 'action': 'release'})
+        self.assertEqual(story.chapters.get(title='Too short').status, Chapter.STATUS_DRAFT)
+        r = self.client.post(f'/author/stories/{story.pk}/chapters/new/', {
+            'title': 'Too long', 'content': 'word ' * 2001, 'action': 'save'})
+        self.assertFalse(story.chapters.filter(title='Too long').exists())
+        self.assertContains(r, 'Chapters must be 600–2,000 words')
+
+        # The contract application only opens at 5,000 published words.
+        self.client.post(f'/author/stories/{story.pk}/chapters/new/', {
+            'title': 'Chapter 1', 'content': 'She ran. ' * 1000, 'action': 'release'})
+        self.assertNotContains(self.client.get(f'/author/stories/{story.pk}/signing/'), 'Apply for Contract</a>')
+        self.assertRedirects(self.client.get(f'/author/stories/{story.pk}/contract/'),
+                             f'/author/stories/{story.pk}/signing/')
+        for i in range(2):
             self.client.post(f'/author/stories/{story.pk}/chapters/new/', {
-                'title': f'Chapter {i + 1}', 'content': 'She ran. ' * 50, 'action': 'release'})
+                'title': f'Chapter {i + 2}', 'content': 'She ran. ' * 1000, 'action': 'release'})
         self.assertEqual(story.chapters.filter(status=Chapter.STATUS_PUBLISHED).count(), 3)
         self.assertFalse(Story.objects.visible_in_app().filter(pk=story.pk).exists())
 
@@ -110,8 +132,35 @@ class DashboardTests(TestCase):
         draft.refresh_from_db()
         self.assertEqual(draft.status, Chapter.STATUS_DRAFT)
 
-        self.client.post(f'/author/stories/{story.pk}/signing/', {'action': 'apply', 'message': 'Please!'})
-        self.assertEqual(story.applications.get().status, ContractApplication.STATUS_PENDING)
+        self.assertContains(self.client.get(f'/author/stories/{story.pk}/signing/'), 'Apply for Contract</a>')
+        from apps.editorial.testdata import application_data
+        novels_se = User.objects.get(email='se@bonovela.app')
+        shorts_se = User.objects.get(email='se5@bonovela.app')  # Short Stories desk
+        page = self.client.get(f'/author/stories/{story.pk}/contract/')
+        self.assertContains(page, novels_se.display_name)
+        self.assertNotContains(page, shorts_se.display_name)
+        # Under 18 without guardian details, and an editor from the wrong desk: sent back.
+        r = self.client.post(f'/author/stories/{story.pk}/contract/',
+                             application_data(shorts_se, is_minor='on'))
+        self.assertContains(r, 'Required for authors under 18.')
+        self.assertContains(r, 'Choose one of the listed editors.')
+        self.assertFalse(story.applications.exists())
+        r = self.client.post(f'/author/stories/{story.pk}/contract/', application_data(novels_se))
+        self.assertRedirects(r, f'/author/stories/{story.pk}/signing/')
+        app = story.applications.get()
+        self.assertEqual((app.status, app.get_status_display()), (ContractApplication.STATUS_PENDING, 'Pending review'))
+        self.assertEqual((app.legal_name, app.phone, app.contract_type), ('Ada Ngozi Okafor', '+2348012345678',
+                                                                          'non_exclusive'))
+        story.refresh_from_db()
+        self.assertEqual(story.editor, novels_se)  # unassigned book goes to the chosen editor
+        # ID photos are private: not under MEDIA_ROOT, only editors can open them.
+        from django.conf import settings
+        self.assertFalse(app.id_front.path.startswith(str(settings.MEDIA_ROOT)))
+        url = f'/editorial/applications/{app.pk}/id/front/'
+        self.assertEqual(self.client.get(url).status_code, 403)
+        self.client.force_login(novels_se)
+        self.assertEqual(self.client.get(url).status_code, 200)
+        self.assertContains(self.client.get(f'/editorial/submissions/{app.pk}/'), 'Ada Ngozi Okafor')
 
     def test_author_cannot_touch_others_story(self):
         self.login('author@bonovela.app')
@@ -464,10 +513,10 @@ class ResubmissionFlagTests(TestCase):
         story = Story.objects.filter(editor=se2, is_signed=True).exclude(tags=None).first()
         Story.objects.filter(pk=story.pk).update(is_signed=False, synopsis=' '.join(['word'] * 40))
         story.refresh_from_db()
-        # Author applies from the web (IP recorded), AE passes, SE2 rejects.
-        self.client.force_login(story.author)
-        self.client.post(f'/author/stories/{story.pk}/signing/', {'action': 'apply'}, REMOTE_ADDR='197.210.5.9')
-        app = story.applications.get()
+        # Author applies from the web (IP recorded), SE2 rejects.
+        from django.test import RequestFactory
+        request = RequestFactory().post('/', REMOTE_ADDR='197.210.5.9')
+        app = history.submit(story, request)
         self.assertEqual(app.submitted_ip, '197.210.5.9')
         self.assertEqual(app.prior_flag, '')
         self.as_role('se2')
