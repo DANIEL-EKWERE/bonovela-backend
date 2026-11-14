@@ -9,7 +9,7 @@
   <label class="field"><span class="label">SWIFT code / BIC</span>{{ f.swift_code }}{{ f.swift_code.errors }}</label>
 </div>
 <label class="field"><span class="label" data-detail-label>Bank account number</span>{{ f.account_detail }}{{ f.account_detail.errors }}</label>
-<label class="field"><span class="label">Name of account holder</span>{{ f.account_name }}<span class="hint">Full name exactly as it appears on the bank statement — your legal name. No third-party accounts.</span>{{ f.account_name.errors }}</label>
+<label class="field"><span class="label">Name of account holder</span>{{ f.account_name }}<span class="hint">Full name exactly as it appears on the bank statement</span>{{ f.account_name.errors }}</label>
 <div data-bank>
   <label class="field"><span class="label">Intermediary bank SWIFT code / BIC <span class="hint" style="display:inline">Optional</span></span>{{ f.intermediary_swift }}<span class="hint">Typically only necessary if your bank has told you to use an intermediary bank</span>{{ f.intermediary_swift.errors }}</label>
   <h3 style="margin:14px 0 10px">Recipient</h3>

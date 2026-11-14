@@ -16,7 +16,7 @@
   {% if rules.placed_this_month %}<div class="notice warn" style="margin-top:12px">You've placed this month's withdrawal. You can place the next one next month. <a href="{% url 'dashboard:author_withdrawals' %}" style="text-decoration:underline">Withdrawal history</a></div>
   {% elif rules.available < rules.minimum %}<div class="notice warn" style="margin-top:12px">You can withdraw once your available balance reaches {{ rules.minimum|money }}.</div>{% endif %}
   <div class="card" style="margin-top:12px">{% include 'dashboard/author/_payout_fields.html' with f=form %}</div>
-  <div class="notice warn" style="margin-top:12px;border:1px solid #F1D9A6"><b>Withdrawal Date:</b> Withdrawals can be made at any time during the month, but each person is limited to one withdrawal per month.</div>
+  
   <div class="notice warn" style="margin-top:8px;border:1px solid #F1D9A6"><b>Withdrawal Processing Time:</b> Withdrawals are processed on the 11th of each month, covering the requests from the previous month (e.g. on 11 November, the withdrawals placed from 11 October to 10 November are processed and paid).</div>
   <div class="grid cols-2" style="margin-top:14px;gap:10px">
     <button type="button" class="btn" id="withdrawSubmit" {% if not rules.can_withdraw %}disabled{% endif %}>SUBMIT</button>

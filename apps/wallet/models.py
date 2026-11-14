@@ -333,8 +333,8 @@ class PayoutEvent(models.Model):
 
 
 class PayoutMethod(models.Model):
-    """Where an author's earnings go. The account must be in the author's own
-    legal name; third-party accounts aren't accepted."""
+    """Where an author's earnings go. The account may be the author's own or
+    a third party's."""
 
     CURRENCY_CHOICES = [('USD', 'USD'), ('NGN', 'NGN')]
     # Required on top of the base fields when paying by bank.
@@ -342,7 +342,7 @@ class PayoutMethod(models.Model):
 
     author = models.OneToOneField(User, on_delete=models.CASCADE, related_name='payout_method')
     method = models.CharField(max_length=20, choices=[('bank', 'Bank transfer'), ('paypal', 'PayPal')])
-    account_name = models.CharField(max_length=120, help_text="Author's full legal name, exactly as on the account")
+    account_name = models.CharField(max_length=120, help_text='Account holder, exactly as on the account')
     account_detail = models.CharField(max_length=120, help_text='Account number or PayPal email')
     bank_name = models.CharField(max_length=120, blank=True)
     swift_code = models.CharField('SWIFT code / BIC', max_length=11, blank=True)

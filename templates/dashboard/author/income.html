@@ -8,7 +8,7 @@
 </div>
 <div class="row between" style="margin-bottom:10px">
   <span class="muted">Total Revenue: <b style="color:var(--text)">{{ total|money }}</b></span>
-  <button class="btn sm" data-open="payout">Payment Info</button>
+  
 </div>
 <div class="card">
   <div class="row" style="justify-content:center">
@@ -48,7 +48,6 @@
 
 <div class="sheet{% if payout_form.errors or request.GET.payment %} open{% endif %}" id="payout"><div class="panel">
   <div class="row between" style="margin-bottom:12px"><h2>Payment Info</h2><button class="icon-btn" data-close><i class="ph ph-x"></i></button></div>
-  <div class="notice warn" style="margin-bottom:12px">The account holder name must be your full <b>legal name</b>, exactly as it appears on your bank account. No third-party accounts can be used.</div>
   {% if not payout %}<p class="hint" style="margin-bottom:12px">Add where we should send your earnings.</p>{% endif %}
   <form method="post" id="payoutForm">{% csrf_token %}{{ payout_form.confirmed }}
     {% if payout_form.non_field_errors %}<div class="notice bad" style="margin-bottom:12px">{{ payout_form.non_field_errors|join:" " }}</div>{% endif %}
