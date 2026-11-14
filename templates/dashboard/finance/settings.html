@@ -1,0 +1,27 @@
+{% extends 'dashboard/finance/layout.html' %}
+{% block title %}Finance Settings{% endblock %}
+{% block content %}
+<form method="post">{% csrf_token %}
+<div class="f-head">
+  <div><div class="f-eyebrow">Configuration</div><h1>Finance Settings</h1>
+    <p>Changes take effect immediately and are recorded in the Audit Logs.{% if not can_edit %} Only Management can change them.{% endif %}</p></div>
+  {% if can_edit %}<button class="f-btn"><i class="ph ph-floppy-disk"></i>Save changes</button>{% endif %}
+</div>
+<div class="f-grid">
+{% for group, fields in groups.items %}
+  <div class="f-card"><div class="h"><h2>{{ group }}</h2></div>
+    {% for f in fields %}
+    <div class="f-row">
+      <div class="f-grow"><div class="t">{{ f.label }}</div><div class="m">{{ f.help }}</div></div>
+      {% if f.kind == 'bool' %}
+        <label class="f-switch"><input type="checkbox" name="{{ f.name }}" {% if f.value %}checked{% endif %} {% if not can_edit %}disabled{% endif %}><span></span></label>
+      {% else %}
+        <div class="f-suffix">{% if f.kind == 'usd' %}<span>$</span>{% endif %}<input type="number" name="{{ f.name }}" value="{{ f.value|floatformat:'-2' }}" step="{% if f.kind == 'usd' %}1{% else %}0.5{% endif %}" min="0" {% if f.kind == 'pct' %}max="100"{% endif %} {% if not can_edit %}disabled{% endif %} required>{% if f.kind == 'pct' %}<span>%</span>{% endif %}</div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+{% endfor %}
+</div>
+</form>
+{% endblock %}

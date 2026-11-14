@@ -44,12 +44,22 @@ MARKETING_NAV = [
     ('dashboard:marketing_broadcasts', 'megaphone', 'Broadcasts'),
 ]
 
+# Pages appear once their URL exists (finance is built in stages).
 FINANCE_NAV = [
-    ('dashboard:finance_home', 'chart-line-up', 'Overview'),
-    ('dashboard:finance_transactions', 'receipt', 'Transactions'),
-    ('dashboard:finance_payouts', 'hand-coins', 'Payouts'),
-    ('dashboard:finance_balances', 'users-three', 'Balances'),
-    ('dashboard:finance_statements', 'file-text', 'Statements'),
+    ('dashboard:finance_home', 'bank', 'Bonovela Treasury'),
+    ('dashboard:finance_search', 'magnifying-glass', 'Universal Search', {'section': 'Finance Operations'}),
+    ('dashboard:finance_revenue', 'chart-pie-slice', 'Revenue Distribution'),
+    ('dashboard:finance_subscriptions', 'book-open', 'Short Story Subscriptions'),
+    ('dashboard:finance_payouts', 'hand-coins', 'Author Payouts'),
+    ('dashboard:finance_audit', 'scroll', 'Audit Logs'),
+    ('dashboard:finance_settings', 'gear-six', 'Finance Settings'),
+    ('dashboard:finance_team', 'user-gear', 'Team & Permissions'),
+    ('dashboard:finance_refunds', 'receipt-x', 'Refunds & Chargebacks'),
+    ('dashboard:finance_support', 'lifebuoy', 'Reader Support'),
+    ('dashboard:finance_bonuses', 'sparkle', 'Bonuses & Incentives'),
+    ('dashboard:finance_expenses', 'currency-circle-dollar', 'Expenses'),
+    ('dashboard:finance_reports', 'file-text', 'Financial Reports'),
+    ('dashboard:finance_reconciliation', 'scales', 'Reconciliation'),
 ]
 
 ADMIN_NAV = [
@@ -123,6 +133,7 @@ def dashboard_globals(request):
 
     return {
         'brand_name': 'Bonovela',
+        'finance_member': getattr(request, 'finance_member', None),
         'area': area,
         'nav': _items(nav, path, lv),
         'areas': areas,

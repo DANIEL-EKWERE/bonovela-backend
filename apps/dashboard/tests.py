@@ -680,6 +680,59 @@ class NewDashboardTests(TestCase):
         self.assertEqual(InboxMessage.objects.filter(user=reader).count(), before + 1)
 
     # ── Finance ──────────────────────────────────────────────────────────────
+    def test_finance_stage_one_pages_settings_expenses_team_audit(self):
+        from django.core.exceptions import PermissionDenied
+        from apps.finance.models import AuditEntry, Expense, FinanceMember, FinanceSettings
+        lead = self.as_role('finance')  # finance staff start as Finance Lead
+        self.get_ok('/finance/', '/finance/expenses/', '/finance/settings/', '/finance/audit/', '/finance/team/',
+                    '/finance/payouts/?tab=balances', '/finance/expenses/?month=2026-01')
+        self.assertEqual(FinanceMember.objects.get(user=lead).role, FinanceMember.ROLE_LEAD)
+        # Settings: Management only, every change audited.
+        self.client.post('/finance/settings/', {'author_share_pct': '60', 'processing_fee_pct': '3',
+                                                'minimum_payout_cents': '100', 'chargeback_reserve_pct': '5'})
+        self.assertEqual(FinanceSettings.current().author_share_pct, 50)
+        self.client.force_login(User.objects.get(email='admin@bonovela.app'))
+        self.client.post('/finance/settings/', {'author_share_pct': '60', 'processing_fee_pct': '3',
+                                                'minimum_payout_cents': '100', 'chargeback_reserve_pct': '5',
+                                                'two_person_approval': 'on'})
+        self.assertEqual(FinanceSettings.current().author_share_pct, 60)
+        self.assertTrue(AuditEntry.objects.filter(action='Changed author share', detail='50% → 60%').exists())
+        self.client.post('/finance/settings/', {'author_share_pct': '160', 'processing_fee_pct': '3',
+                                                'minimum_payout_cents': '100', 'chargeback_reserve_pct': '5'})
+        self.assertEqual(FinanceSettings.current().author_share_pct, 60)  # out of range: refused
+        # Expenses: add, show on the Treasury, pay, delete; all audited.
+        self.client.post('/finance/expenses/', {'action': 'add', 'title': 'Northwind Cloud', 'category': 'Hosting',
+                                                'amount': '4120', 'date': '2026-11-11', 'status': 'due'})
+        e = Expense.objects.get(title='Northwind Cloud')
+        self.assertEqual((e.amount_cents, e.status), (412000, 'due'))
+        self.assertContains(self.client.get('/finance/expenses/?month=2026-11'), 'Northwind Cloud')
+        self.assertContains(self.client.get('/finance/'), 'Northwind Cloud')
+        self.client.post('/finance/expenses/', {'action': 'paid', 'expense': e.pk})
+        e.refresh_from_db()
+        self.assertEqual(e.status, 'paid')
+        self.client.post('/finance/expenses/', {'action': 'delete', 'expense': e.pk})
+        self.assertFalse(Expense.objects.exists())
+        self.assertEqual(AuditEntry.objects.filter(category='Expense').count(), 3)
+        # Team: add a Viewer, who can look but not act.
+        viewer = User.objects.get(email='marketing@bonovela.app')
+        self.client.post('/finance/team/', {'action': 'add', 'email': viewer.email, 'role': 'viewer'})
+        self.client.force_login(viewer)
+        self.assertEqual(self.client.get('/finance/expenses/').status_code, 200)
+        self.client.post('/finance/expenses/', {'action': 'add', 'title': 'X', 'category': 'Other',
+                                                'amount': '1', 'date': '2026-11-11'})
+        self.assertFalse(Expense.objects.exists())
+        self.assertEqual(self.client.get('/finance/team/').status_code, 200)
+        # Not on the team: no access.
+        self.client.force_login(User.objects.get(email='reader@bonovela.app'))
+        self.assertEqual(self.client.get('/finance/').status_code, 403)
+        # The log is append-only.
+        entry = AuditEntry.objects.first()
+        entry.detail = 'changed'
+        with self.assertRaises(PermissionDenied):
+            entry.save()
+        with self.assertRaises(PermissionDenied):
+            entry.delete()
+
     def test_finance_pages_and_csv(self):
         self.as_role('finance')
         self.get_ok('/finance/', '/finance/transactions/', '/finance/transactions/?kind=paid&from=2026-01-01&q=reader',

@@ -1,0 +1,59 @@
+{% extends 'dashboard/finance/layout.html' %}{% load bv %}
+{% block title %}Expenses{% endblock %}
+{% block content %}
+<div class="f-head">
+  <div>
+    <div class="f-eyebrow"><a href="?month={{ prev|date:'Y-m' }}" title="Previous month">‹</a> {{ month|date:"F Y" }} {% if next %}<a href="?month={{ next|date:'Y-m' }}" title="Next month">›</a>{% endif %}</div>
+    <h1>Expenses</h1>
+    <p>What it costs to run Bonovela.</p>
+  </div>
+  <div style="display:flex;gap:8px">
+    <a class="f-btn ghost" href="?month={{ month|date:'Y-m' }}&export=csv"><i class="ph ph-download-simple"></i>CSV</a>
+    {% if can_edit %}<button class="f-btn" data-open="addExpense"><i class="ph ph-plus"></i>Add expense</button>{% endif %}
+  </div>
+</div>
+
+<div class="f-stats">
+  <div class="f-stat hero"><div class="l">Total this month</div><div class="v">{{ total|money0 }}</div></div>
+  <div class="f-stat"><div class="l">Still due</div><div class="v">{{ due|money0 }}</div></div>
+  <div class="f-stat"><div class="l">Biggest category</div><div class="v">{{ biggest }}</div></div>
+</div>
+
+<div class="f-grid f-two">
+  <div class="f-card">
+    <div class="h"><h2>By category</h2></div>
+    <div class="b">{% for c in cats %}
+      <div class="f-hbar"><span>{{ c.name }}</span><span class="track"><span class="fill" style="width:{{ c.pct }}%;display:block"></span></span><b>{{ c.cents|money0 }}</b></div>
+    {% empty %}<div class="f-empty" style="padding:20px 0">Nothing spent this month.</div>{% endfor %}</div>
+  </div>
+  <div class="f-card">
+    <div class="h"><h2>All expenses</h2></div>
+    {% for e in expenses %}
+    <div class="f-row">
+      <div class="f-grow"><div class="t">{{ e.title }}</div><div class="m">{{ e.category }} · {{ e.date|date:"M j, Y" }}{% if e.note %} · {{ e.note }}{% endif %}</div></div>
+      <span class="f-chip {% if e.status == 'paid' %}ok{% else %}warn{% endif %}">{{ e.get_status_display }}</span>
+      <div class="amt" style="min-width:90px">{{ e.amount_cents|money0 }}</div>
+      {% if can_edit %}<form method="post" style="display:flex;gap:6px">{% csrf_token %}<input type="hidden" name="expense" value="{{ e.pk }}">
+        {% if e.status == 'due' %}<button class="f-btn sm ghost" name="action" value="paid">Mark paid</button>{% endif %}
+        <button class="f-btn sm danger" name="action" value="delete" onclick="return confirm('Delete {{ e.title|escapejs }}?')" title="Delete"><i class="ph ph-trash"></i></button>
+      </form>{% endif %}
+    </div>
+    {% empty %}<div class="f-empty">No expenses in {{ month|date:"F" }}.</div>{% endfor %}
+  </div>
+</div>
+
+<div class="f-sheet" id="addExpense"><div class="p">
+  <h2>Add expense</h2>
+  <form method="post">{% csrf_token %}<input type="hidden" name="action" value="add">
+    <label class="f-field"><span>Vendor / description</span><input type="text" name="title" maxlength="120" required placeholder="e.g. Northwind Cloud"></label>
+    <div class="f-grid" style="grid-template-columns:1fr 1fr">
+      <label class="f-field"><span>Category</span><select name="category">{% for k, l in categories %}<option value="{{ k }}">{{ l }}</option>{% endfor %}</select></label>
+      <label class="f-field"><span>Amount (USD)</span><input type="number" name="amount" min="0.01" step="0.01" required></label>
+      <label class="f-field"><span>Date</span><input type="date" name="date" value="{{ today|date:'Y-m-d' }}" required></label>
+      <label class="f-field"><span>Status</span><select name="status"><option value="due">Due</option><option value="paid">Paid</option></select></label>
+    </div>
+    <label class="f-field"><span>Note (optional)</span><input type="text" name="note" maxlength="200"></label>
+    <div style="display:flex;gap:8px;justify-content:flex-end"><button type="button" class="f-btn ghost" data-close>Cancel</button><button class="f-btn">Add expense</button></div>
+  </form>
+</div></div>
+{% endblock %}

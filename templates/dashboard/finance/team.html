@@ -1,0 +1,41 @@
+{% extends 'dashboard/finance/layout.html' %}
+{% block title %}Team & Permissions{% endblock %}
+{% block content %}
+<div class="f-head">
+  <div><div class="f-eyebrow">Access</div><h1>Team &amp; Permissions</h1><p>Only people listed here can open Bonovela Finance.</p></div>
+  {% if can_manage %}<button class="f-btn" data-open="addMember"><i class="ph ph-user-plus"></i>Add member</button>{% endif %}
+</div>
+<div class="f-card" style="margin-bottom:24px">
+  <div class="h"><h2>Members</h2></div>
+  {% for m in members %}
+  <div class="f-row">
+    <span class="f-ico" style="font-weight:700;font-size:12px">{{ m.user.display_name|slice:":2"|upper }}</span>
+    <div class="f-grow"><div class="t">{{ m.user.display_name }}{% if m.pk == me.pk %} <span class="f-chip">You</span>{% endif %}</div>
+      <div class="m">{{ m.user.email }}{% if m.last_active %} · Active {{ m.last_active|date:"M j, h:i A" }}{% endif %}</div></div>
+    {% if can_manage and m.pk != me.pk %}
+      <form method="post" style="display:flex;gap:6px;align-items:center">{% csrf_token %}<input type="hidden" name="member" value="{{ m.pk }}">
+        <select name="role" onchange="this.form.querySelector('[value=role]').click()" style="width:auto">{% for k, l in roles %}<option value="{{ k }}" {% if m.role == k %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+        <button name="action" value="role" hidden></button>
+        <button class="f-btn sm danger" name="action" value="remove" onclick="return confirm('Remove {{ m.user.email|escapejs }} from Bonovela Finance?')" title="Remove"><i class="ph ph-user-minus"></i></button>
+      </form>
+    {% else %}<span class="f-chip gold">{{ m.get_role_display }}</span>{% endif %}
+  </div>
+  {% endfor %}
+</div>
+<div class="f-card f-scroll">
+  <div class="h"><h2>What each role can do</h2></div>
+  <table class="f-table">
+    <tr><th>Permission</th>{% for k, l in roles %}<th style="text-align:center">{{ l }}</th>{% endfor %}</tr>
+    {% for label, cells in perms %}<tr><td>{{ label }}</td>{% for ok in cells %}<td style="text-align:center">{% if ok %}<i class="ph-bold ph-check" style="color:var(--f-success)"></i>{% else %}<span style="color:var(--f-muted)">—</span>{% endif %}</td>{% endfor %}</tr>{% endfor %}
+  </table>
+</div>
+
+<div class="f-sheet" id="addMember"><div class="p">
+  <h2>Add member</h2>
+  <form method="post">{% csrf_token %}<input type="hidden" name="action" value="add">
+    <label class="f-field"><span>Email of their Bonovela account</span><input type="email" name="email" required><small>They need an account first: they can sign up in the app or on the website.</small></label>
+    <label class="f-field"><span>Role</span><select name="role">{% for k, l in roles %}<option value="{{ k }}" {% if k == 'analyst' %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></label>
+    <div style="display:flex;gap:8px;justify-content:flex-end"><button type="button" class="f-btn ghost" data-close>Cancel</button><button class="f-btn">Add member</button></div>
+  </form>
+</div></div>
+{% endblock %}

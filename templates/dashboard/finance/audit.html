@@ -1,0 +1,25 @@
+{% extends 'dashboard/finance/layout.html' %}
+{% block title %}Audit Logs{% endblock %}
+{% block content %}
+<div class="f-head">
+  <div><div class="f-eyebrow">Append-only</div><h1>Audit Logs</h1><p>Every action is recorded permanently. Entries can't be edited or deleted.</p></div>
+  <a class="f-btn ghost" href="?{{ request.GET.urlencode }}&export=csv"><i class="ph ph-download-simple"></i>CSV</a>
+</div>
+<form class="f-tabs" method="get">
+  <a href="?" class="{% if not category %}on{% endif %}">All</a>
+  {% for k, l in categories %}<a href="?category={{ k }}" class="{% if category == k %}on{% endif %}">{{ l }}</a>{% endfor %}
+</form>
+<form method="get" style="margin-bottom:16px;max-width:420px">{% if category %}<input type="hidden" name="category" value="{{ category }}">{% endif %}
+  <input type="search" name="q" value="{{ q }}" placeholder="Search action, reference, person…"></form>
+<div class="f-card">
+  {% for e in entries %}
+  <div class="f-row">
+    <span class="f-ico"><i class="ph ph-scroll"></i></span>
+    <div class="f-grow"><div class="t">{{ e.action }} <span class="f-chip">{{ e.category }}</span></div>
+      <div class="m">{% if e.reference %}{{ e.reference }}{% endif %}{% if e.reference and e.detail %} · {% endif %}{{ e.detail }}</div></div>
+    <div class="m" style="text-align:right">{{ e.actor_label }}<br>{{ e.created_at|date:"M j, h:i A" }} · {{ e.code }}</div>
+  </div>
+  {% empty %}<div class="f-empty">Nothing recorded{% if q or category %} that matches{% endif %} yet.</div>{% endfor %}
+  <div class="f-note"><i class="ph ph-lock-simple"></i> Records are locked once written.</div>
+</div>
+{% endblock %}

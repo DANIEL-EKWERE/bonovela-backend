@@ -88,6 +88,10 @@ urlpatterns = [
     path('finance/payouts/<int:pk>/', finance.payout_action, name='finance_payout_action'),
     path('finance/payouts/commission/', finance.book_commission, name='finance_book_commission'),
     path('finance/statements/', finance.statements, name='finance_statements'),
+    path('finance/expenses/', finance.expenses, name='finance_expenses'),
+    path('finance/settings/', finance.finance_settings, name='finance_settings'),
+    path('finance/audit/', finance.audit_log, name='finance_audit'),
+    path('finance/team/', finance.team, name='finance_team'),
 
     # Admin
     path('admin-panel/', admin.home, name='admin_home'),

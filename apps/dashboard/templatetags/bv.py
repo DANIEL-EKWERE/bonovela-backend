@@ -14,6 +14,20 @@ def money(cents):
 
 
 @register.filter
+def money0(cents):
+    """5905800 → $59,058 (whole dollars, for headline figures)"""
+    cents = int(cents or 0)
+    return f"{'-' if cents < 0 else ''}${round(abs(cents) / 100):,}"
+
+
+@register.filter
+def signed(cents):
+    """1482040 → +$14,820.40 · -324000 → −$3,240.00"""
+    cents = int(cents or 0)
+    return f"{'+' if cents >= 0 else '−'}${abs(cents) // 100:,}.{abs(cents) % 100:02d}"
+
+
+@register.filter
 def compact(n):
     n = int(n or 0)
     if n >= 1_000_000:

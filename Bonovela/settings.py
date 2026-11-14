@@ -46,6 +46,7 @@ INSTALLED_APPS = [
     'apps.editorial',
     'apps.drama',
     'apps.marketing',
+    'apps.finance',
     'apps.api',
     'apps.dashboard',
 ]
