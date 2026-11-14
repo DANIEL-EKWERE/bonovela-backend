@@ -1,0 +1,18 @@
+<div class="f-card" style="margin-bottom:16px">
+  <div class="h"><div><h2>{{ name }} connection</h2><p>{{ api }}</p></div>
+    <div style="display:flex;gap:10px;align-items:center">{% if conn.connected %}<span class="f-chip ok">Connected</span>{% else %}<span class="f-chip">Not connected</span>{% endif %}
+      {% if can_setup %}<button type="button" class="f-btn ghost sm" data-open="conn-{{ key }}"><i class="ph ph-plug"></i>Set up connection</button>{% endif %}</div></div>
+  <div class="b"><dl class="m-kv" style="grid-template-columns:repeat(4,auto 1fr)">
+    <dt>Account ID</dt><dd>{{ conn.account_id|default:'—' }}</dd>
+    <dt>Last sync</dt><dd>{% if conn.last_sync %}{{ conn.last_sync|date:'d M Y, H:i' }}{% else %}Never{% endif %}</dd>
+    <dt>Permissions</dt><dd>{% if conn.connected %}Granted{% elif conn.requested_at %}Requested {{ conn.requested_at|date:'d M' }}{% else %}Not granted{% endif %}</dd>
+    <dt>Error log</dt><dd>{{ conn.error_log|default:'No entries'|truncatechars:40 }}</dd>
+  </dl></div>
+</div>
+{% if can_setup %}<div class="f-sheet" id="conn-{{ key }}"><div class="p">
+  <h2>Connect {{ name }}</h2>
+  <p style="color:var(--f-muted);margin-top:0">Connecting needs {{ api }} access granted to Bonovela by the account owner, and the API keys added on the server. Save the account ID here; the platform shows as connected after the first successful sync.</p>
+  <form method="post" action="{% url 'dashboard:marketing_settings' %}?tab=integrations">{% csrf_token %}<input type="hidden" name="action" value="request"><input type="hidden" name="key" value="{{ key }}">
+    <label class="f-field"><span>Account ID</span><input type="text" name="account_id" value="{{ conn.account_id }}" placeholder="e.g. act_1234567890"></label>
+    <div style="display:flex;gap:8px;justify-content:flex-end"><button type="button" class="f-btn ghost" data-close>Cancel</button><button class="f-btn">Save</button></div>
+  </form></div></div>{% endif %}

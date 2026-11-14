@@ -1,0 +1,23 @@
+{% extends 'dashboard/marketing/layout.html' %}{% load bv %}
+{% block title %}Reports & ROAS{% endblock %}
+{% block content %}
+<div class="f-head"><div><div class="f-eyebrow">Insights</div><h1>Reports and ROAS</h1><p>Only verified, successful payments count as revenue · {{ range_label }}</p></div>{% include 'dashboard/marketing/_range.html' %}</div>
+{% if not t.spend_cents %}{% include 'dashboard/marketing/_no_ads.html' %}{% endif %}
+<div class="f-stats">
+  <div class="f-stat tint"><div class="l">Advertising expenditure</div><div class="v">{{ t.spend_cents|money0 }}</div></div>
+  <div class="f-stat"><div class="l">Attributed revenue</div><div class="v">{{ t.revenue_cents|money0 }}</div></div>
+  <div class="f-stat tint"><div class="l">Return on ad spend</div><div class="v">{{ t.roas|roas }}</div></div>
+  <div class="f-stat"><div class="l">Cost per click</div><div class="v">{{ t.cpc|cents }}</div></div>
+  <div class="f-stat"><div class="l">Cost per install</div><div class="v">{{ t.cpi|cents }}</div></div>
+  <div class="f-stat"><div class="l">Cost per registration</div><div class="v">{{ t.cpr|cents }}</div></div>
+  <div class="f-stat"><div class="l">Cost per paying reader</div><div class="v">{{ t.cpp|cents }}</div></div>
+  <div class="f-stat"><div class="l">Revenue per paying reader</div><div class="v">{{ t.rpp|cents }}</div></div>
+</div>
+<div class="m-sec"><div class="f-tabs" style="margin:0">{% for k, label in by_tabs %}<a class="{% if k == by %}on{% endif %}" href="?by={{ k }}&days={{ days }}">{{ label }}</a>{% endfor %}</div>
+  {% if can_export %}<a class="f-btn ghost sm" href="?by={{ by }}&days={{ days }}&export=1"><i class="ph ph-download-simple"></i>Export CSV</a>{% endif %}</div>
+<div class="f-card f-scroll"><table class="f-table">
+  <thead><tr><th>Name</th><th class="num">Spend</th><th class="num">Revenue</th><th class="num">ROAS</th><th class="num">CPC</th><th class="num">Cost / install</th><th class="num">Cost / registration</th><th class="num">Cost / paying reader</th></tr></thead>
+  <tbody>{% for r in rows %}<tr><td style="font-weight:500">{{ r.name }}</td><td class="num">{{ r.spend_cents|money0 }}</td><td class="num">{{ r.revenue_cents|money0 }}</td><td class="num">{{ r.roas|roas }}</td><td class="num">{{ r.cpc|cents }}</td><td class="num">{{ r.cpi|cents }}</td><td class="num">{{ r.cpr|cents }}</td><td class="num">{{ r.cpp|cents }}</td></tr>{% empty %}<tr><td colspan="8"><div class="f-empty">Nothing to report yet.</div></td></tr>{% endfor %}</tbody>
+</table>
+<div class="f-note">Totals: {{ t.clicks|floatformat:'0g' }} clicks · {{ t.installs|floatformat:'0g' }} installs · {{ t.registrations|floatformat:'0g' }} registrations · {{ t.paying|floatformat:'0g' }} paying readers.</div></div>
+{% endblock %}

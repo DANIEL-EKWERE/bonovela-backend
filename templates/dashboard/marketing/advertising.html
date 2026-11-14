@@ -1,0 +1,21 @@
+{% extends 'dashboard/marketing/layout.html' %}{% load bv %}
+{% block title %}Advertising Analytics{% endblock %}
+{% block content %}
+<div class="f-head"><div><div class="f-eyebrow">Marketing</div><h1>Advertising Analytics</h1><p>Cross-platform comparison · {{ range_label }}</p></div>{% include 'dashboard/marketing/_range.html' %}</div>
+{% if not totals.impressions and not totals.spend_cents %}{% include 'dashboard/marketing/_no_ads.html' %}{% endif %}
+<div class="f-card f-scroll" style="margin-bottom:16px"><table class="f-table">
+  <thead><tr><th>Platform</th><th>Connection</th><th class="num">Spend</th><th class="num">Impressions</th><th class="num">Clicks</th><th class="num">CTR</th><th class="num">Installs</th><th class="num">CPI</th><th class="num">Registrations</th><th class="num">Paying</th><th class="num">Cost / paying</th><th class="num">Revenue</th><th class="num">ROAS</th></tr></thead>
+  <tbody>{% for p in platforms %}<tr>
+    <td><a href="{% url 'dashboard:marketing_'|add:p.key %}" style="font-weight:600">{{ p.name }}</a></td>
+    <td>{% if p.connection.connected %}<span class="f-chip ok">Connected</span>{% else %}<span class="f-chip">Not connected</span>{% endif %}</td>
+    <td class="num">{{ p.spend_cents|money0 }}</td><td class="num">{{ p.impressions|compact }}</td><td class="num">{{ p.clicks|floatformat:'0g' }}</td><td class="num">{{ p.ctr|pct:2 }}</td><td class="num">{{ p.installs|floatformat:'0g' }}</td><td class="num">{{ p.cpi|cents }}</td><td class="num">{{ p.registrations|floatformat:'0g' }}</td><td class="num">{{ p.paying|floatformat:'0g' }}</td><td class="num">{{ p.cpp|cents }}</td><td class="num">{{ p.revenue_cents|money0 }}</td><td class="num">{{ p.roas|roas }}</td>
+  </tr>{% endfor %}</tbody>
+</table></div>
+<div class="m-grid2" style="grid-template-columns:repeat(3,minmax(0,1fr))">
+  <div class="f-card"><div class="h"><h2>Share of spend</h2></div><div class="b">{% for p in platforms %}<div class="f-hbar"><span>{{ p.name|cut:' Ads' }}</span><div class="track"><div class="fill" style="width:{{ p.share|floatformat:1 }}%"></div></div><span>{{ p.share|floatformat:0 }}%</span></div>{% endfor %}</div></div>
+  <div class="f-card"><div class="h"><h2>Cost per install</h2></div><div class="b">{% for p in platforms %}<div class="f-hbar"><span>{{ p.name|cut:' Ads' }}</span><div class="track"><div class="fill" style="width:{% widthratio p.cpi peak_cpi 100 %}%;background:var(--f-chart-2)"></div></div><span>{{ p.cpi|cents }}</span></div>{% endfor %}</div></div>
+  <div class="f-card"><div class="h"><h2>ROAS by platform</h2></div><div class="b">{% for p in platforms %}<div class="f-hbar"><span>{{ p.name|cut:' Ads' }}</span><div class="track"><div class="fill" style="width:{% widthratio p.roas peak_roas 100 %}%;background:var(--f-chart-3)"></div></div><span>{{ p.roas|roas }}</span></div>{% endfor %}</div></div>
+</div>
+<div class="m-sec"><div><h2>All campaigns</h2><p style="margin:2px 0 0;color:var(--f-muted);font-size:13px">Lifetime figures across every platform.</p></div></div>
+{% include 'dashboard/marketing/_campaigns.html' with show_platform=1 %}
+{% endblock %}

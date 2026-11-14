@@ -1,0 +1,16 @@
+{% load bv %}<div class="f-card f-scroll"><table class="f-table">
+  <thead><tr><th>Promotion</th>{% if show_type %}<th>Type</th>{% endif %}<th>Book</th><th>Audience</th>{% if extra_col %}<th>{{ extra_col }}</th>{% endif %}<th>Runs</th><th class="num">Impr.</th><th class="num">Clicks</th><th class="num">Book opens</th><th class="num">CTR</th><th></th></tr></thead>
+  <tbody>{% for b in rows %}<tr>
+    <td style="min-width:200px"><a href="{% url 'dashboard:marketing_banner_edit' b.pk %}" style="font-weight:500">{{ b.title }}</a><div class="m">{{ b.code }}</div>{% include 'dashboard/marketing/_status.html' with st=b.status %}</td>
+    {% if show_type %}<td style="white-space:nowrap">{{ b.kind_label }}</td>{% endif %}
+    <td>{% if b.story %}{% include 'dashboard/marketing/_book.html' with s=b.story %}{% elif b.drama %}{{ b.drama.title }} <span class="m">(drama)</span>{% else %}{{ b.get_target_display }}{% endif %}</td>
+    <td>{{ audience|get_item:b.audience|default:b.audience }}</td>
+    {% if extra_col == 'Priority · label' %}<td>#{{ forloop.counter }}{% if b.label %} · {{ b.label }}{% endif %}</td>{% elif extra_col == 'Placement' %}<td>{{ b.get_placement_display }}</td>{% elif extra_col == 'Condition · cap' %}<td>{{ b.get_condition_display }} · {{ cfg.popup_per_day }}/day</td>{% elif extra_col == 'Cap' %}<td>{{ cfg.splash_per_day }}/day</td>{% endif %}
+    <td style="white-space:nowrap">{{ b.starts_at|date:'d M Y' }} – {% if b.ends_at %}{{ b.ends_at|date:'d M Y' }}{% else %}open{% endif %}</td>
+    <td class="num">{{ b.impressions|floatformat:'0g' }}</td><td class="num">{{ b.clicks|floatformat:'0g' }}</td><td class="num">{{ b.book_opens|floatformat:'0g' }}</td><td class="num">{{ b.ctr }}%</td>
+    <td style="white-space:nowrap"><form method="post" action="{% url 'dashboard:marketing_banner_action' b.pk %}" style="display:flex;gap:4px">{% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+      {% if b.status == 'draft' %}<button class="f-btn sm" name="action" value="publish" title="Publish"><i class="ph ph-paper-plane-tilt"></i></button>{% elif b.status != 'expired' %}<button class="f-btn ghost sm" name="action" value="toggle" title="{% if b.is_active %}Pause{% else %}Resume{% endif %}"><i class="ph ph-{% if b.is_active %}pause{% else %}play{% endif %}"></i></button>{% endif %}
+      <a class="f-btn ghost sm" href="{% url 'dashboard:marketing_banner_edit' b.pk %}" title="Edit"><i class="ph ph-pencil-simple"></i></a>
+      <button class="f-btn danger sm" name="action" value="delete" title="Delete" onclick="return confirm('Delete this promotion?')"><i class="ph ph-trash"></i></button></form></td>
+  </tr>{% empty %}<tr><td colspan="11"><div class="f-empty">No promotions here yet.</div></td></tr>{% endfor %}</tbody>
+</table></div>

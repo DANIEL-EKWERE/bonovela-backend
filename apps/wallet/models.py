@@ -277,9 +277,16 @@ class PayoutMethod(models.Model):
 
 
 class RedeemCode(models.Model):
+    REWARD_CHOICES = [('coins', 'Bonus coins'), ('vouchers', 'Free chapter unlocks')]
+
     code = models.CharField(max_length=30, unique=True)
-    bonus = models.PositiveIntegerField()
+    reward = models.CharField(max_length=10, choices=REWARD_CHOICES, default='coins')
+    bonus = models.PositiveIntegerField(help_text='Coins, or chapters for free chapter unlocks')
     is_active = models.BooleanField(default=True)
+    starts_at = models.DateTimeField(null=True, blank=True)
+    segment = models.CharField(max_length=40, blank=True, help_text='Only readers in this segment (blank: all)')
+    countries = models.CharField(max_length=200, blank=True, help_text='Comma-separated; blank: all')
+    rejected = models.PositiveIntegerField(default=0)
     redeemed_by = models.ManyToManyField(User, blank=True, related_name='redeemed_codes')
     # Set by Marketing; blank means no limit.
     campaign = models.CharField(max_length=80, blank=True)
@@ -293,9 +300,31 @@ class RedeemCode(models.Model):
 
     @property
     def is_usable(self):
-        if not self.is_active or (self.expires_at and self.expires_at <= timezone.now()):
+        now = timezone.now()
+        if not self.is_active or (self.expires_at and self.expires_at <= now) or (self.starts_at and self.starts_at > now):
             return False
         return self.max_uses is None or self.uses < self.max_uses
 
     def __str__(self):
         return self.code
+
+    @property
+    def status(self):
+        now = timezone.now()
+        if self.expires_at and self.expires_at <= now:
+            return 'expired'
+        if not self.is_active:
+            return 'paused'
+        return 'scheduled' if self.starts_at and self.starts_at > now else 'active'
+
+    @property
+    def country_list(self):
+        return [c.strip() for c in self.countries.split(',') if c.strip()]
+
+
+class CodeRedemption(models.Model):
+    """When a reader redeemed a code (cost and revenue after it)."""
+
+    code = models.ForeignKey(RedeemCode, on_delete=models.CASCADE, related_name='redemptions')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='+')
+    created_at = models.DateTimeField(auto_now_add=True)

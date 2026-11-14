@@ -1,7 +1,7 @@
 from django.contrib.auth.views import LogoutView
 from django.urls import path
 
-from .views import admin, author, auth, drama, editorial, finance, marketing
+from .views import admin, author, auth, drama, editorial, finance, marketing, marketing_promo as promo
 from .views import editorial_people as people
 from .views import editorial_quality as quality
 
@@ -72,12 +72,35 @@ urlpatterns = [
 
     # Marketing
     path('marketing/', marketing.home, name='marketing_home'),
-    path('marketing/banners/', marketing.banners, name='marketing_banners'),
-    path('marketing/banners/new/', marketing.banner_form, name='marketing_banner_new'),
-    path('marketing/banners/<int:pk>/', marketing.banner_form, name='marketing_banner_edit'),
-    path('marketing/banners/<int:pk>/action/', marketing.banner_action, name='marketing_banner_action'),
-    path('marketing/codes/', marketing.codes, name='marketing_codes'),
-    path('marketing/broadcasts/', marketing.broadcasts, name='marketing_broadcasts'),
+    path('marketing/advertising/', marketing.advertising, name='marketing_advertising'),
+    path('marketing/ads/meta/', marketing.platform, {'platform': 'meta'}, name='marketing_meta'),
+    path('marketing/ads/google/', marketing.platform, {'platform': 'google'}, name='marketing_google'),
+    path('marketing/ads/tiktok/', marketing.platform, {'platform': 'tiktok'}, name='marketing_tiktok'),
+    path('marketing/ads/apple/', marketing.platform, {'platform': 'apple'}, name='marketing_apple'),
+    path('marketing/ads/import-template.csv', marketing.import_template, name='marketing_import_template'),
+    path('marketing/readers/', marketing.readers, name='marketing_readers'),
+    path('marketing/paying-readers/', marketing.paying, name='marketing_paying'),
+    path('marketing/non-paying-readers/', marketing.nonpaying, name='marketing_nonpaying'),
+    path('marketing/books/', marketing.books, name='marketing_books'),
+    path('marketing/promotions/', promo.promotions, name='marketing_promotions'),
+    path('marketing/discovery/', promo.discovery, name='marketing_discovery'),
+    path('marketing/banners/', promo.banners, name='marketing_banners'),
+    path('marketing/popups/', promo.popups, name='marketing_popups'),
+    path('marketing/opening-screen/', promo.opening, name='marketing_opening'),
+    path('marketing/promotions/new/', promo.banner_form, name='marketing_banner_new'),
+    path('marketing/promotions/<int:pk>/', promo.banner_form, name='marketing_banner_edit'),
+    path('marketing/promotions/<int:pk>/action/', promo.banner_action, name='marketing_banner_action'),
+    path('marketing/notifications/', promo.notifications, name='marketing_notifications'),
+    path('marketing/broadcasts/', promo.broadcasts, name='marketing_broadcasts'),
+    path('marketing/promo-codes/', promo.codes, name='marketing_codes'),
+    path('marketing/links/', promo.links, name='marketing_links'),
+    path('marketing/funnel/', marketing.funnel, name='marketing_funnel'),
+    path('marketing/retention/', marketing.retention, name='marketing_retention'),
+    path('marketing/reports/', marketing.reports, name='marketing_reports'),
+    path('marketing/settings/', promo.settings_page, name='marketing_settings'),
+    # Public: where ads and campaign links land.
+    path('b/<str:book_id>/', promo.book_link, name='book_link'),
+    path('b/<str:book_id>/store/', promo.book_link_store, name='book_link_store'),
 
     # Finance
     path('finance/', finance.home, name='finance_home'),

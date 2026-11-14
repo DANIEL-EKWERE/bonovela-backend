@@ -38,10 +38,29 @@ DRAMA_NAV = [
 ]
 
 MARKETING_NAV = [
-    ('dashboard:marketing_home', 'chart-line-up', 'Overview'),
-    ('dashboard:marketing_banners', 'image', 'Banners'),
-    ('dashboard:marketing_codes', 'ticket', 'Promo codes'),
-    ('dashboard:marketing_broadcasts', 'megaphone', 'Broadcasts'),
+    ('dashboard:marketing_home', 'squares-four', 'Marketing Overview', {'section': 'Overview'}),
+    ('dashboard:marketing_advertising', 'chart-bar', 'Advertising Analytics'),
+    ('dashboard:marketing_meta', 'meta-logo', 'Meta Ads', {'section': 'Ad platforms'}),
+    ('dashboard:marketing_google', 'magnifying-glass', 'Google Ads'),
+    ('dashboard:marketing_tiktok', 'tiktok-logo', 'TikTok Ads'),
+    ('dashboard:marketing_apple', 'apple-logo', 'Apple Ads'),
+    ('dashboard:marketing_readers', 'users', 'Reader Analytics', {'section': 'Readers & books'}),
+    ('dashboard:marketing_paying', 'wallet', 'Paying Readers'),
+    ('dashboard:marketing_nonpaying', 'user-minus', 'Non-Paying Readers'),
+    ('dashboard:marketing_books', 'book-open', 'Book Performance'),
+    ('dashboard:marketing_promotions', 'megaphone-simple', 'Promotion Centre', {'section': 'Promotions'}),
+    ('dashboard:marketing_discovery', 'compass', 'Discovery Page'),
+    ('dashboard:marketing_banners', 'image', 'Banner Promotions'),
+    ('dashboard:marketing_popups', 'selection', 'Pop-up Promotions'),
+    ('dashboard:marketing_opening', 'device-mobile', 'Opening Screen'),
+    ('dashboard:marketing_notifications', 'bell', 'Notification Promotions'),
+    ('dashboard:marketing_broadcasts', 'broadcast', 'Broadcast Centre', {'section': 'Engagement'}),
+    ('dashboard:marketing_codes', 'ticket', 'Promo Codes'),
+    ('dashboard:marketing_links', 'link', 'Deep & Campaign Links'),
+    ('dashboard:marketing_funnel', 'funnel', 'Conversion Funnel', {'section': 'Insights'}),
+    ('dashboard:marketing_retention', 'arrows-left-right', 'Reader Retention'),
+    ('dashboard:marketing_reports', 'file-text', 'Reports & ROAS'),
+    ('dashboard:marketing_settings', 'gear-six', 'Marketing Settings', {'section': 'Admin'}),
 ]
 
 # Pages appear once their URL exists (finance is built in stages).
@@ -124,7 +143,7 @@ def dashboard_globals(request):
                           reverse('dashboard:editorial_home')))
         if user.is_drama_creator or admin:
             areas.append(('Drama Studio', reverse('dashboard:drama_list')))
-        if user.is_marketing or admin:
+        if user.is_marketing or admin or hasattr(user, 'marketing_member'):
             areas.append(('Marketing', reverse('dashboard:marketing_home')))
         if user.is_finance or admin:
             areas.append(('Finance', reverse('dashboard:finance_home')))
@@ -134,6 +153,8 @@ def dashboard_globals(request):
     return {
         'brand_name': 'Bonovela',
         'finance_member': getattr(request, 'finance_member', None),
+        'marketing_member': getattr(request, 'marketing_member', None),
+        'ads_connected': getattr(request, 'ads_connected', True),
         'area': area,
         'nav': _items(nav, path, lv),
         'areas': areas,

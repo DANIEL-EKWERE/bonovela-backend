@@ -1,0 +1,11 @@
+{% extends 'dashboard/marketing/layout.html' %}{% load bv %}
+{% block title %}Conversion Funnel{% endblock %}
+{% block content %}
+<div class="f-head"><div><div class="f-eyebrow">Insights</div><h1>Conversion Funnel</h1><p>Ad impression to paying reader · {{ range_label }}</p></div>{% include 'dashboard/marketing/_range.html' %}</div>
+<div class="m-note info"><i class="ph ph-info"></i><div>Stages come from different sources: <b>ads</b> (imported or synced ad data), <b>links</b> (Bonovela campaign link pages) and <b>app</b> (readers who joined in this period). Until the ad platforms and a measurement partner are connected, the top of the funnel only shows what has been imported.</div></div>
+<div class="f-card m-funnel">{% for r in rows %}<div class="row">
+  <div><div style="font-weight:600">{{ r.label }}</div><div class="m" style="font-family:ui-monospace,monospace;font-size:11.5px;color:var(--f-muted)">{{ r.event }} · {{ r.source }}</div></div>
+  <div class="track"><div class="fill" style="width:{{ r.w|floatformat:2 }}%"></div></div>
+  <div style="text-align:right"><div style="font-weight:700">{{ r.n|floatformat:'0g' }}</div><div style="font-size:12px;color:var(--f-muted)">{% if r.step is None %}Start{% else %}{{ r.step|pct }} step{% endif %}{% if r.of_top is not None and not forloop.first %} · {{ r.of_top|pct:3 }} of impr.{% endif %}</div></div>
+</div>{% endfor %}</div>
+{% endblock %}

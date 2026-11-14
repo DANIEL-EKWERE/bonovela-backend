@@ -1,0 +1,24 @@
+{% load bv %}<div class="f-card">
+  <div class="h"><div><h2>{{ table_title|default:'Readers' }}</h2><p>{{ total }} reader{{ total|pluralize }} match{{ total|pluralize:'es,' }} · click a reader to see their profile.</p></div>
+    <form method="get" style="display:flex;gap:8px;flex-wrap:wrap">{% if seg %}<input type="hidden" name="segment" value="{{ seg }}">{% endif %}
+      <input type="search" name="q" value="{{ q }}" placeholder="Name, email or RD-…" style="width:210px">
+      <select name="source" style="width:auto" onchange="this.form.submit()"><option value="">All sources</option>{% for s in sources %}<option value="{{ s }}" {% if s == source %}selected{% endif %}>{{ s }}</option>{% endfor %}</select>
+    </form></div>
+  <div class="f-scroll"><table class="f-table">
+    <thead><tr><th>Reader</th><th>Source · campaign</th><th>Country</th><th>Device</th><th>Registered</th><th>Last active</th><th class="num">Books</th><th class="num">Chapters</th><th class="num">Spent</th><th>Subscription</th><th>Consent</th></tr></thead>
+    <tbody>{% for u in page %}{% with p=u.reader_profile %}<tr style="cursor:pointer" onclick="location='{% url 'dashboard:marketing_readers' %}?reader=RD-{{ u.pk|add:100000 }}'">
+      <td><div style="font-weight:500">{{ u.username|default:u.email|mask_email|truncatechars:24 }}</div><div class="m">RD-{{ u.pk|add:100000 }}</div></td>
+      <td><span class="m-src">{{ p.source|default:'organic' }}</span><div class="m">{{ p.campaign|default:'—' }}</div></td>
+      <td>{{ p.country|default:'—' }}</td>
+      <td>{% if p.platform %}{{ p.get_platform_display }}{% if p.app_version %} · {{ p.app_version }}{% endif %}{% else %}—{% endif %}</td>
+      <td style="white-space:nowrap">{{ u.date_joined|date:'d M Y' }}</td>
+      <td style="white-space:nowrap">{% if u.seen %}{{ u.seen|date:'d M Y' }}{% elif u.last_login %}{{ u.last_login|date:'d M Y' }}{% else %}—{% endif %}</td>
+      <td class="num">{{ u.books|default:0 }}</td><td class="num">{{ u.chapters|default:0 }}</td><td class="num">{{ u.spent|default:0|money }}</td>
+      <td>{% if u.subscribed %}<span class="f-chip ok">Plus</span>{% else %}None{% endif %}</td>
+      <td>{% if p and not p.marketing_consent %}<span class="f-chip bad">No</span>{% else %}<span class="f-chip ok">Yes</span>{% endif %}</td>
+    </tr>{% endwith %}{% empty %}<tr><td colspan="11"><div class="f-empty">No readers match.</div></td></tr>{% endfor %}</tbody>
+  </table></div>
+  {% if page.paginator.num_pages > 1 %}<div class="f-note" style="display:flex;justify-content:space-between;align-items:center">
+    <span>Page {{ page.number }} of {{ page.paginator.num_pages }}</span>
+    <span style="display:flex;gap:6px">{% if page.has_previous %}<a class="f-btn ghost sm" href="?{% if seg %}segment={{ seg }}&{% endif %}q={{ q|urlencode }}&source={{ source }}&page={{ page.previous_page_number }}">Previous</a>{% endif %}{% if page.has_next %}<a class="f-btn ghost sm" href="?{% if seg %}segment={{ seg }}&{% endif %}q={{ q|urlencode }}&source={{ source }}&page={{ page.next_page_number }}">Next</a>{% endif %}</span></div>{% endif %}
+</div>

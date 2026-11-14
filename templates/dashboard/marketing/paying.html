@@ -1,0 +1,15 @@
+{% extends 'dashboard/marketing/layout.html' %}{% load bv %}
+{% block title %}Paying Readers{% endblock %}
+{% block content %}
+<div class="f-head"><div><div class="f-eyebrow">Readers &amp; books</div><h1>Paying Readers</h1><p>A reader is paying once they complete at least one successful coin or subscription purchase. Failed and refunded payments never count.</p></div></div>
+<div class="f-stats">
+  <div class="f-stat tint"><div class="l">Paying readers<i class="ph ph-wallet"></i></div><div class="v">{{ n|floatformat:'0g' }}</div><div class="d">{{ share|floatformat:1 }}% of readers</div></div>
+  <div class="f-stat"><div class="l">Verified revenue<i class="ph ph-seal-check"></i></div><div class="v">{{ revenue|money0 }}</div></div>
+  <div class="f-stat"><div class="l">Avg revenue per payer<i class="ph ph-user"></i></div><div class="v">{{ arppu|cents }}</div></div>
+  <div class="f-stat"><div class="l">Active subscribers<i class="ph ph-crown"></i></div><div class="v">{{ subscribers|floatformat:'0g' }}</div></div>
+  <div class="f-stat"><div class="l">Successful purchases<i class="ph ph-receipt"></i></div><div class="v">{{ purchases|floatformat:'0g' }}</div></div>
+</div>
+<div class="f-card" style="margin-bottom:16px"><div class="h"><h2>Verified revenue by acquisition source</h2></div><div class="b">
+  {% for src, cents, w in by_source %}<div class="f-hbar"><span class="m-src">{{ src }}</span><div class="track"><div class="fill" style="width:{{ w|floatformat:1 }}%"></div></div><span>{{ cents|money0 }}</span></div>{% empty %}<div class="f-empty">No purchases yet.</div>{% endfor %}</div></div>
+{% include 'dashboard/marketing/_readers_table.html' with table_title='Paying readers' %}
+{% endblock %}

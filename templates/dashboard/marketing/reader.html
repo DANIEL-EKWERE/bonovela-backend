@@ -1,0 +1,27 @@
+{% extends 'dashboard/marketing/layout.html' %}{% load bv %}
+{% block title %}RD-{{ r.pk|add:100000 }}{% endblock %}
+{% block content %}
+{% with p=r.reader_profile %}
+<div class="f-head"><div><div class="f-eyebrow"><a href="{% url 'dashboard:marketing_readers' %}">Reader Analytics</a> · RD-{{ r.pk|add:100000 }}</div><h1>{{ r.username|default:r.email|mask_email }}</h1><p>Registered {{ r.date_joined|date:'d M Y' }} · {% for l, name in member_of %}<span class="f-chip" style="margin-right:4px">{{ l }}. {{ name }}</span>{% endfor %}</p></div></div>
+<div class="f-stats">
+  <div class="f-stat"><div class="l">Spent</div><div class="v">{{ r.spent|default:0|money }}</div></div>
+  <div class="f-stat"><div class="l">Books opened</div><div class="v">{{ r.books|default:0 }}</div></div>
+  <div class="f-stat"><div class="l">Chapters reached</div><div class="v">{{ r.chapters|default:0 }}</div></div>
+  <div class="f-stat"><div class="l">Last active</div><div class="v" style="font-size:18px">{{ r.seen|date:'d M Y'|default:'—' }}</div></div>
+</div>
+<div class="m-grid2">
+  <div class="f-card"><div class="h"><h2>Profile</h2></div><div class="b"><dl class="m-kv">
+    <dt>Source</dt><dd><span class="m-src">{{ p.source|default:'organic' }}</span></dd><dt>Campaign</dt><dd>{{ p.campaign|default:'—' }}</dd>
+    <dt>Campaign link</dt><dd>{{ p.link.code|default:'—' }}</dd><dt>Country</dt><dd>{{ p.country|default:'—' }}</dd>
+    <dt>Device</dt><dd>{% if p.platform %}{{ p.get_platform_display }} · {{ p.app_version }}{% else %}—{% endif %}</dd>
+    <dt>Marketing consent</dt><dd>{% if p and not p.marketing_consent %}No{% else %}Yes{% endif %}</dd>
+    <dt>Push notifications</dt><dd>{% if p.push_consent %}Allowed{% else %}Not allowed{% endif %}</dd>
+    <dt>Plus subscription</dt><dd>{% if r.subscribed %}Active{% else %}None{% endif %}</dd>
+    <dt>Email</dt><dd>{{ r.email|mask_email }}</dd>
+  </dl></div></div>
+  <div class="f-card"><div class="h"><h2>Purchases</h2></div>{% for t in purchases %}<div class="f-row"><div class="f-grow"><div class="t">{{ t.title }}</div><div class="m">{{ t.created_at|date:'d M Y, H:i' }}</div></div><span class="amt">{{ t.price_cents|money }}</span></div>{% empty %}<div class="f-empty">No purchases.</div>{% endfor %}</div>
+  <div class="f-card"><div class="h"><h2>Reading</h2></div>{% for g in progress %}<div class="f-row">{% include 'dashboard/marketing/_book.html' with s=g.story %}<div class="f-grow"></div><span class="m">Chapter {{ g.chapter_number }} · {{ g.updated_at|date:'d M' }}</span></div>{% empty %}<div class="f-empty">Hasn't opened a book yet.</div>{% endfor %}</div>
+  <div class="f-card"><div class="h"><h2>Promo codes</h2></div>{% for c in codes %}<div class="f-row"><span class="t">{{ c.code }}</span><span class="f-grow"></span><span class="m">{{ c.get_reward_display }} · {{ c.bonus }}</span></div>{% empty %}<div class="f-empty">None redeemed.</div>{% endfor %}</div>
+</div>
+{% endwith %}
+{% endblock %}

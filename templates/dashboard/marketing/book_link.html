@@ -1,0 +1,29 @@
+{% load static %}<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ story.display_title }} · Bonovela</title>
+<meta name="description" content="{{ story.synopsis|truncatechars:150 }}">
+<meta property="og:title" content="{{ story.display_title }}"><meta property="og:description" content="{{ story.synopsis|truncatechars:150 }}">{% if story.cover %}<meta property="og:image" content="{{ request.scheme }}://{{ request.get_host }}{{ story.cover.url }}">{% endif %}
+<link rel="icon" href="{% static 'img/app_icon.png' %}">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=Manrope:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root { --p: #7A1F33; --fg: #2B1E20; --mu: #74656A; --bd: #F0E2E3; }
+  * { box-sizing: border-box; } body { margin: 0; font: 16px/1.6 Manrope, system-ui, sans-serif; color: var(--fg); background: #FFF9F9; }
+  .w { max-width: 680px; margin: 0 auto; padding: 20px 16px 120px; }
+  .top { display: flex; gap: 16px; align-items: flex-start; }
+  .top img, .top .ph { width: 120px; aspect-ratio: 3/4; object-fit: cover; border-radius: 8px; flex: none; background: linear-gradient(135deg, var(--p), #2B1E20); box-shadow: 0 6px 18px rgba(0,0,0,.15); }
+  h1 { font: 600 24px/1.2 Fraunces, serif; margin: 0 0 6px; } .mu { color: var(--mu); font-size: 14px; }
+  h2 { font: 600 19px Fraunces, serif; margin: 28px 0 10px; } .ch { white-space: pre-line; }
+  .bar { position: fixed; left: 0; right: 0; bottom: 0; background: #fff; border-top: 1px solid var(--bd); padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); display: flex; gap: 10px; justify-content: center; }
+  .bar a { flex: 1; max-width: 240px; text-align: center; padding: 12px; border-radius: 999px; background: var(--p); color: #fff; text-decoration: none; font-weight: 700; }
+  .bar a.alt { background: #fff; color: var(--p); border: 1px solid var(--p); }
+  .end { margin-top: 28px; padding: 18px; border-radius: 12px; background: #fff; border: 1px solid var(--bd); text-align: center; }
+</style></head>
+<body><div class="w">
+  <div class="top">{% if story.cover %}<img src="{{ story.cover.url }}" alt="">{% else %}<span class="ph"></span>{% endif %}
+    <div><h1>{{ story.display_title }}</h1><div class="mu">{{ story.author.display_name }}{% if story.genre %} · {{ story.genre.name }}{% endif %}</div></div></div>
+  <p>{{ story.synopsis }}</p>
+  {% for c in chapters %}<h2>Chapter {{ c.number }}{% if c.title and 'Chapter' not in c.title %}: {{ c.title }}{% endif %}</h2><div class="ch">{{ c.content }}</div>{% endfor %}
+  <div class="end"><b>Keep reading {{ story.display_title }} in the Bonovela app.</b><div class="mu">Install the app and it opens straight to this book.</div></div>
+</div>
+<div class="bar"><a href="{{ android }}">Google Play</a><a class="alt" href="{{ ios }}">App Store</a></div>
+</body></html>

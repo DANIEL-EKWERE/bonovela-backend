@@ -13,7 +13,7 @@ from apps.engagement.models import InboxMessage
 
 
 class Command(BaseCommand):
-    help = 'Publish scheduled chapters that are due.'
+    help = 'Publish scheduled chapters and send scheduled broadcasts that are due.'
 
     def handle(self, *args, **options):
         due = Chapter.objects.filter(status=Chapter.STATUS_SCHEDULED, scheduled_for__lte=timezone.now())
@@ -32,4 +32,6 @@ class Command(BaseCommand):
                     body=f'{e.messages[0]} It is back in your drafts.',
                 )
                 failed += 1
-        self.stdout.write(f'Published {published}, returned {failed} to drafts.')
+        from apps.marketing.services import send_due_broadcasts
+        sent = send_due_broadcasts()
+        self.stdout.write(f'Published {published}, returned {failed} to drafts, sent {sent} scheduled broadcasts.')

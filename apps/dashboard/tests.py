@@ -1,9 +1,11 @@
 from datetime import timedelta
+from io import StringIO
 
 from django.conf import settings
 from django.core.management import call_command
 from django.utils import timezone
 from django.test import TestCase, override_settings
+from rest_framework.test import APIClient
 
 from apps.catalog.models import Chapter, Genre, Story, Tag
 from apps.editorial.models import ContractApplication
@@ -646,38 +648,218 @@ class NewDashboardTests(TestCase):
         self.assertEqual(self.client.get(f'/drama-studio/{d.pk}/').status_code, 404)
 
     # ── Marketing ────────────────────────────────────────────────────────────
-    def test_marketing_pages_and_actions(self):
-        from apps.engagement.models import InboxMessage
-        from apps.marketing.models import Banner
-        from apps.wallet.models import RedeemCode
-        self.as_role('marketing')
-        b = Banner.objects.first()
-        self.get_ok('/marketing/', '/marketing/banners/', '/marketing/banners/?placement=drama',
-                    '/marketing/banners/new/', f'/marketing/banners/{b.pk}/', '/marketing/codes/',
-                    '/marketing/broadcasts/')
+    MARKETING_PAGES = [
+        '/marketing/', '/marketing/?days=7', '/marketing/advertising/', '/marketing/ads/meta/', '/marketing/ads/google/',
+        '/marketing/ads/tiktok/', '/marketing/ads/apple/?days=90', '/marketing/readers/',
+        '/marketing/readers/?segment=never&q=read&source=organic', '/marketing/paying-readers/',
+        '/marketing/non-paying-readers/', '/marketing/non-paying-readers/?segment=former', '/marketing/books/',
+        '/marketing/promotions/', '/marketing/promotions/?status=active', '/marketing/discovery/',
+        '/marketing/banners/', '/marketing/popups/', '/marketing/opening-screen/', '/marketing/notifications/',
+        '/marketing/broadcasts/', '/marketing/promo-codes/', '/marketing/links/', '/marketing/funnel/',
+        '/marketing/retention/', '/marketing/reports/', '/marketing/reports/?by=campaign',
+        '/marketing/reports/?by=book', '/marketing/settings/', '/marketing/promotions/new/?kind=popups',
+        '/marketing/promotions/new/?kind=opening', '/marketing/promotions/new/?kind=discovery',
+    ] + [f'/marketing/settings/?tab={t}' for t in ('segments', 'caps', 'roles', 'events', 'audit')]
+
+    def _import(self, rows):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        body = 'date,campaign_id,campaign_name,channel,book_id,budget,spend,impressions,clicks,installs,registrations,paying,revenue\n'
+        body += '\n'.join(rows)
+        return self.client.post('/marketing/ads/meta/', {'file': SimpleUploadedFile('r.csv', body.encode())})
+
+    def test_marketing_pages_render_with_and_without_ad_data(self):
+        from apps.marketing.models import AdCampaign, AdStat, Banner, MarketingMember
+        manager = self.as_role('marketing')
+        self.get_ok(*self.MARKETING_PAGES)  # empty: "not connected" everywhere
+        self.assertContains(self.client.get('/marketing/'), 'Ad platforms not connected')
+        self.assertEqual(MarketingMember.objects.get(user=manager).role, MarketingMember.ROLE_MANAGER)
 
         story = Story.objects.visible_in_app().first()
-        r = self.client.post('/marketing/banners/new/', {
-            'title': 'Autumn reads', 'color_index': 1, 'placement': 'discover', 'target': 'story', 'story': story.pk,
-            'order': 0, 'starts_at': '2026-01-01T10:00', 'is_active': 'on'})
-        self.assertRedirects(r, '/marketing/banners/')
-        self.assertTrue(Banner.objects.filter(title='Autumn reads').exists())
-        # A story banner needs a story.
-        self.client.post('/marketing/banners/new/', {'title': 'Broken', 'color_index': 1, 'placement': 'discover',
-                                                     'target': 'story', 'order': 0, 'starts_at': '2026-01-01T10:00'})
-        self.assertFalse(Banner.objects.filter(title='Broken').exists())
+        day = timezone.localdate().isoformat()
+        r = self._import([f'{day},meta-2026-0011,Rainy Night,Facebook,{story.book_code},7550,168.40,35120,880,170,120,12,296.50',
+                          f'{day},META-2026-0012,Bad row,Instagram,BV-99999,1,1,1,1,1,1,1,1',
+                          'yesterday,META-2026-0013,,,,,,,,,,,'])
+        self.assertRedirects(r, '/marketing/ads/meta/')
+        camp = AdCampaign.objects.get(code='META-2026-0011')
+        self.assertEqual((camp.platform, camp.story, camp.budget_cents), ('meta', story, 755000))
+        self.assertEqual(AdStat.objects.get(campaign=camp).spend_cents, 16840)
+        self.assertEqual(AdCampaign.objects.count(), 1)  # bad book ID and bad date rejected
+        self._import([f'{day},META-2026-0011,,,,,200,1,1,1,1,1,1'])  # re-import replaces the day
+        self.assertEqual(AdStat.objects.get(campaign=camp).spend_cents, 20000)
 
-        self.client.post('/marketing/codes/', {'code': 'fall25', 'bonus': 25, 'max_uses': 1, 'days': 10})
-        code = RedeemCode.objects.get(code='FALL25')
-        self.assertTrue(code.is_usable)
+        Banner.objects.create(title='Gala', placement='discover', story=story, label='Trending')
+        self.get_ok(*self.MARKETING_PAGES, f'/marketing/books/?compare={story.pk}', '/marketing/ads/import-template.csv')
+        page = self.client.get('/marketing/advertising/')
+        self.assertContains(page, 'META-2026-0011')
+        self.assertContains(page, '$200')
         reader = User.objects.get(email='reader@bonovela.app')
-        code.redeemed_by.add(reader)
-        self.assertFalse(code.is_usable)  # max_uses reached
+        self.assertContains(self.client.get(f'/marketing/readers/?reader=RD-{reader.pk + 100000}'), 'Profile')
+        csv = self.client.get('/marketing/reports/?by=platform&export=1')
+        self.assertIn('Meta Ads,200.0', csv.content.decode())
+        # Not on the marketing team: no access.
+        self.as_role('reader')
+        self.assertEqual(self.client.get('/marketing/').status_code, 403)
 
+    def test_marketing_promotions_audiences_and_roles(self):
+        from apps.marketing.models import Banner, MarketingAudit, MarketingMember
+        self.as_role('marketing')
+        story = Story.objects.visible_in_app().first()
+        base = {'title': 'Never-paid pop-up', 'color_index': 1, 'placement': 'popup', 'target': 'story',
+                'story': story.pk, 'audience': 'never', 'condition': 'chapter', 'order': 0,
+                'starts_at': '2026-01-01T10:00', 'is_active': 'on'}
+        self.assertRedirects(self.client.post('/marketing/promotions/new/?kind=popups', base), '/marketing/popups/')
+        popup = Banner.objects.get(title='Never-paid pop-up')
+        self.assertEqual((popup.audience, popup.condition, popup.status), ('never', 'chapter', 'active'))
+        # Book promotions need a Book ID; a pop-up page can't create a Discover banner.
+        self.client.post('/marketing/promotions/new/?kind=popups', {**base, 'title': 'No book', 'story': ''})
+        self.client.post('/marketing/promotions/new/?kind=popups', {**base, 'title': 'Wrong', 'placement': 'discover'})
+        self.assertFalse(Banner.objects.filter(title__in=['No book', 'Wrong']).exists())
+        # An opening screen needs its full-screen image.
+        self.client.post('/marketing/promotions/new/?kind=opening', {**base, 'title': 'Splash', 'placement': 'splash'})
+        self.assertFalse(Banner.objects.filter(title='Splash').exists())
+
+        # The API shows segment promotions only to readers in the segment.
+        api = APIClient()
+        self.assertEqual(api.get('/api/banners/?placement=popup').json(), [])  # signed out
+        reader = User.objects.get(email='reader@bonovela.app')
+        api.force_authenticate(reader)
+        from apps.marketing import segments
+        expected = [popup.pk] if segments.contains('never', reader) else []
+        self.assertEqual([b['id'] for b in api.get('/api/banners/?placement=popup').json()], expected)
+        api.post(f'/api/banners/{popup.pk}/click/')
+        popup.refresh_from_db()
+        self.assertEqual((popup.clicks, popup.book_opens), (1, 1))
+
+        # Drafts stay out of the app until published; pause and delete are audited.
+        self.client.post(f'/marketing/promotions/{popup.pk}/', {**base, 'is_draft': 'on'})
+        popup.refresh_from_db()
+        self.assertEqual(popup.status, 'draft')
+        self.assertFalse(Banner.objects.live('popup').exists())
+        self.client.post(f'/marketing/promotions/{popup.pk}/action/', {'action': 'publish'})
+        self.client.post(f'/marketing/promotions/{popup.pk}/action/', {'action': 'toggle'})
+        popup.refresh_from_db()
+        self.assertEqual(popup.status, 'paused')
+        # Discovery order arrows.
+        Banner.objects.filter(placement='discover').delete()
+        d1 = Banner.objects.create(title='D1', placement='discover', story=story, order=0)
+        d2 = Banner.objects.create(title='D2', placement='discover', story=story, order=1)
+        self.client.post('/marketing/discovery/', {'id': d2.pk, 'move': 'up'})
+        self.assertEqual(list(Banner.objects.filter(placement='discover').order_by('order').values_list('pk', flat=True)),
+                         [d2.pk, d1.pk])
+        self.assertGreaterEqual(MarketingAudit.objects.filter(category='Promotion').count(), 5)
+
+        # Roles: a Viewer reads but can't change promotions; an Analyst can import.
+        viewer = User.objects.get(email='finance@bonovela.app')
+        self.client.post('/marketing/settings/?tab=roles', {'action': 'add_member', 'email': viewer.email, 'role': 'viewer'})
+        self.client.force_login(viewer)
+        self.assertEqual(self.client.get('/marketing/discovery/').status_code, 200)
+        self.assertEqual(self.client.post('/marketing/discovery/', {'id': d1.pk, 'move': 'up'}).status_code, 403)
+        self.assertEqual(self.client.post('/marketing/promotions/new/', base).status_code, 403)
+        self.assertEqual(self.client.get('/marketing/reports/?export=1').status_code, 403)
+        MarketingMember.objects.filter(user=viewer).update(role='analyst')
+        self.assertEqual(self.client.get('/marketing/reports/?export=1').status_code, 200)
+        # Audit entries can't be edited.
+        entry = MarketingAudit.objects.first()
+        entry.action = 'x'
+        with self.assertRaises(Exception):
+            entry.save()
+
+    def test_marketing_codes_broadcasts_and_settings(self):
+        from apps.engagement.models import InboxMessage
+        from apps.marketing.models import Broadcast, MarketingAudit, MarketingSettings, ReaderProfile
+        from apps.wallet.models import CodeRedemption, RedeemCode
+        self.as_role('marketing')
+        reader = User.objects.get(email='reader@bonovela.app')
+        api = APIClient()
+        api.force_authenticate(reader)
+
+        # Codes: server-side rules, rejections counted.
+        self.client.post('/marketing/promo-codes/', {'code': 'fall25', 'reward': 'coins', 'bonus': 25, 'max_uses': 1, 'days': 10})
+        self.client.post('/marketing/promo-codes/', {'code': 'naija3', 'reward': 'vouchers', 'bonus': 3, 'countries': 'Nigeria'})
+        self.client.post('/marketing/promo-codes/', {'code': 'later', 'reward': 'coins', 'bonus': 5,
+                                                     'starts_at': '2099-01-01T00:00'})
+        self.assertEqual(api.post('/api/wallet/redeem/', {'code': 'fall25'}).json(), {'bonus': 25, 'vouchers': 0})
+        self.assertEqual(api.post('/api/wallet/redeem/', {'code': 'fall25'}).status_code, 400)
+        self.assertEqual(api.post('/api/wallet/redeem/', {'code': 'later'}).status_code, 400)
+        self.assertEqual(api.post('/api/wallet/redeem/', {'code': 'naija3'}).json()['code'], 'ineligible')
+        api.post('/api/auth/me/marketing/', {'country': 'Nigeria', 'source': 'tiktok', 'campaign': 'TTK-1',
+                                             'platform': 'android', 'app_version': '1.0.4'}, format='json')
+        self.assertEqual(api.post('/api/wallet/redeem/', {'code': 'naija3'}).json(), {'bonus': 0, 'vouchers': 3})
+        self.assertEqual(RedeemCode.objects.get(code='FALL25').rejected, 1)
+        self.assertEqual(CodeRedemption.objects.filter(user=reader).count(), 2)
+        self.assertContains(self.client.get('/marketing/promo-codes/'), 'NAIJA3')
+        # First touch is kept: a later report doesn't overwrite the source.
+        api.post('/api/auth/me/marketing/', {'source': 'meta', 'campaign': 'META-9'}, format='json')
+        self.assertEqual(ReaderProfile.objects.get(user=reader).source, 'tiktok')
+        api.get('/api/auth/me/')
+        self.assertTrue(reader.activity_days.exists())
+
+        # Broadcasts: now, scheduled (sent by the cron job), cancelled.
         before = InboxMessage.objects.filter(user=reader).count()
         self.client.post('/marketing/broadcasts/', {'title': 'Hello', 'body': 'New dramas!', 'audience': 'readers',
-                                                    'bonus': 5})
-        self.assertEqual(InboxMessage.objects.filter(user=reader).count(), before + 1)
+                                                    'bonus': 5, 'channels': ['inapp', 'push']})
+        b = Broadcast.objects.get(title='Hello')
+        self.assertEqual((b.status, b.channels), ('sent', 'inapp,push'))
+        self.assertEqual(InboxMessage.objects.filter(user=reader, broadcast=b).count(), 1)
+        self.client.post('/marketing/broadcasts/', {'title': 'Later', 'body': 'Soon', 'audience': 'all',
+                                                    'scheduled_at': '2099-01-01T10:00'})
+        later = Broadcast.objects.get(title='Later')
+        self.assertEqual((later.status, later.recipients), ('scheduled', 0))
+        Broadcast.objects.filter(pk=later.pk).update(scheduled_at=timezone.now())
+        call_command('publish_scheduled', stdout=StringIO())
+        later.refresh_from_db()
+        self.assertEqual(later.status, 'sent')
+        self.assertEqual(InboxMessage.objects.filter(user=reader).count(), before + 2)
+        # Notification promotions leave out readers without marketing consent.
+        ReaderProfile.objects.filter(user=reader).update(marketing_consent=False)
+        self.client.post('/marketing/notifications/', {'title': 'Push', 'body': 'Read on', 'audience': 'readers'})
+        n = Broadcast.objects.get(title='Push')
+        self.assertEqual(n.kind, 'notification')
+        self.assertGreaterEqual(n.excluded, 1)
+        self.assertFalse(InboxMessage.objects.filter(user=reader, broadcast=n).exists())
+        self.assertContains(self.client.get('/marketing/broadcasts/'), 'BRC-')
+
+        # Settings: segment rules and caps, audited; out-of-range values clamped.
+        self.client.post('/marketing/settings/?tab=segments', {'action': 'segments', 'paying_lapse_days': '45',
+                                                               'active_days': '7', 'inactive_days': '14', 'new_days': '7',
+                                                               'stopped_chapters': '3'})
+        self.client.post('/marketing/settings/?tab=caps', {'action': 'caps', 'popup_per_day': '2', 'splash_per_day': '1',
+                                                           'push_per_week': '3', 'quiet_start': '99', 'quiet_end': '8'})
+        cfg = MarketingSettings.current()
+        self.assertEqual((cfg.paying_lapse_days, cfg.popup_per_day, cfg.quiet_start), (45, 2, 23))
+        self.assertTrue(MarketingAudit.objects.filter(action__contains='30 → 45').exists())
+        self.client.post('/marketing/settings/', {'action': 'request', 'key': 'meta', 'account_id': 'act_1'})
+        self.assertContains(self.client.get('/marketing/settings/'), 'act_1')
+        self.assertContains(self.client.get('/marketing/ads/meta/'), 'Not connected')
+
+    def test_campaign_link_and_public_book_page(self):
+        from apps.marketing.models import CampaignLink, ReaderProfile
+        self.as_role('marketing')
+        story = Story.objects.visible_in_app().first()
+        r = self.client.post('/marketing/links/', {'story': story.pk, 'source': 'meta', 'campaign': 'meta-2026-0011',
+                                                   'preview': 5})
+        link = CampaignLink.objects.get()
+        self.assertEqual((link.campaign, link.preview), ('META-2026-0011', 5))
+        self.assertContains(self.client.get(r.url), f'/b/{story.book_code}/?src=meta')
+        self.client.logout()
+        page = self.client.get(f'/b/{story.book_code}/?l={link.code}')
+        self.assertContains(page, story.display_title)
+        self.assertContains(page, 'Chapter 1')
+        store = self.client.get(f'/b/{story.book_code}/store/?l={link.code}&os=android')
+        self.assertIn('referrer=', store.url)
+        self.assertIn(story.book_code, store.url.replace('%253D', '=').replace('%3D', '='))
+        link.refresh_from_db()
+        self.assertEqual((link.clicks, link.previews, link.store_visits), (1, 1, 1))
+        self.assertEqual(self.client.get('/b/BV-99999/').status_code, 404)
+        self.assertEqual(self.client.get('/b/nonsense/').status_code, 404)
+        # The app reports the link after install: the reader is attributed to it.
+        reader = User.objects.get(email='reader@bonovela.app')
+        api = APIClient()
+        api.force_authenticate(reader)
+        api.post('/api/auth/me/marketing/', {'link': link.code}, format='json')
+        p = ReaderProfile.objects.get(user=reader)
+        self.assertEqual((p.link, p.source, p.campaign), (link, 'meta', 'META-2026-0011'))
+        self.assertEqual(link.installs, 1)
 
     # ── Finance ──────────────────────────────────────────────────────────────
     def test_finance_stage_one_pages_settings_expenses_team_audit(self):

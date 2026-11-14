@@ -1,0 +1,65 @@
+{% extends 'dashboard/marketing/layout.html' %}{% load bv %}
+{% block title %}Marketing Settings{% endblock %}
+{% block content %}
+<div class="f-head"><div><div class="f-eyebrow">Admin</div><h1>Marketing Settings</h1><p>Connections, rules and permissions. Every change is recorded in the audit log.</p></div></div>
+<div class="f-tabs">{% for k, label in tabs %}<a class="{% if k == tab %}on{% endif %}" href="?tab={{ k }}">{{ label }}</a>{% endfor %}</div>
+
+{% if tab == 'integrations' %}
+<div class="m-note info"><i class="ph ph-info"></i><div>No platform shows as connected until a real, authorised connection completes its first sync. Until then, import ad reports (CSV) on each platform page.</div></div>
+{% for i in integrations %}{% include 'dashboard/marketing/_connection.html' with key=i.key name=i.name api=i.api conn=i.conn can_setup=can_settings %}{% endfor %}
+
+{% elif tab == 'segments' %}
+<div class="f-card"><div class="h"><div><h2>Segment rules</h2><p>Reader segments A–H update as soon as you save.</p></div></div><div class="b">
+<form method="post">{% csrf_token %}<input type="hidden" name="action" value="segments">
+  <div class="m-two">
+    <label class="f-field"><span>C. Former paying: no purchase for</span><div class="f-suffix"><input type="number" name="paying_lapse_days" value="{{ cfg.paying_lapse_days }}" min="1" {% if not can_settings %}disabled{% endif %}><span>days</span></div></label>
+    <label class="f-field"><span>D. Active: opened the app within</span><div class="f-suffix"><input type="number" name="active_days" value="{{ cfg.active_days }}" min="1" {% if not can_settings %}disabled{% endif %}><span>days</span></div></label>
+    <label class="f-field"><span>E. Inactive: not seen for</span><div class="f-suffix"><input type="number" name="inactive_days" value="{{ cfg.inactive_days }}" min="1" {% if not can_settings %}disabled{% endif %}><span>days</span></div></label>
+    <label class="f-field"><span>F. Newly registered: joined within</span><div class="f-suffix"><input type="number" name="new_days" value="{{ cfg.new_days }}" min="1" {% if not can_settings %}disabled{% endif %}><span>days</span></div></label>
+    <label class="f-field"><span>H. Stopped reading: fewer than</span><div class="f-suffix"><input type="number" name="stopped_chapters" value="{{ cfg.stopped_chapters }}" min="1" {% if not can_settings %}disabled{% endif %}><span>chapters</span></div></label>
+  </div>
+  {% if can_settings %}<button class="f-btn">Save rules</button>{% endif %}
+</form></div></div>
+<div class="m-sec"><h2>Segments now</h2></div>
+{% include 'dashboard/marketing/_segment_cards.html' %}
+
+{% elif tab == 'caps' %}
+<div class="f-card"><div class="h"><div><h2>Frequency caps</h2><p>Limits that protect readers from too many promotions.</p></div></div><div class="b">
+<form method="post">{% csrf_token %}<input type="hidden" name="action" value="caps">
+  <div class="m-two">
+    <label class="f-field"><span>Pop-ups per reader per day</span><input type="number" name="popup_per_day" value="{{ cfg.popup_per_day }}" min="1" {% if not can_settings %}disabled{% endif %}></label>
+    <label class="f-field"><span>Opening screens per reader per day</span><input type="number" name="splash_per_day" value="{{ cfg.splash_per_day }}" min="1" {% if not can_settings %}disabled{% endif %}></label>
+    <label class="f-field"><span>Push notifications per reader per week</span><input type="number" name="push_per_week" value="{{ cfg.push_per_week }}" min="1" {% if not can_settings %}disabled{% endif %}></label>
+    <div class="m-two"><label class="f-field"><span>Quiet hours from</span><input type="number" name="quiet_start" value="{{ cfg.quiet_start }}" min="0" max="23" {% if not can_settings %}disabled{% endif %}></label><label class="f-field"><span>to</span><input type="number" name="quiet_end" value="{{ cfg.quiet_end }}" min="0" max="23" {% if not can_settings %}disabled{% endif %}></label></div>
+  </div>
+  <small style="display:block;color:var(--f-muted);margin-bottom:12px">Pop-ups and opening screens are also limited to one showing per device by the app. Push caps and quiet hours apply once push is connected.</small>
+  {% if can_settings %}<button class="f-btn">Save caps</button>{% endif %}
+</form></div></div>
+
+{% elif tab == 'roles' %}
+<div class="f-card" style="margin-bottom:16px"><div class="h"><h2>Team</h2>{% if can_team %}<button class="f-btn sm" data-open="addMember"><i class="ph ph-user-plus"></i>Add person</button>{% endif %}</div>
+  <div class="f-scroll"><table class="f-table"><thead><tr><th>Person</th><th>Role</th><th>Last active</th><th></th></tr></thead><tbody>
+  {% for m in members %}<tr><td><div style="font-weight:500">{{ m.user.display_name }}</div><div class="m">{{ m.user.email }}</div></td>
+    <td>{% if can_team and m.user != user %}<form method="post" style="display:flex;gap:6px">{% csrf_token %}<input type="hidden" name="action" value="set_role"><input type="hidden" name="id" value="{{ m.pk }}"><select name="role" onchange="this.form.submit()" style="width:auto">{% for k, l in roles %}<option value="{{ k }}" {% if k == m.role %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></form>{% else %}{{ m.get_role_display }}{% endif %}</td>
+    <td>{{ m.last_active|date:'d M Y, H:i'|default:'—' }}</td>
+    <td>{% if can_team and m.user != user %}<form method="post">{% csrf_token %}<input type="hidden" name="action" value="remove_member"><input type="hidden" name="id" value="{{ m.pk }}"><button class="f-btn danger sm" onclick="return confirm('Remove {{ m.user.email }} from Marketing?')">Remove</button></form>{% endif %}</td></tr>{% endfor %}
+  </tbody></table></div></div>
+<div class="f-card f-scroll"><div class="h"><h2>What each role can do</h2></div><table class="f-table"><thead><tr><th>Permission</th>{% for k, l in roles %}<th style="text-align:center">{{ l }}</th>{% endfor %}</tr></thead><tbody>
+  {% for label, allowed in permissions %}<tr><td>{{ label }}</td>{% for k, l in roles %}<td style="text-align:center">{% if k in allowed %}<i class="ph ph-check" style="color:var(--f-success)"></i>{% else %}<span style="color:var(--f-muted)">—</span>{% endif %}</td>{% endfor %}</tr>{% endfor %}
+</tbody></table></div>
+{% if can_team %}<div class="f-sheet" id="addMember"><div class="p"><h2>Add to Marketing</h2><form method="post">{% csrf_token %}<input type="hidden" name="action" value="add_member">
+  <label class="f-field"><span>Email of their Bonovela account</span><input type="email" name="email" required></label>
+  <label class="f-field"><span>Role</span><select name="role">{% for k, l in roles %}<option value="{{ k }}">{{ l }}</option>{% endfor %}</select></label>
+  <div style="display:flex;gap:8px;justify-content:flex-end"><button type="button" class="f-btn ghost" data-close>Cancel</button><button class="f-btn">Add</button></div></form></div></div>{% endif %}
+
+{% elif tab == 'events' %}
+<div class="f-card f-scroll"><div class="h"><div><h2>Tracked events</h2><p>Where each funnel event comes from.</p></div></div><table class="f-table"><thead><tr><th>Event</th><th>Recorded by</th><th>Status</th></tr></thead><tbody>
+  {% for name, source, status in events %}<tr><td style="font-family:ui-monospace,monospace">{{ name }}</td><td>{{ source }}</td><td>{% if status == 'live' %}<span class="f-chip ok">Recording</span>{% elif status == 'ads' %}<span class="f-chip info">Import / connect</span>{% else %}<span class="f-chip">Needs MMP</span>{% endif %}</td></tr>{% endfor %}
+</tbody></table></div>
+
+{% else %}
+<div class="f-card f-scroll"><div class="h"><div><h2>Audit log</h2><p>Every marketing change, written once and never edited.</p></div></div><table class="f-table"><thead><tr><th>When</th><th>Who</th><th>Action</th><th>Category</th><th>Reference</th></tr></thead><tbody>
+  {% for a in audit %}<tr><td style="white-space:nowrap">{{ a.created_at|date:'d M Y, H:i' }}</td><td>{{ a.actor_label }}</td><td>{{ a.action }}</td><td><span class="f-chip">{{ a.category }}</span></td><td class="m">{{ a.reference|default:'—' }}</td></tr>{% empty %}<tr><td colspan="5"><div class="f-empty">Nothing recorded yet.</div></td></tr>{% endfor %}
+</tbody></table></div>
+{% endif %}
+{% endblock %}

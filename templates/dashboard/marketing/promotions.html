@@ -1,0 +1,19 @@
+{% extends 'dashboard/marketing/layout.html' %}{% load bv %}
+{% block title %}Promotion Centre{% endblock %}
+{% block content %}
+<div class="f-head"><div><div class="f-eyebrow">Promotions</div><h1>Promotion Centre</h1><p>Every book promotion needs a valid Book ID and opens that exact book.</p></div>
+  <button class="f-btn" data-open="newPromo"><i class="ph ph-plus"></i>New promotion</button></div>
+<div class="f-stats">{% for c in cards %}<a class="f-stat" href="{% url 'dashboard:marketing_'|add:c.key %}"><div class="l"><i class="ph ph-{% cycle 'compass' 'image' 'selection' 'device-mobile' 'bell' %}" style="background:none;width:auto;height:auto"></i></div><div style="font-weight:600;margin-top:8px">{{ c.title }}</div><div class="d">{{ c.live }} {% if c.key == 'notifications' %}scheduled{% else %}live{% endif %} · {{ c.total }} total</div></a>{% endfor %}</div>
+<div class="m-sec"><h2>All promotions</h2><div class="f-tabs" style="margin:0"><a class="{% if not status %}on{% endif %}" href="?">All</a>{% for s in statuses %}<a class="{% if s == status %}on{% endif %}" href="?status={{ s }}">{{ s|capfirst }}</a>{% endfor %}</div></div>
+{% include 'dashboard/marketing/_promo_table.html' with show_type=1 %}
+{% if notes %}<div class="m-sec"><h2>Notification promotions</h2><a class="f-btn ghost sm" href="{% url 'dashboard:marketing_notifications' %}">Open →</a></div>
+<div class="f-card f-scroll"><table class="f-table"><thead><tr><th>Promotion</th><th>Book</th><th>Audience</th><th>When</th><th class="num">Recipients</th></tr></thead><tbody>
+  {% for n in notes %}<tr><td><div style="font-weight:500">{{ n.name|default:n.title }}</div><div class="m">{{ n.code }}</div>{% include 'dashboard/marketing/_status.html' with st=n.status %}</td><td>{% if n.story %}{% include 'dashboard/marketing/_book.html' with s=n.story %}{% else %}—{% endif %}</td><td>{{ audience|get_item:n.segment|default:n.get_audience_display }}</td><td>{{ n.sent_at|date:'d M Y, H:i' }}</td><td class="num">{{ n.recipients|floatformat:'0g' }}</td></tr>{% endfor %}</tbody></table></div>{% endif %}
+<div class="f-sheet" id="newPromo"><div class="p"><h2>New promotion</h2><div style="display:grid;gap:8px">
+  <a class="f-row" style="border:1px solid var(--f-border);border-radius:10px" href="{% url 'dashboard:marketing_banner_new' %}?kind=discovery"><i class="ph ph-compass"></i><div class="f-grow"><div class="t">Discovery placement</div><div class="m">A card at the top of the Discover tab</div></div></a>
+  <a class="f-row" style="border:1px solid var(--f-border);border-radius:10px" href="{% url 'dashboard:marketing_banner_new' %}?kind=banners"><i class="ph ph-image"></i><div class="f-grow"><div class="t">Banner</div><div class="m">Free tab, Drama tab, store or Rewards</div></div></a>
+  <a class="f-row" style="border:1px solid var(--f-border);border-radius:10px" href="{% url 'dashboard:marketing_banner_new' %}?kind=popups"><i class="ph ph-selection"></i><div class="f-grow"><div class="t">Pop-up</div><div class="m">Shown once when the app opens</div></div></a>
+  <a class="f-row" style="border:1px solid var(--f-border);border-radius:10px" href="{% url 'dashboard:marketing_banner_new' %}?kind=opening"><i class="ph ph-device-mobile"></i><div class="f-grow"><div class="t">Opening screen</div><div class="m">Full screen before the app loads</div></div></a>
+  <a class="f-row" style="border:1px solid var(--f-border);border-radius:10px" href="{% url 'dashboard:marketing_notifications' %}?new=1"><i class="ph ph-bell"></i><div class="f-grow"><div class="t">Notification</div><div class="m">A message to a reader segment</div></div></a>
+</div><div style="text-align:right;margin-top:12px"><button class="f-btn ghost" data-close>Close</button></div></div></div>
+{% endblock %}

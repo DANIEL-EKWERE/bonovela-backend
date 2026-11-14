@@ -17,7 +17,6 @@ from apps.wallet.models import (
     ChapterUnlock,
     CoinPackage,
     GiftItem,
-    RedeemCode,
     SubscriptionPlan,
     Transaction,
     VoucherEntry,
@@ -121,15 +120,11 @@ def subscribe(request):
 @api_view(['POST'])
 @permission_classes(Auth)
 def redeem(request):
-    code = (request.data.get('code') or '').strip().upper()
-    rc = RedeemCode.objects.filter(code=code).first()
-    if not rc or not rc.is_usable:
-        return Response({'detail': 'Invalid or expired code.', 'code': 'invalid'}, status=400)
-    if rc.redeemed_by.filter(pk=request.user.pk).exists():
-        return Response({'detail': 'Already redeemed.', 'code': 'used'}, status=400)
-    rc.redeemed_by.add(request.user)
-    services.grant_bonus(request.user, rc.bonus, f'Code {rc.code}', days=7)
-    return Response({'bonus': rc.bonus})
+    from apps.marketing.services import redeem as redeem_code
+    reward, error = redeem_code(request.user, request.data.get('code'))
+    if error:
+        return Response({'detail': error[0], 'code': error[1]}, status=400)
+    return Response(reward)
 
 
 # ── Rewards ──────────────────────────────────────────────────────────────────

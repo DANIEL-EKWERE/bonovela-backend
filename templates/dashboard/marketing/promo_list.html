@@ -1,0 +1,16 @@
+{% extends 'dashboard/marketing/layout.html' %}{% load bv %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+<div class="f-head"><div><div class="f-eyebrow">Promotions</div><h1>{{ title }}</h1><p>{{ blurb }}</p></div>
+  <a class="f-btn" href="{% url 'dashboard:marketing_banner_new' %}?kind={{ kind }}"><i class="ph ph-plus"></i>{{ button }}</a></div>
+<div class="f-stats">
+  <div class="f-stat tint"><div class="l">Live now</div><div class="v">{{ s.live }}</div></div>
+  <div class="f-stat"><div class="l">Scheduled / drafts</div><div class="v">{{ s.scheduled }} / {{ s.drafts }}</div></div>
+  <div class="f-stat"><div class="l">Impressions</div><div class="v">{{ s.impressions|floatformat:'0g' }}</div></div>
+  <div class="f-stat"><div class="l">Click-through</div><div class="v">{{ s.ctr|pct }}</div></div>
+</div>
+{% if kind == 'opening' %}<div class="m-note info"><i class="ph ph-shield-check"></i><div><b>Reader protection rules.</b> Each device sees an opening screen once, and at most {{ cfg.splash_per_day }} per day across all campaigns. It never holds up the app: if it can't load in 3 seconds the app opens without it. Change the cap in <a href="{% url 'dashboard:marketing_settings' %}?tab=caps" style="text-decoration:underline">Marketing Settings</a>.</div></div>{% endif %}
+{% if kind == 'popups' %}<div class="m-note info"><i class="ph ph-shield-check"></i><div>Each pop-up shows once per device, to readers in its audience, at most {{ cfg.popup_per_day }} per day. Preview it from the edit page before publishing.</div></div>{% endif %}
+<div class="m-sec"><h2>{% if kind == 'opening' %}Opening screens{% elif kind == 'popups' %}Pop-ups{% else %}Banners{% endif %}</h2></div>
+{% if kind == 'banners' %}{% include 'dashboard/marketing/_promo_table.html' with extra_col='Placement' %}{% elif kind == 'popups' %}{% include 'dashboard/marketing/_promo_table.html' with extra_col='Condition · cap' %}{% else %}{% include 'dashboard/marketing/_promo_table.html' with extra_col='Cap' %}{% endif %}
+{% endblock %}

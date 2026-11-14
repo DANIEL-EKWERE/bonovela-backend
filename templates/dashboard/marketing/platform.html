@@ -1,0 +1,29 @@
+{% extends 'dashboard/marketing/layout.html' %}{% load bv %}
+{% block title %}{{ name }}{% endblock %}
+{% block content %}
+<div class="f-head"><div><div class="f-eyebrow">Ad platforms</div><h1>{{ name }}</h1><p>{{ blurb }}</p></div>
+  <div style="display:flex;gap:8px;align-items:center">{% include 'dashboard/marketing/_range.html' %}{% if can_import %}<button class="f-btn" data-open="import"><i class="ph ph-upload-simple"></i>Import data</button>{% endif %}</div></div>
+{% if not conn.connected %}<div class="m-note"><i class="ph ph-plugs"></i><div><b>{{ name }} isn't connected.</b> Figures below come from the campaign reports you import (CSV). Once the platform is connected they sync automatically.</div></div>{% endif %}
+{% include 'dashboard/marketing/_connection.html' with key=key name=name api=api conn=conn can_setup=0 %}
+<div class="f-stats">
+  <div class="f-stat tint"><div class="l">Spend<i class="ph ph-currency-circle-dollar"></i></div><div class="v">{{ p.spend_cents|money0 }}</div><div class="d">of {{ budget|money0 }} budget</div></div>
+  <div class="f-stat"><div class="l">Impressions<i class="ph ph-eye"></i></div><div class="v">{{ p.impressions|compact }}</div><div class="d">Reach {{ p.reach|compact }}</div></div>
+  <div class="f-stat"><div class="l">Clicks<i class="ph ph-cursor-click"></i></div><div class="v">{{ p.clicks|compact }}</div><div class="d">CTR {{ p.ctr|pct:2 }}</div></div>
+  <div class="f-stat"><div class="l">Installs<i class="ph ph-download-simple"></i></div><div class="v">{{ p.installs|floatformat:'0g' }}</div><div class="d">CPI {{ p.cpi|cents }}</div></div>
+  <div class="f-stat"><div class="l">Paying readers<i class="ph ph-wallet"></i></div><div class="v">{{ p.paying|floatformat:'0g' }}</div><div class="d">{{ p.registrations|floatformat:'0g' }} registrations</div></div>
+  <div class="f-stat tint"><div class="l">ROAS<i class="ph ph-gauge"></i></div><div class="v">{{ p.roas|roas }}</div><div class="d">{{ p.revenue_cents|money0 }} revenue</div></div>
+</div>
+<div class="f-card" style="margin-bottom:16px"><div class="h"><div><h2>Spend vs attributed revenue</h2><p>{{ range_label }}</p></div><div class="f-legend"><span><i style="background:var(--f-chart-1)"></i>Spend</span><span><i style="background:var(--f-chart-4)"></i>Revenue</span></div></div>
+  <div class="m-chart"><div class="m-cols">{% for d in series %}<div class="c" style="flex-direction:row;align-items:flex-end;gap:1px" title="{{ d.date|date:'d M' }}"><span style="height:{{ d.s|floatformat:2 }}%;background:var(--f-chart-1);border-radius:2px 2px 0 0"></span><span style="height:{{ d.r|floatformat:2 }}%;background:var(--f-chart-4);border-radius:2px 2px 0 0"></span></div>{% endfor %}</div>
+  <div class="m-axis"><span>{{ series.0.date|date:'d M' }}</span><span>{% with series|last as l %}{{ l.date|date:'d M' }}{% endwith %}</span></div></div></div>
+<div class="m-sec"><div><h2>Campaigns</h2><p style="margin:2px 0 0;color:var(--f-muted);font-size:13px">Every campaign is tied to the Book ID it advertises.</p></div></div>
+{% include 'dashboard/marketing/_campaigns.html' %}
+<div class="f-sheet" id="import"><div class="p">
+  <h2>Import {{ name }} data</h2>
+  <p style="color:var(--f-muted);margin-top:0">Upload a daily campaign report as CSV. One row per campaign per day; re-importing a day replaces it. Required columns: <b>date</b> (YYYY-MM-DD) and <b>campaign_id</b>. Use <b>book_id</b> (e.g. BV-1042) to tie a campaign to its book.</p>
+  <div class="m-code" style="margin-bottom:12px"><span>{{ columns|join:', ' }}</span></div>
+  <form method="post" enctype="multipart/form-data">{% csrf_token %}
+    <label class="f-field"><span>CSV file</span><input type="file" name="file" accept=".csv,text/csv" required></label>
+    <div style="display:flex;gap:8px;justify-content:space-between;align-items:center"><a href="{% url 'dashboard:marketing_import_template' %}" style="color:var(--f-primary);font-size:14px"><i class="ph ph-download-simple"></i> Template</a><span style="display:flex;gap:8px"><button type="button" class="f-btn ghost" data-close>Cancel</button><button class="f-btn">Import</button></span></div>
+  </form></div></div>
+{% endblock %}

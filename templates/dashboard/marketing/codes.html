@@ -1,35 +1,40 @@
-{% extends 'dashboard/base.html' %}{% load bv %}
-{% block title %}Promo codes{% endblock %}
-{% block heading %}Promo codes{% endblock %}
-{% block actions %}<button class="btn sm" data-open="newCode"><i class="ph ph-plus"></i><span class="hide-mobile">New code</span></button>{% endblock %}
+{% extends 'dashboard/marketing/layout.html' %}{% load bv %}
+{% block title %}Promo Codes{% endblock %}
 {% block content %}
-<div class="notice" style="margin-bottom:12px">Readers enter codes in Profile › Redeem. Each code adds bonus coins (they expire after 7 days) and works once per account.</div>
-<div class="table-wrap"><table class="table">
-  <tr><th>Code</th><th>Bonus</th><th>Uses</th><th class="hide-mobile">Campaign</th><th class="hide-mobile">Expires</th><th></th></tr>
-  {% for c in codes %}
-  <tr {% if not c.is_usable %}style="opacity:.55"{% endif %}>
-    <td><b style="font-family:monospace">{{ c.code }}</b>{% if not c.is_active %} <span class="chip grey">Off</span>{% elif not c.is_usable %} <span class="chip grey">Used up / expired</span>{% endif %}</td>
-    <td>+{{ c.bonus }}</td>
-    <td>{{ c.n_uses }}{% if c.max_uses %} / {{ c.max_uses }}{% endif %}</td>
-    <td class="hide-mobile small">{{ c.campaign|default:'—' }}</td>
-    <td class="hide-mobile small nowrap">{% if c.expires_at %}{{ c.expires_at|date:"M d, Y" }}{% else %}Never{% endif %}</td>
-    <td><form method="post">{% csrf_token %}<input type="hidden" name="action" value="toggle"><input type="hidden" name="id" value="{{ c.pk }}"><button class="btn sm ghost">{% if c.is_active %}Disable{% else %}Enable{% endif %}</button></form></td>
-  </tr>
-  {% empty %}<tr><td colspan="6" class="muted">No codes yet.</td></tr>{% endfor %}
+<div class="f-head"><div><div class="f-eyebrow">Engagement</div><h1>Promo Code Management</h1><p>Create codes with reward types, limits and eligibility.</p></div>
+  <button class="f-btn" data-open="newCode"><i class="ph ph-plus"></i>New promo code</button></div>
+<div class="m-note info"><i class="ph ph-shield-check"></i><div>Redemptions are checked on the server: one use per reader, segment and country eligibility, validity dates and the total cap. Codes are redeemed in the app (Me → Redeem code), never from this dashboard.</div></div>
+<div class="f-stats">
+  <div class="f-stat tint"><div class="l">Successful redemptions</div><div class="v">{{ s.ok|floatformat:'0g' }}</div></div>
+  <div class="f-stat"><div class="l">Rejected redemptions</div><div class="v">{{ s.bad|floatformat:'0g' }}</div><div class="d">{{ s.bad_pct|pct }} of attempts</div></div>
+  <div class="f-stat"><div class="l">Reward cost</div><div class="v">{{ s.cost|money0 }}</div><div class="d">Coins at 1¢, chapters at the chapter price</div></div>
+  <div class="f-stat tint"><div class="l">Attributed revenue</div><div class="v">{{ s.revenue|money0 }}</div><div class="d">{{ s.multiple|floatformat:1 }}× reward cost · purchases within 30 days</div></div>
+</div>
+<div class="m-sec"><h2>Codes</h2></div>
+<div class="f-card f-scroll"><table class="f-table">
+  <thead><tr><th>Code</th><th>Reward</th><th>Valid</th><th>Limits</th><th>Eligible readers</th><th>Countries</th><th>Campaign</th><th class="num">Redeemed</th><th class="num">Rejected</th><th class="num">Cost</th><th class="num">Revenue</th><th></th></tr></thead>
+  <tbody>{% for c in codes %}<tr>
+    <td><div style="font-weight:700;font-family:ui-monospace,monospace">{{ c.code }}</div>{% include 'dashboard/marketing/_status.html' with st=c.status %}</td>
+    <td><div>{{ c.get_reward_display }}</div><div class="m">{{ c.bonus }} {% if c.reward == 'vouchers' %}chapter{{ c.bonus|pluralize }}{% else %}coins{% endif %}</div></td>
+    <td style="white-space:nowrap">{{ c.starts_at|default:c.created_at|date:'d M Y' }} – {% if c.expires_at %}{{ c.expires_at|date:'d M Y' }}{% else %}no end{% endif %}</td>
+    <td style="white-space:nowrap">{% if c.max_uses %}{{ c.max_uses|floatformat:'0g' }} total{% else %}No cap{% endif %} · 1/reader</td>
+    <td>{% if c.segment %}{{ audience|get_item:c.segment|default:c.segment }}{% else %}All eligible readers{% endif %}</td>
+    <td>{{ c.countries|default:'All' }}</td><td>{{ c.campaign|default:'—' }}</td>
+    <td class="num">{{ c.n_uses|floatformat:'0g' }}</td><td class="num">{{ c.rejected|floatformat:'0g' }}</td><td class="num">{{ c.cost|money0 }}</td><td class="num">{{ c.revenue|money0 }}</td>
+    <td>{% if c.status != 'expired' %}<form method="post">{% csrf_token %}<input type="hidden" name="action" value="toggle"><input type="hidden" name="id" value="{{ c.pk }}"><button class="f-btn ghost sm">{% if c.is_active %}Pause{% else %}Enable{% endif %}</button></form>{% endif %}</td>
+  </tr>{% empty %}<tr><td colspan="12"><div class="f-empty">No codes yet.</div></td></tr>{% endfor %}</tbody>
 </table></div>
-<div class="sheet {% if open_form %}open{% endif %}" id="newCode"><div class="panel">
-  <div class="row between" style="margin-bottom:12px"><h2>New promo code</h2><button class="icon-btn" data-close><i class="ph ph-x"></i></button></div>
+<div class="f-sheet {% if open_form or request.GET.new %}open{% endif %}" id="newCode"><div class="p"><h2>New promo code</h2>
   <form method="post">{% csrf_token %}
-    <label class="field"><span class="label">Code</span><input type="text" name="code" maxlength="30" value="{{ form.code.value|default:'' }}" placeholder="SUMMER50" style="text-transform:uppercase" required>{{ form.code.errors }}</label>
-    <div class="grid cols-2">
-      <label class="field"><span class="label">Bonus coins</span><input type="number" name="bonus" min="1" max="1000" value="{{ form.bonus.value|default:50 }}" required>{{ form.bonus.errors }}</label>
-      <label class="field"><span class="label">Max uses</span><input type="number" name="max_uses" min="1" value="{{ form.max_uses.value|default:'' }}" placeholder="No limit"></label>
-    </div>
-    <div class="grid cols-2">
-      <label class="field"><span class="label">Expires after (days)</span><input type="number" name="days" min="1" max="365" value="{{ form.days.value|default:'' }}" placeholder="Never">{{ form.days.errors }}</label>
-      <label class="field"><span class="label">Campaign</span><input type="text" name="campaign" maxlength="80" value="{{ form.campaign.value|default:'' }}" placeholder="e.g. TikTok October"></label>
-    </div>
-    <button class="btn block">Create code</button>
-  </form>
-</div></div>
+    <div class="m-two"><label class="f-field"><span>Code *</span>{{ form.code }}{% for e in form.code.errors %}<small style="color:var(--f-danger)">{{ e }}</small>{% endfor %}<small>Letters and numbers; saved in capitals.</small></label>
+      <label class="f-field"><span>Campaign ID</span>{{ form.campaign }}</label></div>
+    <div class="m-two"><label class="f-field"><span>Reward</span>{{ form.reward }}</label>
+      <label class="f-field"><span>Amount *</span>{{ form.bonus }}{% for e in form.bonus.errors %}<small style="color:var(--f-danger)">{{ e }}</small>{% endfor %}<small>Bonus coins (expire in 7 days) or free chapters.</small></label></div>
+    <div class="m-two"><label class="f-field"><span>Starts (optional)</span>{{ form.starts_at }}</label>
+      <label class="f-field"><span>Valid for (days)</span>{{ form.days }}<small>Blank: no end date.</small></label></div>
+    <div class="m-two"><label class="f-field"><span>Total uses</span>{{ form.max_uses }}<small>Blank: no cap. Always 1 per reader.</small></label>
+      <label class="f-field"><span>Eligible readers</span>{{ form.segment }}</label></div>
+    <label class="f-field"><span>Countries</span>{{ form.countries }}<small>Comma-separated, e.g. Nigeria, Kenya. Blank: everywhere.</small></label>
+    <div style="display:flex;gap:8px;justify-content:flex-end"><button type="button" class="f-btn ghost" data-close>Cancel</button><button class="f-btn">Create code</button></div>
+  </form></div></div>
 {% endblock %}

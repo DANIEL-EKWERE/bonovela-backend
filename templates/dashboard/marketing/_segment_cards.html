@@ -1,0 +1,2 @@
+<div class="f-stats">{% for c in cards %}{% if not only or c.key in only %}<a class="f-stat {% if c.key == seg %}tint{% endif %}" href="{% url 'dashboard:marketing_readers' %}?segment={{ c.key }}" style="{% if c.key == seg %}border-color:var(--f-primary){% endif %}">
+  <div class="l"><span>{{ c.letter }}. {{ c.label }}</span></div><div class="v">{{ c.n|floatformat:'0g' }}</div><div class="d">{{ c.desc }}</div></a>{% endif %}{% endfor %}</div>

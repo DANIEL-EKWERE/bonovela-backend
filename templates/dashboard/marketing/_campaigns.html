@@ -1,0 +1,10 @@
+{% load bv %}<div class="f-card f-scroll"><table class="f-table">
+  <thead><tr><th>Campaign</th>{% if show_platform %}<th>Platform</th>{% endif %}<th>Ad set · Ad</th><th>Advertised book</th><th class="num">Budget</th><th class="num">Spend</th><th class="num">Impr.</th><th class="num">Reach</th><th class="num">Clicks</th><th class="num">CTR</th><th class="num">CPC</th><th class="num">Installs</th><th class="num">Regs</th><th class="num">Book opens</th><th class="num">Paying</th><th class="num">Revenue</th><th class="num">ROAS</th></tr></thead>
+  <tbody>{% for r in campaigns %}<tr>
+    <td style="min-width:190px"><div style="font-weight:500">{{ r.c.name }}</div><div class="m">{{ r.c.code }}{% if r.c.channel %} · {{ r.c.channel }}{% endif %}</div><span class="f-chip {% if r.c.status == 'active' %}ok{% elif r.c.status == 'paused' %}warn{% endif %}">{{ r.c.get_status_display }}</span></td>
+    {% if show_platform %}<td><span class="m-src">{{ r.c.platform }}</span></td>{% endif %}
+    <td style="min-width:160px"><div>{{ r.c.ad_set|default:'—' }}</div><div class="m">{{ r.c.ad_name }}</div></td>
+    <td>{% if r.c.story %}{% include 'dashboard/marketing/_book.html' with s=r.c.story %}{% else %}<span class="f-chip bad">No Book ID</span>{% endif %}</td>
+    <td class="num">{{ r.c.budget_cents|money0 }}</td><td class="num">{{ r.spend_cents|money0 }}</td><td class="num">{{ r.impressions|floatformat:'0g' }}</td><td class="num">{{ r.reach|floatformat:'0g' }}</td><td class="num">{{ r.clicks|floatformat:'0g' }}</td><td class="num">{{ r.ctr|pct:2 }}</td><td class="num">{{ r.cpc|cents }}</td><td class="num">{{ r.installs|floatformat:'0g' }}</td><td class="num">{{ r.registrations|floatformat:'0g' }}</td><td class="num">{{ r.book_opens|floatformat:'0g' }}</td><td class="num">{{ r.paying|floatformat:'0g' }}</td><td class="num">{{ r.revenue_cents|money0 }}</td><td class="num">{{ r.roas|roas }}</td>
+  </tr>{% empty %}<tr><td colspan="17"><div class="f-empty">No campaigns yet. Import a campaign report on a platform page, or connect the platform in Marketing Settings.</div></td></tr>{% endfor %}</tbody>
+</table></div>

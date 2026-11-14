@@ -16,6 +16,7 @@ urlpatterns = [
     path('auth/token/', v.TokenView.as_view()),
     path('auth/token/refresh/', TokenRefreshView.as_view()),
     path('auth/me/', v.MeView.as_view()),
+    path('auth/me/marketing/', v.marketing_profile),
     path('auth/onboarding/', v.onboarding),
     path('auth/become-author/', v.become_author),
     # Catalogue

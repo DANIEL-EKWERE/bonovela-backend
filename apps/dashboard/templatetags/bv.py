@@ -58,3 +58,35 @@ def cover(story, width=84, title=None):
 @register.filter
 def get_item(d, key):
     return d.get(key) if hasattr(d, 'get') else None
+
+
+@register.filter
+def pct(value, places=1):
+    """12.345 → '12.3%'; None → '—'."""
+    if value is None:
+        return '—'
+    return f'{value:.{places}f}%'
+
+
+@register.filter
+def roas(value):
+    return f'{value:.2f}×'
+
+
+@register.filter
+def cents(value):
+    """Cost ratios in cents → '$1.35'."""
+    return f'${(value or 0) / 100:,.2f}'
+
+
+@register.filter
+def sub_from(value, total):
+    """{{ 44|sub_from:100 }} → 56."""
+    return total - value
+
+
+@register.filter
+def mask_email(email):
+    """reader@example.com → re•••@example.com (marketing sees no full emails)."""
+    name, _, domain = (email or '').partition('@')
+    return f'{name[:2]}•••@{domain}' if domain else (email or '—')

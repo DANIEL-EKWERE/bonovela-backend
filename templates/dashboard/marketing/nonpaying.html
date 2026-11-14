@@ -1,0 +1,9 @@
+{% extends 'dashboard/marketing/layout.html' %}{% load bv %}
+{% block title %}Non-Paying Readers{% endblock %}
+{% block content %}
+<div class="f-head"><div><div class="f-eyebrow">Readers &amp; books</div><h1>Non-Paying Readers</h1><p>Readers who have never paid, and paying readers who have lapsed.</p></div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap"><a class="f-btn ghost" href="{% url 'dashboard:marketing_codes' %}?new=1"><i class="ph ph-ticket"></i>Create promo code</a><a class="f-btn" href="{% url 'dashboard:marketing_broadcasts' %}?segment={{ seg }}"><i class="ph ph-broadcast"></i>Send a broadcast</a></div></div>
+{% include 'dashboard/marketing/_segment_cards.html' with only='never former not_started stopped' %}
+<div class="f-tabs">{% for k, label in tabs %}<a class="{% if k == seg %}on{% endif %}" href="?segment={{ k }}">{{ label }}</a>{% endfor %}</div>
+{% include 'dashboard/marketing/_readers_table.html' %}
+{% endblock %}

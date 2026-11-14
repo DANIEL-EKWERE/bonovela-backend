@@ -196,6 +196,9 @@ BONOVELA = {
     'AUTHOR_INACTIVE_DAYS': 7,  # flagged "slowing down"
     'AUTHOR_AT_RISK_DAYS': 14,  # flagged "at risk"
     'EDITOR_OVERLOAD': 1.5,  # an SE with books above 1.5× the average = overloaded
+    # Store pages that campaign links send readers to after the book preview.
+    'PLAY_STORE_URL': config('PLAY_STORE_URL', default='https://play.google.com/store/apps/details?id=com.bonovela.app.bonovela'),
+    'APP_STORE_URL': config('APP_STORE_URL', default='https://apps.apple.com/search?term=bonovela'),
 }
 
 # AI Completion Review (optional). With no key the review runs the built-in

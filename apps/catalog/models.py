@@ -131,6 +131,11 @@ class Story(models.Model):
         ordering = ['-updated_at']
         verbose_name_plural = 'stories'
 
+    @property
+    def book_code(self):
+        """The Book ID Marketing uses in campaigns and links."""
+        return f'BV-{1000 + self.pk}'
+
     def __str__(self):
         return self.display_title
 

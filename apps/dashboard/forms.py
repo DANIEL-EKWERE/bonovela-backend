@@ -1,9 +1,10 @@
 from django import forms
 from django.conf import settings
+from django.utils import timezone
 
 from apps.catalog.models import Chapter, Genre, Story, Tag, word_count
 from apps.drama.models import Drama, Episode
-from apps.marketing.models import Banner, Broadcast
+from apps.marketing.models import Banner, Broadcast, CampaignLink
 from apps.wallet.models import PayoutMethod, RedeemCode
 
 VIDEO_TYPES = ('video/mp4', 'video/quicktime', 'video/webm', 'video/x-m4v')
@@ -159,21 +160,39 @@ class EpisodeForm(forms.ModelForm):
 
 
 # ── Marketing ────────────────────────────────────────────────────────────────
+class _BookChoice(forms.ModelChoiceField):
+    def label_from_instance(self, story):
+        return f'{story.display_title} · {story.book_code}'
+
+
+def _when(required=True):
+    return forms.DateTimeField(required=required, widget=forms.DateTimeInput(attrs={'type': 'datetime-local'}))
+
+
 class BannerForm(forms.ModelForm):
-    starts_at = forms.DateTimeField(widget=forms.DateTimeInput(attrs={'type': 'datetime-local'}))
-    ends_at = forms.DateTimeField(required=False, widget=forms.DateTimeInput(attrs={'type': 'datetime-local'}))
-    story = forms.ModelChoiceField(queryset=Story.objects.none(), required=False)
+    """Every Marketing promotion shown in the app: Discover placements,
+    banners, pop-ups and opening screens. [placements] limits where it
+    can show (one page per kind)."""
+
+    starts_at = _when()
+    ends_at = _when(False)
+    story = _BookChoice(queryset=Story.objects.none(), required=False)
     drama = forms.ModelChoiceField(queryset=Drama.objects.visible_in_app().order_by('title'), required=False)
+    audience = forms.ChoiceField(choices=[])
 
     class Meta:
         model = Banner
         fields = ['title', 'subtitle', 'image', 'color_index', 'placement', 'target', 'story', 'drama', 'url',
-                  'order', 'starts_at', 'ends_at', 'is_active']
+                  'audience', 'label', 'condition', 'order', 'starts_at', 'ends_at', 'is_active', 'is_draft']
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, placements=None, **kwargs):
         super().__init__(*args, **kwargs)
+        from apps.marketing.segments import choices
         # Built per form: app visibility depends on settings (chapter minimum).
         self.fields['story'].queryset = Story.objects.visible_in_app().order_by('title')
+        self.fields['audience'].choices = choices()
+        if placements:
+            self.fields['placement'].choices = [c for c in Banner.PLACEMENT_CHOICES if c[0] in placements]
 
     def clean_image(self):
         return _check_image(self.cleaned_data.get('image'))
@@ -183,18 +202,27 @@ class BannerForm(forms.ModelForm):
         target = data.get('target')
         need = {'story': 'story', 'drama': 'drama', 'url': 'url'}.get(target)
         if need and not data.get(need):
-            self.add_error(need, 'Required for this target.')
+            self.add_error(need, 'Every book promotion needs a valid Book ID.' if need == 'story' else 'Required for this target.')
         if data.get('ends_at') and data.get('starts_at') and data['ends_at'] <= data['starts_at']:
             self.add_error('ends_at', 'Must be after the start.')
+        if data.get('placement') == 'splash' and not data.get('image') and not self.instance.image:
+            self.add_error('image', 'An opening screen needs a full-screen cover image.')
         return data
 
 
 class RedeemCodeForm(forms.ModelForm):
     days = forms.IntegerField(min_value=1, max_value=365, required=False, help_text='Leave blank for no expiry')
+    starts_at = _when(False)
+    segment = forms.ChoiceField(choices=[], required=False)
 
     class Meta:
         model = RedeemCode
-        fields = ['code', 'bonus', 'campaign', 'max_uses']
+        fields = ['code', 'reward', 'bonus', 'campaign', 'max_uses', 'starts_at', 'segment', 'countries']
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        from apps.marketing.segments import choices
+        self.fields['segment'].choices = [('', 'All eligible readers')] + choices()[1:]
 
     def clean_code(self):
         code = self.cleaned_data['code'].strip().upper()
@@ -202,26 +230,68 @@ class RedeemCodeForm(forms.ModelForm):
             raise forms.ValidationError('Letters and numbers only.')
         return code
 
-    def clean_bonus(self):
-        bonus = self.cleaned_data['bonus']
-        if not 1 <= bonus <= 1000:
-            raise forms.ValidationError('Between 1 and 1000 bonus.')
-        return bonus
+    def clean(self):
+        data = super().clean()
+        bonus, reward = data.get('bonus') or 0, data.get('reward')
+        top = 20 if reward == 'vouchers' else 1000
+        if bonus and not 1 <= bonus <= top:
+            self.add_error('bonus', f'Between 1 and {top}.')
+        return data
 
 
 class BroadcastForm(forms.ModelForm):
-    story = forms.ModelChoiceField(queryset=Story.objects.none(), required=False)
+    """Broadcast Centre and Notification Promotions."""
+
+    story = _BookChoice(queryset=Story.objects.none(), required=False)
+    stories = forms.ModelMultipleChoiceField(queryset=Story.objects.none(), required=False)
+    segment = forms.ChoiceField(choices=[], required=False)
+    channels = forms.MultipleChoiceField(choices=Broadcast.CHANNELS, initial=['inapp'], required=False,
+                                         widget=forms.CheckboxSelectMultiple)
+    scheduled_at = _when(False)
 
     class Meta:
         model = Broadcast
-        fields = ['title', 'body', 'audience', 'story', 'bonus']
+        fields = ['name', 'title', 'body', 'audience', 'segment', 'country', 'story', 'stories', 'image',
+                  'channels', 'scheduled_at', 'bonus']
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields['story'].queryset = Story.objects.visible_in_app().order_by('title')
+        from apps.marketing.segments import choices
+        books = Story.objects.visible_in_app().order_by('title')
+        self.fields['story'].queryset = books
+        self.fields['stories'].queryset = books
+        self.fields['segment'].choices = [('', '— Use the audience above —')] + choices()
+        self.fields['bonus'].required = False
+
+    def clean_image(self):
+        return _check_image(self.cleaned_data.get('image'))
 
     def clean_bonus(self):
         bonus = self.cleaned_data['bonus'] or 0
         if bonus > 200:
             raise forms.ValidationError('Keep gifts to 200 bonus or less.')
         return bonus
+
+    def clean_channels(self):
+        return ','.join(self.cleaned_data.get('channels') or ['inapp'])
+
+    def clean_scheduled_at(self):
+        when = self.cleaned_data.get('scheduled_at')
+        if when and when <= timezone.now():
+            raise forms.ValidationError('Pick a time in the future, or leave it empty to send now.')
+        return when
+
+
+class CampaignLinkForm(forms.ModelForm):
+    story = _BookChoice(queryset=Story.objects.none())
+
+    class Meta:
+        model = CampaignLink
+        fields = ['story', 'source', 'campaign', 'preview']
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['story'].queryset = Story.objects.visible_in_app().order_by('title')
+
+    def clean_campaign(self):
+        return self.cleaned_data['campaign'].strip().upper()

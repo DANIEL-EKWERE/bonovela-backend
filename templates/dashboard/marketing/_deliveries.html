@@ -1,0 +1,12 @@
+{% load bv %}<div class="f-card f-scroll"><table class="f-table">
+  <thead><tr><th>{% if kind == 'notification' %}Promotion{% else %}Broadcast{% endif %}</th><th>Audience</th><th>Channels</th><th>When</th><th class="num">Size</th><th class="num">Delivered</th><th class="num">Left out</th><th class="num">Opens</th><th class="num">Purchases (7d)</th><th></th></tr></thead>
+  <tbody>{% for b in rows %}<tr>
+    <td style="min-width:200px"><div style="font-weight:500">{{ b.name|default:b.title }}</div><div class="m">{{ b.code }}{% for s in b.stories.all %} · {{ s.book_code }}{% endfor %}</div>{% include 'dashboard/marketing/_status.html' with st=b.status %}</td>
+    <td>{% if b.segment %}{{ audience|get_item:b.segment|default:b.segment }}{% else %}{{ b.get_audience_display }}{% endif %}{% if b.country %} · {{ b.country }}{% endif %}</td>
+    <td style="white-space:nowrap">{% for c in b.channel_list %}<i class="ph ph-{% if c == 'push' %}bell{% elif c == 'email' %}envelope{% else %}tray{% endif %}" title="{{ c }}" style="margin-right:4px"></i>{% endfor %}</td>
+    <td style="white-space:nowrap">{{ b.sent_at|date:'d M, H:i' }}</td>
+    <td class="num">{{ b.recipients|add:b.excluded|floatformat:'0g' }}</td><td class="num">{{ b.recipients|floatformat:'0g' }}</td><td class="num">{{ b.excluded|floatformat:'0g' }}</td>
+    <td class="num">{% if b.open_rate is not None %}{{ b.open_rate|pct }}{% else %}—{% endif %}</td><td class="num">{{ b.purchases|floatformat:'0g' }}</td>
+    <td>{% if b.status == 'scheduled' %}<form method="post">{% csrf_token %}<button class="f-btn danger sm" name="cancel" value="{{ b.pk }}">Cancel</button></form>{% endif %}</td>
+  </tr>{% empty %}<tr><td colspan="10"><div class="f-empty">Nothing sent yet.</div></td></tr>{% endfor %}</tbody>
+</table></div>

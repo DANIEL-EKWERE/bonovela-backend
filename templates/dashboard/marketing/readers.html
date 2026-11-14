@@ -1,0 +1,9 @@
+{% extends 'dashboard/marketing/layout.html' %}{% load bv %}
+{% block title %}Reader Analytics{% endblock %}
+{% block content %}
+<div class="f-head"><div><div class="f-eyebrow">Readers &amp; books</div><h1>Reader Analytics</h1><p>Every reader has a unique Reader ID. Segments update as soon as you change the rules.</p></div>
+  <a class="f-btn ghost" href="{% url 'dashboard:marketing_settings' %}?tab=segments"><i class="ph ph-sliders-horizontal"></i>Segment rules</a></div>
+{% include 'dashboard/marketing/_segment_cards.html' %}
+{% if seg %}<p style="margin:-8px 0 12px"><a href="{% url 'dashboard:marketing_readers' %}" style="color:var(--f-primary);font-size:14px"><i class="ph ph-x"></i> Clear segment filter</a></p>{% endif %}
+{% include 'dashboard/marketing/_readers_table.html' %}
+{% endblock %}

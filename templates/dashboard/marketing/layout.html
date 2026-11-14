@@ -1,0 +1,55 @@
+{% load static %}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#FDF6F6">
+  <title>{% block title %}Marketing{% endblock %} · Bonovela Marketing</title>
+  <link rel="icon" href="{% static 'img/app_icon.png' %}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/@phosphor-icons/web@2.1.1"></script>
+  <link rel="stylesheet" href="{% static 'css/finance.css' %}">
+  <link rel="stylesheet" href="{% static 'css/marketing.css' %}">
+  {% block head %}{% endblock %}
+</head>
+<body class="fin mkt">
+<div class="f-shell" id="fShell">
+  <aside class="f-side">
+    <a class="f-brand" href="{% url 'dashboard:marketing_home' %}"><b>B</b><span><span class="n">Bonovela</span><br><span class="s">Marketing</span></span></a>
+    {% for item in nav %}
+      {% if item.section %}<div class="f-sec">{{ item.section }}</div>{% endif %}
+      <a class="f-link {% if item.active %}active{% endif %}" href="{{ item.url }}"><i class="ph ph-{{ item.icon }}"></i>{{ item.label }}</a>
+    {% endfor %}
+    {% if areas|length > 1 %}
+      <div class="f-sec">Switch to</div>
+      {% for name, url in areas %}{% if name != 'Marketing' %}<a class="f-link" href="{{ url }}"><i class="ph ph-arrows-left-right"></i>{{ name }}</a>{% endif %}{% endfor %}
+    {% endif %}
+    <div class="f-spacer"></div>
+    <div class="f-who">
+      <i class="ph ph-user-circle"></i>
+      <div class="f-grow"><div style="overflow:hidden;text-overflow:ellipsis">{{ user.email }}</div><div class="r">{{ marketing_member.get_role_display|default:'Marketing' }}</div></div>
+      <form method="post" action="{% url 'dashboard:logout' %}">{% csrf_token %}<button title="Log out"><i class="ph ph-sign-out"></i></button></form>
+    </div>
+  </aside>
+  <div>
+    <div class="m-bar"><div class="t"><button type="button" onclick="document.getElementById('fShell').classList.toggle('nav-hide')" aria-label="Toggle sidebar"><i class="ph ph-sidebar-simple"></i></button>Bonovela Marketing</div>{% if not ads_connected %}<span class="m-env" title="Ad platforms are not connected yet">Ad platforms not connected</span>{% endif %}</div>
+    <div class="f-top"><button type="button" onclick="document.getElementById('fShell').classList.toggle('nav-open')" aria-label="Menu"><i class="ph ph-list"></i></button><b>B</b><span style="font:600 16px Manrope,sans-serif">Bonovela Marketing</span></div>
+    <main class="f-main">{% block content %}{% endblock %}</main>
+  </div>
+</div>
+{% if messages %}<div class="f-msg" id="fMsg">{% for m in messages %}<div class="{% if m.tags == 'error' %}error{% endif %}">{{ m }}</div>{% endfor %}</div>
+<script>setTimeout(() => document.getElementById('fMsg')?.remove(), 5000);</script>{% endif %}
+<script>
+  document.addEventListener('click', (e) => {
+    const opener = e.target.closest('[data-open]');
+    if (opener) { document.getElementById(opener.dataset.open)?.classList.add('open'); e.preventDefault(); return; }
+    if (e.target.closest('[data-close]') || e.target.classList.contains('f-sheet')) e.target.closest('.f-sheet')?.classList.remove('open');
+    if (e.target.classList.contains('f-shell')) e.target.classList.remove('nav-open');
+    const copy = e.target.closest('[data-copy]');
+    if (copy) { navigator.clipboard?.writeText(copy.dataset.copy); copy.innerHTML = '<i class="ph ph-check"></i>'; }
+  });
+</script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

@@ -70,6 +70,25 @@ class MeView(generics.RetrieveUpdateAPIView):
     def get_object(self):
         return self.request.user
 
+    def retrieve(self, request, *args, **kwargs):
+        # The app loads the account on every launch: count today as active.
+        from apps.marketing.services import record_activity
+        record_activity(request.user)
+        return super().retrieve(request, *args, **kwargs)
+
+
+@api_view(['POST'])
+@permission_classes([permissions.IsAuthenticated])
+def marketing_profile(request):
+    """What the app knows about where this reader came from and how they
+    can be reached: source, campaign, link (LNK-…), platform, app_version,
+    country, marketing_consent, push_consent. Source and campaign are kept
+    from the first report only."""
+    from apps.marketing.services import update_profile
+    p = update_profile(request.user, request.data)
+    return Response({'source': p.source, 'campaign': p.campaign, 'marketing_consent': p.marketing_consent,
+                     'push_consent': p.push_consent})
+
 
 @api_view(['POST'])
 @permission_classes([permissions.IsAuthenticated])
@@ -226,6 +245,8 @@ def chapter_detail(request, pk, number):
                 pass
         ReadingProgress.objects.update_or_create(user=user, story=story, defaults={'chapter_number': number})
         _record_subscriber_read(user, chapter)
+        from apps.marketing.services import record_activity
+        record_activity(user)
     return Response(s.ChapterDetailSerializer(chapter, context={'request': request}).data)
 
 

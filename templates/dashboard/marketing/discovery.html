@@ -1,0 +1,24 @@
+{% extends 'dashboard/marketing/layout.html' %}{% load bv %}
+{% block title %}Discovery Page{% endblock %}
+{% block content %}
+<div class="f-head"><div><div class="f-eyebrow">Promotions</div><h1>{{ title }}</h1><p>{{ blurb }}</p></div>
+  <a class="f-btn" href="{% url 'dashboard:marketing_banner_new' %}?kind=discovery"><i class="ph ph-plus"></i>{{ button }}</a></div>
+<div class="f-stats">
+  <div class="f-stat tint"><div class="l">Live now</div><div class="v">{{ s.live }}</div></div>
+  <div class="f-stat"><div class="l">Scheduled / drafts</div><div class="v">{{ s.scheduled }} / {{ s.drafts }}</div></div>
+  <div class="f-stat"><div class="l">Impressions</div><div class="v">{{ s.impressions|floatformat:'0g' }}</div></div>
+  <div class="f-stat"><div class="l">Click-through</div><div class="v">{{ s.ctr|pct }}</div></div>
+</div>
+<div class="m-grid32">
+  <div class="f-card"><div class="h"><div><h2>Display order</h2><p>Use the arrows to move a card up or down.</p></div></div>
+    {% for b in rows %}<div class="m-rank"><span class="n">{{ forloop.counter }}</span>{% if b.story %}{% include 'dashboard/marketing/_book.html' with s=b.story %}{% else %}<div class="t">{{ b.title }}</div>{% endif %}<div class="f-grow" style="font-size:12.5px;color:var(--f-muted)">{{ b.starts_at|date:'d M Y' }} – {% if b.ends_at %}{{ b.ends_at|date:'d M Y' }}{% else %}open{% endif %}</div>{% include 'dashboard/marketing/_status.html' with st=b.status %}
+      <form method="post" style="display:flex;gap:2px">{% csrf_token %}<input type="hidden" name="id" value="{{ b.pk }}"><button class="f-btn ghost sm" name="move" value="up" {% if forloop.first %}disabled{% endif %} aria-label="Move up"><i class="ph ph-arrow-up"></i></button><button class="f-btn ghost sm" name="move" value="down" {% if forloop.last %}disabled{% endif %} aria-label="Move down"><i class="ph ph-arrow-down"></i></button></form></div>{% empty %}<div class="f-empty">No Discovery placements yet.</div>{% endfor %}</div>
+  <div class="f-card"><div class="h"><h2>Discovery page preview</h2></div><div class="b">
+    <div class="m-phone"><div style="font:600 16px Fraunces,serif;margin-bottom:10px">Discover</div>
+      {% for b in preview %}<div style="display:flex;gap:10px;margin-bottom:12px">{% if b.image %}<img src="{{ b.image.url }}" style="width:56px;height:76px;object-fit:cover;border-radius:4px" alt="">{% elif b.story.cover %}<img src="{{ b.story.cover.url }}" style="width:56px;height:76px;object-fit:cover;border-radius:4px" alt="">{% else %}<span class="ph" style="width:56px;height:76px;border-radius:4px;background:linear-gradient(135deg,#7A1F33,#2B1E20);flex:none"></span>{% endif %}
+        <div style="min-width:0">{% if b.label %}<span class="f-chip gold" style="font-size:10px">{{ b.label }}</span>{% endif %}<div style="font-weight:600;font-size:13px">{{ b.story.display_title|default:b.title }}</div><div style="font-size:11px;color:var(--f-muted)">{{ b.story.author.display_name }}{% if b.story.genre %} · {{ b.story.genre.name }}{% endif %}</div><div style="font-size:11px">{{ b.subtitle|truncatechars:50 }}</div></div></div>{% empty %}<div class="f-empty" style="padding:20px 0">Nothing live.</div>{% endfor %}</div>
+    <p style="text-align:center;font-size:12px;color:var(--f-muted)">Only active placements are shown to readers.</p></div></div>
+</div>
+<div class="m-sec"><h2>Discovery placements</h2></div>
+{% include 'dashboard/marketing/_promo_table.html' with extra_col='Priority · label' %}
+{% endblock %}

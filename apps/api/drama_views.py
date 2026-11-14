@@ -145,7 +145,10 @@ def saved(request):
 # ── Banners (Marketing) ──────────────────────────────────────────────────────
 def _banner(request, b):
     return {
-        'id': b.id, 'title': b.title, 'subtitle': b.subtitle, 'image_url': _abs(request, b.image),
+        # Book promotions without artwork show the book's cover.
+        'id': b.id, 'title': b.title, 'subtitle': b.subtitle,
+        'image_url': _abs(request, b.image) or (_abs(request, b.story.cover) if b.story_id else ''),
+        'label': b.label, 'cover_only': not b.image,
         'color_index': b.color_index, 'target': b.target, 'story_id': b.story_id, 'drama_id': b.drama_id,
         'url': b.url,
     }
@@ -154,7 +157,18 @@ def _banner(request, b):
 @api_view(['GET'])
 @permission_classes([permissions.AllowAny])
 def banners(request):
-    qs = list(Banner.objects.live(request.query_params.get('placement')))
+    """Live banners of a placement for this reader: audience 'all', plus
+    segment audiences the signed-in reader belongs to."""
+    from apps.marketing import segments
+    qs = list(Banner.objects.live(request.query_params.get('placement')).select_related('story'))
+    user = request.user
+    if any(b.audience not in ('', 'all') for b in qs):
+        cfg = segments.MarketingSettings.current()
+        member = {}
+        for b in qs:
+            if b.audience not in ('', 'all') and b.audience not in member:
+                member[b.audience] = user.is_authenticated and segments.contains(b.audience, user, cfg)
+        qs = [b for b in qs if b.audience in ('', 'all') or member[b.audience]]
     Banner.objects.filter(pk__in=[b.pk for b in qs]).update(impressions=F('impressions') + 1)
     return Response([_banner(request, b) for b in qs])
 
@@ -163,4 +177,6 @@ def banners(request):
 @permission_classes([permissions.AllowAny])
 def banner_click(request, banner_id):
     Banner.objects.filter(pk=banner_id).update(clicks=F('clicks') + 1)
+    # A book promotion's click opens that exact book.
+    Banner.objects.filter(pk=banner_id, target='story', story__isnull=False).update(book_opens=F('book_opens') + 1)
     return Response({'ok': True})

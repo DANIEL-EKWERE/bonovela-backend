@@ -1,0 +1,26 @@
+{% load bv %}<form method="post" enctype="multipart/form-data">{% csrf_token %}
+  {% if form.non_field_errors %}<div class="m-note" style="margin-bottom:12px">{{ form.non_field_errors }}</div>{% endif %}
+  <label class="f-field"><span>{% if kind == 'notification' %}Promotion name{% else %}Broadcast name{% endif %}</span>{{ form.name }}<small>Internal; readers don't see it.</small></label>
+  <div class="m-two">
+    <label class="f-field"><span>Audience</span><select name="audience" id="aud">{% for k, label in form.fields.audience.choices %}<option value="{{ k }}" {% if form.audience.value == k %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+    <label class="f-field"><span>Or a reader segment</span>{{ form.segment }}</label>
+  </div>
+  <div class="m-two"><label class="f-field"><span>Country (optional)</span>{{ form.country }}</label>
+    <label class="f-field"><span>Send at (leave empty to send on confirm)</span>{{ form.scheduled_at }}{% for e in form.scheduled_at.errors %}<small style="color:var(--f-danger)">{{ e }}</small>{% endfor %}</label></div>
+  <div class="f-field"><span>Books to feature</span><div style="max-height:150px;overflow:auto;border:1px solid var(--f-border);border-radius:10px;padding:6px 10px">{% for b in form.fields.stories.queryset %}<label class="m-check" style="padding:4px 0"><input type="checkbox" name="stories" value="{{ b.pk }}" {% if b.pk|stringformat:'s' in picked %}checked{% endif %}> {{ b.display_title }} <span class="m" style="color:var(--f-muted);font-size:12px">{{ b.book_code }}</span></label>{% empty %}<small>No books are live in the app yet.</small>{% endfor %}</div><small>The first ticked book opens when the reader taps the message.</small></div>
+  <label class="f-field"><span>Title *</span>{{ form.title }}{% for e in form.title.errors %}<small style="color:var(--f-danger)">{{ e }}</small>{% endfor %}</label>
+  <label class="f-field"><span>Message *</span>{{ form.body }}{% for e in form.body.errors %}<small style="color:var(--f-danger)">{{ e }}</small>{% endfor %}</label>
+  <label class="f-field"><span>Story cover (optional, uses the book cover otherwise)</span><input type="file" name="image" accept="image/jpeg,image/png,image/webp"></label>
+  <div class="m-two"><div class="f-field"><span>Delivery channels</span>
+      <label class="m-check"><input type="checkbox" name="channels" value="inapp" checked onclick="return false"> In-app inbox</label>
+      <label class="m-check"><input type="checkbox" name="channels" value="push" {% if 'push' in form.channels.value %}checked{% endif %}> Push {% if not push %}<span class="f-chip">Not connected</span>{% endif %}</label>
+      <label class="m-check"><input type="checkbox" name="channels" value="email" {% if 'email' in form.channels.value %}checked{% endif %}> Email (consent only) {% if not email %}<span class="f-chip">Not connected</span>{% endif %}</label></div>
+    <label class="f-field"><span>Gift bonus coins (optional)</span>{{ form.bonus }}{% for e in form.bonus.errors %}<small style="color:var(--f-danger)">{{ e }}</small>{% endfor %}<small>Up to 200 per reader, expiring in 7 days.</small></label></div>
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap"><span style="font-size:14px"><b id="reach">—</b> estimated reachable</span>
+    <button class="f-btn" onclick="return confirm('Send to ' + document.getElementById('reach').textContent + ' readers?')"><i class="ph ph-paper-plane-tilt"></i>Review &amp; confirm</button></div>
+</form>
+<script>
+  const sizes = {{ sizes_json|safe }};
+  const upd = () => { const seg = document.getElementById('id_segment').value; const aud = document.getElementById('aud').value; document.getElementById('reach').textContent = (sizes[seg || aud] ?? '—').toLocaleString(); };
+  document.getElementById('aud').onchange = upd; document.getElementById('id_segment').onchange = upd; upd();
+</script>

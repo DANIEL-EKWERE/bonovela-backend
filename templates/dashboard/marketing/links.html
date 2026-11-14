@@ -1,0 +1,39 @@
+{% extends 'dashboard/marketing/layout.html' %}{% load bv %}
+{% block title %}Deep & Campaign Links{% endblock %}
+{% block content %}
+<div class="f-head"><div><div class="f-eyebrow">Engagement</div><h1>Deep Links and Campaign Links</h1><p>Every book ad and promotion must lead to that exact book — from first click, through install and login, to the first page.</p></div></div>
+<div class="m-grid2">
+  <div class="f-card"><div class="h"><h2>Create a book campaign link</h2></div><div class="b">
+    <form method="post">{% csrf_token %}
+      <label class="f-field"><span>Book</span>{{ form.story }}{% for e in form.story.errors %}<small style="color:var(--f-danger)">{{ e }}</small>{% endfor %}</label>
+      <div class="m-two"><label class="f-field"><span>Source</span>{{ form.source }}</label><label class="f-field"><span>Campaign ID</span>{{ form.campaign }}<small>e.g. META-2026-0011</small></label></div>
+      <div class="f-field"><span>Web preview allowance</span>{% for v, label in form.fields.preview.choices %}<label class="m-check"><input type="radio" name="preview" value="{{ v }}" {% if form.preview.value|stringformat:'s' == v|stringformat:'s' %}checked{% endif %}> {{ label }}</label>{% endfor %}</div>
+      <button class="f-btn"><i class="ph ph-floppy-disk"></i>Save link</button>
+    </form>
+    {% if shown %}<div style="margin-top:20px"><div style="font-weight:600;margin-bottom:6px">{{ shown.code }} · {{ shown.story.display_title }}</div>
+      <div class="f-field"><span>Universal book link (use in ads)</span><div class="m-code"><span>{{ urls.universal }}</span><button type="button" class="f-btn ghost sm" data-copy="{{ urls.universal }}" title="Copy"><i class="ph ph-copy"></i></button></div></div>
+      <div class="f-field"><span>Google Play fallback with install referrer</span><div class="m-code"><span>{{ urls.play }}</span><button type="button" class="f-btn ghost sm" data-copy="{{ urls.play }}" title="Copy"><i class="ph ph-copy"></i></button></div></div>
+      <div class="f-field"><span>App Store</span><div class="m-code"><span>{{ urls.apple }}</span><button type="button" class="f-btn ghost sm" data-copy="{{ urls.apple }}" title="Copy"><i class="ph ph-copy"></i></button></div></div></div>{% endif %}
+  </div></div>
+  <div>
+  <div class="f-card" style="margin-bottom:16px"><div class="h"><h2>Book-first reader journey</h2></div><div class="b m-steps">
+    <div><div><b>Advertisement</b><br><small style="color:var(--f-muted)">Reader sees an ad featuring a specific book cover.</small></div></div>
+    <div><div><b>Ad click</b><br><small style="color:var(--f-muted)">The link carries the campaign and the Book ID.</small></div></div>
+    <div><div><b>Book preview page</b><br><small style="color:var(--f-muted)">A mobile web page for that exact book — cover, synopsis, Chapter 1 or Chapters 1–5.</small></div></div>
+    <div><div><b>App download</b><br><small style="color:var(--f-muted)">Google Play on Android (Book ID kept in the install referrer), App Store on iOS.</small></div></div>
+    <div><div><b>Install &amp; first open</b><br><small style="color:var(--f-muted)">The app reads the referrer and remembers the book.</small></div></div>
+    <div><div><b>Login or registration</b><br><small style="color:var(--f-muted)">The pending Book ID is kept through sign-in.</small></div></div>
+    <div><div><b>Direct book opening</b><br><small style="color:var(--f-muted)">Reader lands on the advertised book.</small></div></div>
+    <div><div><b>Attribution</b><br><small style="color:var(--f-muted)">Clicks, previews, store visits, installs, registrations and purchases are recorded against the link.</small></div></div>
+  </div></div>
+  <div class="f-card"><div class="h"><h2>Linking setup</h2></div><div class="b">
+    {% for label, ok in setup %}<div class="m-check"><i class="ph ph-{% if ok %}check-circle{% else %}circle-dashed{% endif %}" style="color:{% if ok %}var(--f-success){% else %}var(--f-muted){% endif %}"></i>{{ label }}{% if not ok %} <span class="f-chip" style="margin-left:auto">To do</span>{% endif %}</div>{% endfor %}
+    <p style="font-size:12.5px;color:var(--f-muted);margin-bottom:0">iOS ad platforms don't always give user-level attribution; some installs will only be matched in aggregate.</p></div></div>
+  </div>
+</div>
+<div class="m-sec"><h2>Saved campaign links</h2></div>
+<div class="f-card f-scroll"><table class="f-table">
+  <thead><tr><th>Link</th><th>Book</th><th>Source · campaign</th><th>Preview</th><th>Created</th><th class="num">Clicks</th><th class="num">Previews</th><th class="num">Store visits</th><th class="num">Installs</th><th></th></tr></thead>
+  <tbody>{% for r in rows %}<tr><td><a href="?show={{ r.pk }}" style="font-weight:600;font-family:ui-monospace,monospace">{{ r.code }}</a></td><td>{% include 'dashboard/marketing/_book.html' with s=r.story %}</td><td><span class="m-src">{{ r.source }}</span><div class="m">{{ r.campaign|default:'—' }}</div></td><td>{{ r.get_preview_display }}</td><td>{{ r.created_at|date:'d M Y' }}</td><td class="num">{{ r.clicks|floatformat:'0g' }}</td><td class="num">{{ r.previews|floatformat:'0g' }}</td><td class="num">{{ r.store_visits|floatformat:'0g' }}</td><td class="num">{{ r.n_installs|floatformat:'0g' }}</td><td><button type="button" class="f-btn ghost sm" data-copy="{{ all_urls|get_item:r.pk }}" title="Copy link"><i class="ph ph-copy"></i></button></td></tr>{% empty %}<tr><td colspan="10"><div class="f-empty">No links yet.</div></td></tr>{% endfor %}</tbody>
+</table></div>
+{% endblock %}

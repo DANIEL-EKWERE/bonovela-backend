@@ -1,0 +1,17 @@
+{% extends 'dashboard/marketing/layout.html' %}{% load bv %}
+{% block title %}Notification Promotions{% endblock %}
+{% block content %}
+<div class="f-head"><div><div class="f-eyebrow">Promotions</div><h1>Notification Promotions</h1><p>Notifications with title, message and image. Only readers who allow marketing are included.</p></div>
+  <button class="f-btn" data-open="compose"><i class="ph ph-plus"></i>New notification</button></div>
+{% if not push %}<div class="m-note info"><i class="ph ph-info"></i><div><b>Push isn't connected yet.</b> Notifications are delivered to the in-app inbox now and go out as push once Firebase / APNs is set up in Marketing Settings.</div></div>{% endif %}
+<div class="f-stats">
+  <div class="f-stat tint"><div class="l">Scheduled</div><div class="v">{{ s.live }}</div></div>
+  <div class="f-stat"><div class="l">Sent</div><div class="v">{{ s.sent }}</div></div>
+  <div class="f-stat"><div class="l">Delivered</div><div class="v">{{ s.impressions|floatformat:'0g' }}</div></div>
+  <div class="f-stat"><div class="l">Open rate</div><div class="v">{{ s.ctr|pct }}</div></div>
+</div>
+<div class="m-sec"><h2>Notifications</h2></div>
+{% include 'dashboard/marketing/_deliveries.html' with kind='notification' %}
+<div class="f-sheet {% if open_form or request.GET.new %}open{% endif %}" id="compose"><div class="p"><h2>New notification</h2>{% include 'dashboard/marketing/_compose.html' with kind='notification' %}
+  <div style="text-align:right;margin-top:8px"><button type="button" class="f-btn ghost" data-close>Close</button></div></div></div>
+{% endblock %}

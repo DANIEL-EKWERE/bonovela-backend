@@ -1,0 +1,25 @@
+{% extends 'dashboard/marketing/layout.html' %}{% load bv %}
+{% block title %}Reader Retention{% endblock %}
+{% block content %}
+<div class="f-head"><div><div class="f-eyebrow">Insights</div><h1>Reader Retention</h1><p>How many readers come back, and how many drift away, by source.</p></div></div>
+<div class="m-note info"><i class="ph ph-info"></i><div>Bonovela can't see every individual uninstall — Android and iOS restrict this for privacy. Uninstall estimates need push delivery signals or a measurement partner; {% if push %}they're shown below.{% else %}<b>neither is connected yet</b>, so long inactivity is used instead.{% endif %}</div></div>
+<div class="f-stats">
+  <div class="f-stat tint"><div class="l">Daily active readers<i class="ph ph-sun"></i></div><div class="v">{{ active.dau|floatformat:'0g' }}</div></div>
+  <div class="f-stat"><div class="l">Weekly active<i class="ph ph-calendar"></i></div><div class="v">{{ active.wau|floatformat:'0g' }}</div></div>
+  <div class="f-stat"><div class="l">Monthly active<i class="ph ph-calendar-blank"></i></div><div class="v">{{ active.mau|floatformat:'0g' }}</div></div>
+  <div class="f-stat"><div class="l">New readers (30d)<i class="ph ph-user-plus"></i></div><div class="v">{{ installs|floatformat:'0g' }}</div></div>
+  <div class="f-stat"><div class="l">Re-engaged (30d)<i class="ph ph-arrow-counter-clockwise"></i></div><div class="v">{{ reengaged|floatformat:'0g' }}</div><div class="d">Active again, joined 6+ weeks ago</div></div>
+  <div class="f-stat"><div class="l">Uninstall signals (30d)<i class="ph ph-trash"></i></div><div class="v">—</div><div class="d">Needs push or MMP</div></div>
+</div>
+<div class="f-card" style="margin-bottom:16px"><div class="h"><div><h2>Daily active readers</h2><p>Last 30 days</p></div></div>
+  <div class="m-chart"><div class="m-cols">{% for d, h in series %}<div class="c" title="{{ d.date|date:'d M' }} · {{ d.n }}"><span style="height:{{ h|floatformat:2 }}%;background:var(--f-chart-1)"></span></div>{% endfor %}</div>
+  <div class="m-axis"><span>{{ series.0.0.date|date:'d M' }}</span><span>Today</span></div></div></div>
+<div class="m-grid2">
+<div class="f-card f-scroll"><div class="h"><h2>Retention by acquisition source</h2></div><table class="f-table m-heat">
+  <thead><tr><th>Source</th><th class="num">Readers</th><th class="num">Day 1</th><th class="num">Day 7</th><th class="num">Day 14</th><th class="num">Day 30</th></tr></thead>
+  <tbody>{% for r in by_source %}<tr><td><span class="m-src">{{ r.source }}</span></td><td class="num">{{ r.readers|floatformat:'0g' }}</td>{% for k in day_cols %}{% with v=r|get_item:k %}<td class="h" style="{% if v is not None %}background:color-mix(in srgb, #7A1F33 {% widthratio v 100 60 %}%, white){% if v > 45 %};color:#fff{% endif %}{% endif %}">{% if v is None %}—{% else %}{{ v }}%{% endif %}</td>{% endwith %}{% endfor %}</tr>{% empty %}<tr><td colspan="6"><div class="f-empty">No readers yet.</div></td></tr>{% endfor %}</tbody></table></div>
+<div class="f-card f-scroll"><div class="h"><div><h2>Weekly cohorts</h2><p>Share of each sign-up week still reading in later weeks.</p></div></div><table class="f-table m-heat">
+  <thead><tr><th>Cohort</th><th class="num">Readers</th>{% for c in cohorts.0.cells %}<th class="num">Wk {{ forloop.counter0 }}</th>{% endfor %}</tr></thead>
+  <tbody>{% for c in cohorts %}<tr><td style="white-space:nowrap">Wk of {{ c.week|date:'d M' }}</td><td class="num">{{ c.readers }}</td>{% for v in c.cells %}<td class="h" style="{% if v is not None %}background:color-mix(in srgb, #7A1F33 {% widthratio v 100 60 %}%, white){% if v > 45 %};color:#fff{% endif %}{% endif %}">{% if v is None %}—{% else %}{{ v }}%{% endif %}</td>{% endfor %}</tr>{% endfor %}</tbody></table></div>
+</div>
+{% endblock %}

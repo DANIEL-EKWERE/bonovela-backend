@@ -1,0 +1,19 @@
+{% extends 'dashboard/marketing/layout.html' %}{% load bv %}
+{% block title %}Book Performance{% endblock %}
+{% block content %}
+<div class="f-head"><div><div class="f-eyebrow">Readers &amp; books</div><h1>Book Performance</h1><p>Every advertised book has a unique Book ID. Tick up to three books to compare them.</p></div></div>
+<div class="f-stats">{% for b in top %}<div class="f-stat"><div class="l"><span>#{{ forloop.counter }}</span></div><div style="font-weight:600;margin-top:6px">{{ b.story.display_title }}</div><div class="d">{{ b.story.author.display_name }} · {{ b.story.genre.name|default:'—' }}</div><div class="v" style="font-size:20px">{{ b.revenue_cents|money0 }}</div></div>{% endfor %}</div>
+{% if compare %}<div class="f-card" style="margin-bottom:16px"><div class="h"><div><h2>Compare books</h2><p>Reader journey, stage by stage</p></div><div class="f-legend">{% for b in compare %}<span><i style="background:var(--f-chart-{{ forloop.counter }})"></i>{{ b.story.display_title }}</span>{% endfor %}</div></div>
+  <div class="b">{% for label, key in stages %}<div class="f-hbar" style="grid-template-columns:110px 1fr"><span>{{ label }}</span><div style="display:grid;gap:3px">{% for b in compare %}<div style="display:flex;align-items:center;gap:8px"><div class="track" style="flex:1"><div class="fill" style="width:{% widthratio b|get_item:key peak|get_item:key 100 %}%;background:var(--f-chart-{{ forloop.counter }})"></div></div><span style="font-size:12px;min-width:56px;text-align:right">{{ b|get_item:key|floatformat:'0g' }}</span></div>{% endfor %}</div></div>{% endfor %}</div></div>{% endif %}
+<form method="get">
+<div class="m-sec"><h2>All advertised books</h2><button class="f-btn ghost sm"><i class="ph ph-arrows-left-right"></i>Compare ticked</button></div>
+<div class="f-card f-scroll"><table class="f-table">
+  <thead><tr><th></th><th>Book</th><th>Author · genre</th><th>Campaign source</th><th class="num">Impr.</th><th class="num">Clicks</th><th class="num">Previews</th><th class="num">Ch. 1</th><th class="num">Ch. 5</th><th class="num">Installs</th><th class="num">Regs</th><th class="num">Paying</th><th class="num">Revenue</th><th class="num">Conv.</th></tr></thead>
+  <tbody>{% for b in rows %}<tr>
+    <td><input type="checkbox" name="compare" value="{{ b.story.pk }}" {% if b.story.pk in ids %}checked{% endif %} onchange="const t=this.form.querySelectorAll('input[name=compare]:checked');if(t.length>3)this.checked=false"></td>
+    <td>{% include 'dashboard/marketing/_book.html' with s=b.story %}</td><td><div>{{ b.story.author.display_name }}</div><div class="m">{{ b.story.genre.name|default:'—' }}</div></td><td>{{ b.sources }}</td>
+    <td class="num">{{ b.impressions|compact }}</td><td class="num">{{ b.clicks|floatformat:'0g' }}</td><td class="num">{{ b.previews|floatformat:'0g' }}</td><td class="num">{{ b.ch1|floatformat:'0g' }}</td><td class="num">{{ b.ch5|floatformat:'0g' }}</td><td class="num">{{ b.installs|floatformat:'0g' }}</td><td class="num">{{ b.registrations|floatformat:'0g' }}</td><td class="num">{{ b.paying|floatformat:'0g' }}</td><td class="num">{{ b.revenue_cents|money0 }}</td><td class="num">{{ b.conv|pct:2 }}</td>
+  </tr>{% empty %}<tr><td colspan="14"><div class="f-empty">No advertised books yet. Tie an ad campaign to a Book ID, or create a campaign link.</div></td></tr>{% endfor %}</tbody>
+</table></div></form>
+<p style="color:var(--f-muted);font-size:12.5px">Revenue = ad-attributed revenue plus coins spent unlocking the book (1 coin = 1¢). Ch. 1 / Ch. 5 = readers who reached those chapters in the app.</p>
+{% endblock %}
