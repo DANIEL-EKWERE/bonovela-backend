@@ -18,7 +18,7 @@ DEBUG = config('DEBUG', default=False, cast=bool)
 ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1', cast=Csv())
 CSRF_TRUSTED_ORIGINS = config('CSRF_TRUSTED_ORIGINS', default='', cast=Csv())
 
-# Render sets RENDER_EXTERNAL_HOSTNAME (e.g. bonovela.onrender.com).
+# Render sets RENDER_EXTERNAL_HOSTNAME (e.g. bonovela-backend.onrender.com).
 RENDER_HOST = config('RENDER_EXTERNAL_HOSTNAME', default='')
 if RENDER_HOST:
     ALLOWED_HOSTS.append(RENDER_HOST)

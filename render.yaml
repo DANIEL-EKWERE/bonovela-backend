@@ -4,7 +4,7 @@
 
 services:
   - type: web
-    name: bonovela
+    name: bonovela-backend
     runtime: python
     # Paid plan: needed for the media disk and the pre-deploy step.
     plan: 0.5c-512mb
