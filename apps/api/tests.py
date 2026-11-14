@@ -123,6 +123,31 @@ class BonovelaAPITests(TestCase):
         data = self.login('author@bonovela.app').get('/api/author/income/').data
         self.assertIn('available_cents', data)
         self.assertNotIn('attendance', [t['type'] for t in data['types']])
+        self.assertEqual([t['type'] for t in data['types']],
+                         ['profit_share', 'completion', 'one_time', 'reward_share', 'carry_over'])
+        self.assertIn('minimum_cents', data['withdraw'])
+
+    def test_author_withdrawals_api(self):
+        from apps.wallet.models import AuthorEarning, Payout
+        c = self.login('author@bonovela.app')
+        from apps.users.models import User
+        author = User.objects.get(email='author@bonovela.app')
+        Payout.objects.filter(author=author).delete()
+        AuthorEarning.objects.create(author=author, type='profit_share', amount_cents=30000)
+        bank = {'method': 'bank', 'country': 'Nigeria', 'currency': 'USD', 'bank_name': 'FCMB',
+                'swift_code': 'FCMBNGLA', 'account_detail': '1047547276', 'account_name': 'Joy Mercy Osemeke',
+                'address': 'Agbara Branch', 'city': 'Lagos', 'state': 'Edo', 'postal_code': '100001'}
+        r = c.post('/api/author/withdrawals/', {**bank, 'amount_cents': 5000, 'confirmed': True}, format='json')
+        self.assertEqual(r.status_code, 400)  # under the minimum
+        r = c.post('/api/author/withdrawals/', {**bank, 'amount_cents': 20000}, format='json')
+        self.assertEqual(r.status_code, 400)  # not confirmed
+        r = c.post('/api/author/withdrawals/', {**bank, 'amount_cents': 20000, 'confirmed': True}, format='json')
+        self.assertEqual((r.status_code, r.data['status']), (201, 'Pending'))
+        r = c.post('/api/author/withdrawals/', {**bank, 'amount_cents': 10000, 'confirmed': True}, format='json')
+        self.assertEqual(r.data['code'], 'withdrawal')  # one a month
+        data = c.get('/api/author/withdrawals/').data
+        self.assertEqual(len(data['withdrawals']), 1)
+        self.assertTrue(data['rules']['placed_this_month'])
 
     def test_short_collections(self):
         data = APIClient().get('/api/shorts/collections/').data

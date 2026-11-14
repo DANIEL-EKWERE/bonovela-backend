@@ -178,7 +178,7 @@ def _reports(qs):
         if b.status == 'sent' and b.recipients:
             users = b.messages.values('user')
             b.purchases = Transaction.objects.filter(
-                user__in=users, kind__in=segments.PAID_KINDS,
+                user__in=users, kind__in=segments.PAID_KINDS, status='succeeded',
                 created_at__gte=b.sent_at, created_at__lt=b.sent_at + timedelta(days=7)).count()
             b.open_rate = b.opens * 100 / b.recipients
         else:
@@ -291,7 +291,7 @@ def codes(request):
         c.cost = c.n_uses * c.bonus * (chapter_price if c.reward == 'vouchers' else 1)
         rev = 0
         for r in CodeRedemption.objects.filter(code=c):
-            rev += Transaction.objects.filter(user_id=r.user_id, kind__in=segments.PAID_KINDS,
+            rev += Transaction.objects.filter(user_id=r.user_id, kind__in=segments.PAID_KINDS, status='succeeded',
                                               created_at__gte=r.created_at,
                                               created_at__lt=r.created_at + timedelta(days=30)) \
                 .aggregate(t=Sum('price_cents'))['t'] or 0

@@ -1,21 +1,7 @@
-{% extends 'dashboard/base.html' %}{% load bv %}
-{% block title %}Transactions{% endblock %}
-{% block heading %}Transactions{% endblock %}
-{% block actions %}<a class="btn sm ghost" href="?{{ query }}&export=csv"><i class="ph ph-download-simple"></i><span class="hide-mobile">CSV</span></a>{% endblock %}
+{% extends 'dashboard/finance/layout.html' %}{% load bv %}
+{% block title %}{{ title }}{% endblock %}
 {% block content %}
-<form method="get" class="card row wrap" style="gap:8px;margin-bottom:12px">
-  <input type="text" name="q" value="{{ q }}" placeholder="Email or title" style="flex:2;min-width:160px">
-  <select name="kind" style="flex:1;min-width:140px"><option value="">All kinds</option><option value="paid" {% if kind == 'paid' %}selected{% endif %}>Paid (top-ups + Plus)</option>{% for k, l in kinds %}<option value="{{ k }}" {% if k == kind %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
-  <input type="date" name="from" value="{{ start }}" style="flex:1;min-width:130px">
-  <input type="date" name="to" value="{{ end }}" style="flex:1;min-width:130px">
-  <button class="btn sm">Filter</button>
-</form>
-<p class="hint" style="margin-bottom:8px">{{ count }} transactions · {{ total|money }}{% if count > 200 %} · showing the latest 200 (export for all){% endif %}</p>
-<div class="table-wrap"><table class="table">
-  <tr><th>When</th><th>User</th><th>Kind</th><th class="hide-mobile">Title</th><th>Coins</th><th>USD</th></tr>
-  {% for t in tx %}<tr><td class="nowrap small">{{ t.created_at|date:"Y-m-d H:i" }}</td><td class="small"><span class="truncate" style="display:block;max-width:170px">{{ t.user.email }}</span></td>
-    <td><span class="chip grey">{{ t.get_kind_display }}</span></td><td class="hide-mobile small">{{ t.title }}</td>
-    <td class="nowrap">{% if t.coins > 0 %}+{% endif %}{{ t.coins }}</td><td class="nowrap">{% if t.price_cents %}<b>{{ t.price_cents|money }}</b>{% else %}—{% endif %}</td></tr>
-  {% empty %}<tr><td colspan="6" class="muted">No transactions match.</td></tr>{% endfor %}
-</table></div>
+<div class="f-head"><div><div class="f-eyebrow">{{ eyebrow }}</div><h1>{{ title }}</h1><p>{{ blurb }}</p></div></div>
+{% include 'dashboard/finance/_tx_table.html' %}
+<p style="font-size:12.5px;color:var(--f-muted);margin-top:12px">Coin purchases and subscriptions are real-money payments; only succeeded ones are revenue. Chapter unlocks and gifts are paid in coins and shown at coin value (1 coin = 1¢).</p>
 {% endblock %}

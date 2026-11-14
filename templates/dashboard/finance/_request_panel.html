@@ -1,0 +1,44 @@
+{% load bv %}{% if current %}{% with p=current %}<div class="f-sheet open side" id="reqPanel"><div class="p">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start"><div><h2 style="margin:0">Payment request</h2><div style="font-family:ui-monospace,monospace;font-size:12px;color:var(--f-muted)">{{ p.code }}</div></div><a href="?tab={{ tab }}" style="font-size:22px;color:var(--f-muted)" aria-label="Close">×</a></div>
+  <div style="background:#FBEAEE;border-radius:14px;padding:16px;margin:14px 0">
+    <div style="font-size:13px;color:var(--f-muted)">{{ p.get_category_display }}</div>
+    <div style="display:flex;align-items:baseline;gap:8px"><span class="display" style="font-size:32px;color:var(--f-primary)">{{ p.requested_cents|money }}</span><span style="font-size:13px;color:var(--f-muted)">requested</span></div>
+    {% if p.approved_cents is not None %}<div style="font-size:13px">Approved: <b>{{ p.approved_cents|money }}</b></div>{% elif p.approved_by_id %}<div style="font-size:13px">First approval: <b>{{ p.amount_cents|money }}</b> by {{ p.approved_by.display_name }} — awaiting a second approver</div>{% endif %}
+    <div style="margin-top:6px">{% include 'dashboard/finance/_tx_status.html' with st=p.status label=p.get_status_display %}</div>
+  </div>
+  <dl class="f-kv">
+    <dt>Beneficiary</dt><dd><b style="color:var(--f-primary)">{{ p.author.display_name }}</b><div style="font-size:12px;color:var(--f-muted)">{{ p.author.email }}</div></dd>
+    <dt>ID</dt><dd style="font-family:ui-monospace,monospace">{{ p.author|payee }}</dd>
+    <dt>Earnings source</dt><dd>{{ p.get_category_display }}</dd>
+    <dt>Method</dt><dd>{% if method %}{{ method.get_method_display }}{% else %}<span class="f-chip bad">No payment info</span>{% endif %}</dd>
+    {% if method %}<dt>Account holder</dt><dd>{{ method.account_name }}</dd>
+    <dt>Payment details</dt><dd>{% if method.bank_name %}{{ method.bank_name }} {% endif %}•••• {{ method.account_detail|slice:'-4:' }}</dd>
+    {% if method.swift_code %}<dt>SWIFT / BIC</dt><dd>{{ method.swift_code }}</dd>{% endif %}{% endif %}
+    <dt>Requested</dt><dd>{{ p.created_at|date:'d M Y, H:i' }}</dd>
+    <dt>Unreleased earnings</dt><dd><b>{{ unreleased|money }}</b></dd>
+    {% if p.reference %}<dt>Payout reference</dt><dd>{{ p.reference }}</dd>{% endif %}
+    {% if p.rejection_reason %}<dt>Internal rejection reason</dt><dd>{{ p.rejection_reason }}</dd>{% endif %}
+  </dl>
+  {% if can_approve %}<form method="post" action="{% url 'dashboard:finance_request_action' p.pk %}" style="margin-top:18px">{% csrf_token %}<input type="hidden" name="next" value="{{ request.path }}?tab={{ tab }}&open={{ p.pk }}">
+    {% if p.status in 'pending review hold' %}
+      <label class="f-field"><span>Amount to approve ($)</span><input type="number" name="amount" step="0.01" min="0.01" max="{{ p.requested_cents|dollars }}" value="{% if p.approved_by_id %}{{ p.amount_cents|dollars }}{% else %}{{ p.requested_cents|dollars }}{% endif %}"><small>Never more than requested. Only the approved amount is credited.{% if threshold %} {{ threshold|money0 }} or more needs two different approvers.{% endif %}</small></label>
+      <label class="f-field"><span>Internal note (required to reject)</span><textarea name="note" rows="2" placeholder="Internal rejection reason or note"></textarea></label>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <button class="f-btn ok" name="action" value="approve" style="justify-content:center"><i class="ph ph-check-circle"></i>Approve</button>
+        <button class="f-btn no" name="action" value="reject" style="justify-content:center" onclick="if(!this.form.note.value.trim()){alert('Add the internal rejection reason first.');return false}return confirm('Reject confidentially? The beneficiary is not told.')"><i class="ph ph-eye-slash"></i>Reject</button>
+        {% if p.status != 'review' %}<button class="f-btn ghost" name="action" value="review" style="justify-content:center">Request review</button>{% endif %}
+        {% if p.status != 'hold' %}<button class="f-btn ghost" name="action" value="hold" style="justify-content:center">Place on hold</button>{% endif %}
+        {% if p.status != 'pending' %}<button class="f-btn ghost" name="action" value="pending" style="justify-content:center">Back to pending</button>{% endif %}
+      </div>
+    {% elif p.status == 'approved' %}
+      <label class="f-field"><span>Payout confirmation reference (required)</span><input type="text" name="reference" placeholder="e.g. PSTK-TRF-123456"></label>
+      <label class="f-field"><span>Internal note (optional)</span><input type="text" name="note"></label>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <button class="f-btn ok" name="action" value="paid" style="justify-content:center"><i class="ph ph-check"></i>Confirm paid</button>
+        <button class="f-btn danger" name="action" value="failed" style="justify-content:center">Payout failed</button></div>
+    {% endif %}
+  </form>{% endif %}
+  <h3 style="font-size:16px;margin:22px 0 10px">History</h3>
+  <div class="f-timeline"><div><div>Requested</div><div class="m">{{ p.created_at|date:'d M Y, H:i' }}{% if p.created_by %} · {{ p.created_by.display_name }}{% endif %}</div></div>
+    {% for e in events %}<div><div>{{ e.action }}</div><div class="m">{{ e.created_at|date:'d M Y, H:i' }} · {{ e.actor.display_name|default:'System' }}{% if e.note %} · {{ e.note }}{% endif %}</div></div>{% endfor %}</div>
+</div></div>{% endwith %}{% endif %}

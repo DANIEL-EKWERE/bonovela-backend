@@ -19,13 +19,12 @@ from apps.editorial import services as editorial
 from apps.editorial.models import ContractApplication
 from apps.engagement.models import Review, ReviewReply
 from apps.users.models import User
-from apps.wallet.models import AuthorEarning, PayoutMethod
-from apps.wallet.services import available_to_withdraw
+from apps.wallet.models import AuthorEarning, Payout, PayoutMethod
+from apps.wallet.services import (WithdrawalError, author_status, place_withdrawal,
+                                  withdrawal_rules)
 
-from ..forms import LANGUAGES, ChapterForm, PayoutForm, StoryBasicsForm, StoryDetailsForm
+from ..forms import LANGUAGES, ChapterForm, PayoutForm, StoryBasicsForm, StoryDetailsForm, WithdrawalForm
 
-# Commission is editors' income, not an author card.
-HIDDEN_INCOME = AuthorEarning.RETIRED_TYPES | {'editor_commission'}
 
 
 def author_area(view):
@@ -440,11 +439,9 @@ def income(request):
     totals = {k: 0 for k, _ in AuthorEarning.TYPE_CHOICES}
     for e in in_month:
         totals[e.type] += e.amount_cents
-    cards = [{'key': k, 'label': label, 'cents': totals[k]} for k, label in AuthorEarning.TYPE_CHOICES
-             if k not in HIDDEN_INCOME]
-    # Second card, where MAB used to be: the balance the author can withdraw now.
-    cards.insert(1, {'key': 'available', 'label': 'Available to withdraw',
-                     'cents': available_to_withdraw(request.user)})
+    labels = dict(AuthorEarning.TYPE_CHOICES)
+    cards = [{'key': k, 'label': labels[k], 'cents': totals[k]} for k in AuthorEarning.INCOME_CARDS]
+    rules = withdrawal_rules(request.user)
 
     payout = PayoutMethod.objects.filter(author=request.user).first()
     payout_form = PayoutForm(request.POST or None, instance=payout)
@@ -461,5 +458,41 @@ def income(request):
         'month': month, 'cards': cards, 'month_total': sum(totals.values()),
         'total': sum(e.amount_cents for e in earnings), 'payout': payout, 'payout_form': payout_form,
         'prev_month': prev_m, 'next_month': next_first.strftime('%Y-%m') if next_first <= today.replace(day=1) else None,
-        'recent': in_month[:20],
+        'recent': in_month[:20], 'rules': rules,
+        'history_n': Payout.objects.filter(author=request.user).exclude(status=Payout.STATUS_REJECTED).count(),
     })
+
+
+@author_area
+def withdraw(request):
+    """Place a withdrawal: amount and payment account, checked in the
+    "Please Check Your Information" dialog, then placed."""
+    rules = withdrawal_rules(request.user)
+    method = PayoutMethod.objects.filter(author=request.user).first()
+    initial = {'amount': f'{rules["available"] / 100:.2f}'}
+    if not method:
+        initial.update(email=request.user.email, account_name=request.user.get_full_name())
+    form = WithdrawalForm(request.POST or None, instance=method or PayoutMethod(author=request.user), initial=initial)
+    if request.method == 'POST' and form.is_valid():
+        saved = form.save(commit=False)
+        saved.author = request.user
+        saved.save()
+        try:
+            p = place_withdrawal(request.user, int(form.cleaned_data['amount'] * 100), saved)
+        except WithdrawalError as e:
+            form.add_error('amount', str(e))
+        else:
+            messages.success(request, f'Withdrawal of ${p.requested_cents / 100:,.2f} placed. It is processed on the '
+                                      '11th of next month.')
+            return redirect('dashboard:author_withdrawals')
+    return render(request, 'dashboard/author/withdraw.html', {'form': form, 'rules': rules, 'method': method})
+
+
+@author_area
+def withdrawals(request):
+    """Withdrawal history: every payment request and its status."""
+    rows = list(Payout.objects.filter(author=request.user).exclude(status=Payout.STATUS_REJECTED))
+    for p in rows:
+        p.author_status = author_status(p)
+    current = next((p for p in rows if str(p.pk) == request.GET.get('id')), None)
+    return render(request, 'dashboard/author/withdrawals.html', {'rows': rows, 'current': current})

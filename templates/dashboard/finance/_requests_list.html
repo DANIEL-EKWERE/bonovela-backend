@@ -1,0 +1,14 @@
+{% load bv %}<div class="f-card">
+  <div class="h" style="flex-wrap:wrap"><div class="f-tabs" style="margin:0">{% for t in tabs %}<a class="{% if t.on %}on{% endif %}" href="?tab={{ t.key }}">{{ t.label }}{% if t.key != 'all' %} ({{ t.n }}){% endif %}</a>{% endfor %}</div></div>
+  <div class="f-scroll"><table class="f-table">
+    <tr><th>Requested</th><th>Payment ID</th><th>Beneficiary</th><th>Category</th><th class="num">Requested</th><th class="num">Approved</th><th>Status</th></tr>
+    {% for p in page %}<tr style="cursor:pointer" onclick="location='?tab={{ tab }}&open={{ p.pk }}'">
+      <td style="white-space:nowrap">{{ p.created_at|date:'d M Y' }}</td><td style="font-family:ui-monospace,monospace;font-size:13px">{{ p.code }}</td>
+      <td><b>{{ p.author.display_name }}</b><div style="font-size:12px;color:var(--f-muted)">{{ p.author|payee }} · {{ p.author.email }}</div></td>
+      <td>{{ p.get_category_display }}</td><td class="num">{{ p.requested_cents|money }}</td>
+      <td class="num">{% if p.approved_cents is not None %}{{ p.approved_cents|money }}{% else %}—{% endif %}</td>
+      <td>{% include 'dashboard/finance/_tx_status.html' with st=p.status label=p.get_status_display %}{% if p.approved_by_id and p.status != 'approved' and p.status != 'paid' %} <span class="f-chip gold">1 of 2</span>{% endif %}</td>
+    </tr>{% empty %}<tr><td colspan="7" class="f-empty">No payment requests here.</td></tr>{% endfor %}
+  </table></div>
+  {% include 'dashboard/finance/_pager.html' with query='tab='|add:tab %}
+</div>

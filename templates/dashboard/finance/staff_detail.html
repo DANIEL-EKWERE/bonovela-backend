@@ -1,0 +1,15 @@
+{% extends 'dashboard/finance/layout.html' %}{% load bv %}
+{% block title %}{{ s|stf }}{% endblock %}
+{% block content %}
+<div class="f-head"><div><div class="f-eyebrow"><a href="{% url 'dashboard:finance_staff' %}">Staff records</a> · Staff · {{ s|stf }}</div><h1>{{ s.display_name }}</h1><p>{{ pos }} · {{ dept }} · {{ s.email }} · joined {{ s.date_joined|date:'d M Y' }}</p></div></div>
+<div class="f-stats">
+  <div class="f-stat hero"><div class="l">Calculated earnings</div><div class="v">{{ totals.calculated|money }}</div><div class="d">{{ arrangement }}</div></div>
+  <div class="f-stat"><div class="l">Approved earnings</div><div class="v">{{ totals.approved|money }}</div></div>
+  <div class="f-stat"><div class="l">Pending payments</div><div class="v">{{ totals.pending|money }}</div></div>
+  <div class="f-stat"><div class="l">Rejected records</div><div class="v">{{ totals.rejected }}</div></div>
+  <div class="f-stat"><div class="l">Completed payments</div><div class="v">{{ totals.paid|money }}</div></div>
+</div>
+<div class="f-card" style="margin-bottom:16px"><div class="h"><h2>Payment history</h2></div>{% include 'dashboard/finance/_requests_table.html' with hide_payee=1 %}</div>
+<div class="f-card"><div class="h"><h2>Earning records</h2></div>
+  {% for e in earnings %}<div class="f-row"><div class="f-grow"><div class="t">{{ e.get_type_display }}{% if e.story %} · {{ e.story.display_title }}{% endif %}</div><div class="m">{{ e.note|default:'' }}</div></div><span class="m">{{ e.created_at|date:'d M Y' }}</span><span class="amt">{{ e.amount_cents|money }}</span></div>{% empty %}<div class="f-empty">No earnings recorded.</div>{% endfor %}</div>
+{% endblock %}

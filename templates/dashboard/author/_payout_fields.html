@@ -1,0 +1,22 @@
+<label class="field"><span class="label"><span class="req"></span> Payment Method</span>{{ f.method }}{{ f.method.errors }}</label>
+<div data-bank>
+  <h3 style="margin:10px 0">Bank account</h3>
+  <label class="field"><span class="label">Account country / region</span>{{ f.country }}{{ f.country.errors }}</label>
+  <label class="field"><span class="label">Account currency</span>{{ f.currency }}{{ f.currency.errors }}</label>
+  <div class="field"><span class="label">Transfer method</span>
+    <div class="card" style="border-left:3px solid var(--primary);padding:12px 14px"><b>SWIFT</b><div class="hint" style="margin:2px 0 0">International bank transfer · Your bank may charge a receiving fee · 0–3 business days</div></div></div>
+  <label class="field"><span class="label">Bank name</span>{{ f.bank_name }}{{ f.bank_name.errors }}</label>
+  <label class="field"><span class="label">SWIFT code / BIC</span>{{ f.swift_code }}{{ f.swift_code.errors }}</label>
+</div>
+<label class="field"><span class="label" data-detail-label>Bank account number</span>{{ f.account_detail }}{{ f.account_detail.errors }}</label>
+<label class="field"><span class="label">Name of account holder</span>{{ f.account_name }}<span class="hint">Full name exactly as it appears on the bank statement — your legal name. No third-party accounts.</span>{{ f.account_name.errors }}</label>
+<div data-bank>
+  <label class="field"><span class="label">Intermediary bank SWIFT code / BIC <span class="hint" style="display:inline">Optional</span></span>{{ f.intermediary_swift }}<span class="hint">Typically only necessary if your bank has told you to use an intermediary bank</span>{{ f.intermediary_swift.errors }}</label>
+  <h3 style="margin:14px 0 10px">Recipient</h3>
+  <label class="field"><span class="label">Nickname <span class="hint" style="display:inline">Optional</span></span>{{ f.nickname }}<span class="hint">For reference only. Not sent to the recipient.</span></label>
+  <label class="field"><span class="label">Email address <span class="hint" style="display:inline">Optional</span></span>{{ f.email }}{{ f.email.errors }}</label>
+  <label class="field"><span class="label">Address</span>{{ f.address }}<span class="hint">Should not be a PO or GPO box address</span>{{ f.address.errors }}</label>
+  <label class="field"><span class="label">City</span>{{ f.city }}{{ f.city.errors }}</label>
+  <label class="field"><span class="label">State / Province</span>{{ f.state }}{{ f.state.errors }}</label>
+  <label class="field"><span class="label">Postal code</span>{{ f.postal_code }}{{ f.postal_code.errors }}</label>
+</div>

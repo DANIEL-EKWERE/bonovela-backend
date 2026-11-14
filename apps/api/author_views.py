@@ -14,7 +14,7 @@ from apps.catalog.models import Chapter, Contest, Story
 from apps.editorial.models import ContractApplication
 from apps.engagement.models import Review, ReviewReply
 from apps.wallet.models import AuthorEarning
-from apps.wallet.services import available_to_withdraw
+from apps.wallet.services import author_status, withdrawal_rules
 
 from . import serializers as s
 
@@ -221,19 +221,68 @@ def income(request):
     by_type = {key: 0 for key, _ in AuthorEarning.TYPE_CHOICES}
     for e in in_month:
         by_type[e.type] += e.amount_cents
+    labels = dict(AuthorEarning.TYPE_CHOICES)
+    rules = withdrawal_rules(request.user)
     return Response({
         'month': month,
         'total_cents': sum(e.amount_cents for e in qs),
         'month_cents': sum(by_type.values()),
-        'available_cents': available_to_withdraw(request.user),
-        'types': [{'type': k, 'label': label, 'amount_cents': by_type[k]} for k, label in AuthorEarning.TYPE_CHOICES
-                  if k not in AuthorEarning.RETIRED_TYPES and k != 'editor_commission'],
+        'available_cents': rules['available'],
+        'withdraw': _rules_json(rules),
+        # The Income cards, in order (then Available to withdraw and Withdrawal history).
+        'types': [{'type': k, 'label': labels[k], 'amount_cents': by_type[k]} for k in AuthorEarning.INCOME_CARDS],
     })
+
+
+def _rules_json(rules):
+    return {'available_cents': rules['available'], 'minimum_cents': rules['minimum'],
+            'maximum_cents': rules['maximum'], 'placed_this_month': rules['placed_this_month'],
+            'can_withdraw': rules['can_withdraw']}
+
+
+def _withdrawal_json(p):
+    return {'id': p.pk, 'code': p.code, 'category': p.get_category_display(), 'requested_cents': p.requested_cents,
+            'approved_cents': p.approved_cents, 'status': author_status(p), 'state': p.status,
+            'created_at': p.created_at, 'paid_at': p.paid_at, 'reference': p.reference if p.paid_at else '',
+            'paid_to': p.method}
+
+
+@api_view(['GET', 'POST'])
+@permission_classes(Author)
+def withdrawals(request):
+    """GET: withdrawal history (rejections stay internal) and the rules.
+    POST {amount_cents, confirmed: true, ...payment account fields}: save
+    the account and place this month's withdrawal."""
+    from apps.dashboard.forms import PayoutForm
+    from apps.wallet.models import Payout, PayoutMethod
+    from apps.wallet.services import WithdrawalError, place_withdrawal
+
+    if request.method == 'POST':
+        current = PayoutMethod.objects.filter(author=request.user).first()
+        form = PayoutForm({**{k: request.data.get(k, '') for k in PAYOUT_FIELDS},
+                           'confirmed': request.data.get('confirmed') in (True, 'true', 'True', 'on')},
+                          instance=current)
+        if not form.is_valid():
+            return Response({'detail': 'Please check the highlighted fields.', 'errors': form.errors}, status=400)
+        method = form.save(commit=False)
+        method.author = request.user
+        method.save()
+        try:
+            cents = int(request.data.get('amount_cents') or 0)
+            p = place_withdrawal(request.user, cents, method)
+        except (ValueError, TypeError):
+            return Response({'detail': 'Enter the amount to withdraw.'}, status=400)
+        except WithdrawalError as e:
+            return Response({'detail': str(e), 'code': 'withdrawal'}, status=400)
+        return Response(_withdrawal_json(p), status=201)
+    rows = Payout.objects.filter(author=request.user).exclude(status=Payout.STATUS_REJECTED)
+    return Response({'rules': _rules_json(withdrawal_rules(request.user)),
+                     'withdrawals': [_withdrawal_json(p) for p in rows]})
 
 
 
 PAYOUT_FIELDS = ['method', 'country', 'currency', 'bank_name', 'swift_code', 'account_detail', 'account_name',
-                 'address', 'city', 'state', 'postal_code']
+                 'intermediary_swift', 'nickname', 'email', 'address', 'city', 'state', 'postal_code']
 
 
 @api_view(['GET', 'PUT'])

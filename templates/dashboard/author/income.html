@@ -27,6 +27,16 @@
       <span class="amount">{{ c.cents|money }}</span>
     </div>
   {% endfor %}
+  <a class="income-card" href="{% url 'dashboard:author_withdraw' %}" style="background:linear-gradient(135deg, #FFC23D, #FF8A1F)">
+    <span>Available to withdraw</span>
+    <span class="amount">{{ rules.available|money }}</span>
+    <span style="font-size:13px;position:relative;z-index:1">{% if rules.can_withdraw %}<b>Withdraw now ›</b>{% elif rules.placed_this_month %}This month's withdrawal is placed{% else %}Withdraw from {{ rules.minimum|money }}{% endif %}</span>
+  </a>
+  <a class="income-card" href="{% url 'dashboard:author_withdrawals' %}" style="background:linear-gradient(135deg, #FFC23D, #FF8A1F)">
+    <span>Withdrawal history</span>
+    <span class="amount" style="font-size:22px">{{ history_n }} record{{ history_n|pluralize }}</span>
+    <span style="font-size:13px;position:relative;z-index:1"><b>View ›</b></span>
+  </a>
 </div>
 
 {% if recent %}
@@ -36,82 +46,16 @@
 </div>
 {% endif %}
 
-<div class="sheet{% if payout_form.errors %} open{% endif %}" id="payout"><div class="panel">
+<div class="sheet{% if payout_form.errors or request.GET.payment %} open{% endif %}" id="payout"><div class="panel">
   <div class="row between" style="margin-bottom:12px"><h2>Payment Info</h2><button class="icon-btn" data-close><i class="ph ph-x"></i></button></div>
   <div class="notice warn" style="margin-bottom:12px">The account holder name must be your full <b>legal name</b>, exactly as it appears on your bank account. No third-party accounts can be used.</div>
   {% if not payout %}<p class="hint" style="margin-bottom:12px">Add where we should send your earnings.</p>{% endif %}
   <form method="post" id="payoutForm">{% csrf_token %}{{ payout_form.confirmed }}
     {% if payout_form.non_field_errors %}<div class="notice bad" style="margin-bottom:12px">{{ payout_form.non_field_errors|join:" " }}</div>{% endif %}
-    <label class="field"><span class="label">Payment method</span>{{ payout_form.method }}{{ payout_form.method.errors }}</label>
-    <div data-bank>
-      <h3 style="margin:6px 0 10px">Bank account</h3>
-      <label class="field"><span class="label">Account country / region</span>{{ payout_form.country }}{{ payout_form.country.errors }}</label>
-      <label class="field"><span class="label">Account currency</span>{{ payout_form.currency }}{{ payout_form.currency.errors }}</label>
-      <label class="field"><span class="label">Bank name</span>{{ payout_form.bank_name }}{{ payout_form.bank_name.errors }}</label>
-      <label class="field"><span class="label">SWIFT code / BIC</span>{{ payout_form.swift_code }}{{ payout_form.swift_code.errors }}</label>
-    </div>
-    <label class="field"><span class="label" data-detail-label>Bank account number / PayPal email</span>{{ payout_form.account_detail }}{{ payout_form.account_detail.errors }}</label>
-    <label class="field"><span class="label">Name of account holder (legal name)</span>{{ payout_form.account_name }}<span class="hint">Full name exactly as it appears on the bank statement</span>{{ payout_form.account_name.errors }}</label>
-    <div data-bank>
-      <h3 style="margin:6px 0 10px">Recipient address</h3>
-      <label class="field"><span class="label">Address</span>{{ payout_form.address }}<span class="hint">Should not be a PO or GPO box address</span>{{ payout_form.address.errors }}</label>
-      <div class="grid cols-2 stack-sm">
-        <label class="field"><span class="label">City</span>{{ payout_form.city }}{{ payout_form.city.errors }}</label>
-        <label class="field"><span class="label">State / Province</span>{{ payout_form.state }}{{ payout_form.state.errors }}</label>
-      </div>
-      <label class="field"><span class="label">Postal code</span>{{ payout_form.postal_code }}{{ payout_form.postal_code.errors }}</label>
-    </div>
+    {% include 'dashboard/author/_payout_fields.html' with f=payout_form %}
     <button type="button" class="btn block" id="payoutSubmit">Submit</button>
   </form>
 </div></div>
 
-<div class="sheet" id="payoutCheck"><div class="panel">
-  <h2>Please Check Your Information</h2>
-  <p class="hint" style="margin:6px 0 14px">We will send your payment to the account you provided. Please make sure all information is correct before submitting. If a transfer fails because of incorrect details, it will be delayed until the next payment cycle.</p>
-  <div class="card flush" id="payoutSummary"></div>
-  <button type="button" class="btn block" id="payoutYes" style="margin-top:14px">YES, I am aware</button>
-  <button type="button" class="btn ghost block" data-close style="margin-top:6px">Close</button>
-</div></div>
-
-<script>
-(() => {
-  const form = document.getElementById('payoutForm');
-  const method = form.elements.method;
-  const syncMethod = () => {
-    const bank = method.value === 'bank';
-    form.querySelectorAll('[data-bank]').forEach(el => el.hidden = !bank);
-    form.querySelector('[data-detail-label]').textContent = bank ? 'Bank account number' : 'PayPal email';
-  };
-  method.addEventListener('change', syncMethod);
-  syncMethod();
-
-  const rows = [['Payment method', 'method'], ['Full name of account holder', 'account_name'],
-                ['Account number / email', 'account_detail'], ["Beneficiary's bank", 'bank_name'],
-                ['SWIFT code / BIC', 'swift_code'], ['Country', 'country'], ['Currency', 'currency'],
-                ['Address', 'address'], ['City', 'city'], ['State / Province', 'state'], ['Postal code', 'postal_code']];
-  document.getElementById('payoutSubmit').addEventListener('click', () => {
-    if (!form.reportValidity()) return;
-    const bank = method.value === 'bank';
-    const summary = document.getElementById('payoutSummary');
-    summary.replaceChildren();
-    for (const [label, name] of rows) {
-      const el = form.elements[name];
-      if (!el || (!bank && el.closest('[data-bank]'))) continue;
-      const value = el.tagName === 'SELECT' ? el.options[el.selectedIndex]?.text : el.value;
-      const item = document.createElement('div');
-      item.className = 'list-item';
-      item.innerHTML = '<div class="grow"><div class="hint"></div><b></b></div>';
-      item.querySelector('.hint').textContent = label;
-      item.querySelector('b').textContent = value || '—';
-      summary.append(item);
-    }
-    document.getElementById('payout').classList.remove('open');
-    document.getElementById('payoutCheck').classList.add('open');
-  });
-  document.getElementById('payoutYes').addEventListener('click', () => {
-    form.elements.confirmed.value = 'True';
-    form.submit();
-  });
-})();
-</script>
+{% include 'dashboard/author/_payout_check.html' with form_id='payoutForm' submit_id='payoutSubmit' final_label='Save payment info' %}
 {% endblock %}

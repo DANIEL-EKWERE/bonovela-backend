@@ -1,38 +1,41 @@
 {% extends 'dashboard/finance/layout.html' %}{% load bv %}
 {% block title %}Bonovela Treasury{% endblock %}
 {% block content %}
-<div class="f-head"><div>
-  <div class="f-eyebrow">Treasury</div>
-  <h1>Bonovela Treasury</h1>
-  <p>Settled, pending and reserved funds are kept apart. Only settled funds can be released.</p>
-</div></div>
-
+<div class="f-head"><div><div class="f-eyebrow">Highly protected</div><h1>Bonovela Treasury</h1><p>The central financial record. Recorded ledger balances are shown separately from bank or provider-verified balances.</p></div>
+  {% if can_record %}<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="f-btn ghost" data-open="settle"><i class="ph ph-arrow-square-in"></i>Record settlement</button><button class="f-btn" data-open="verify"><i class="ph ph-seal-check"></i>Record verified balance</button></div>{% endif %}</div>
 <div class="f-stats">
-  <div class="f-stat hero"><div class="l">Total held <i class="ph ph-wallet"></i></div><div class="v">{{ held|money0 }}</div><div class="d">Sales in, less payouts and bills paid</div></div>
-  <div class="f-stat"><div class="l">Settled <i class="ph ph-arrow-down-left"></i></div><div class="v">{{ settled|money0 }}</div><div class="d">Available to release</div></div>
-  <div class="f-stat"><div class="l">Pending <i class="ph ph-clock"></i></div><div class="v">{{ pending|money0 }}</div><div class="d">Payouts not yet sent {{ pending_payouts|money0 }} · bills due {{ bills_due|money0 }}</div></div>
-  <div class="f-stat"><div class="l">Reserved <i class="ph ph-lock-simple"></i></div><div class="v">{{ reserved|money0 }}</div><div class="d">Chargeback reserve · {{ reserve_pct|floatformat:"-2" }}% of 90 days' sales</div></div>
+  <div class="f-stat hero"><div class="l">Total recorded revenue</div><div class="v">{{ t.gross|money }}</div><div class="d">All succeeded reader payments</div></div>
+  <div class="f-stat"><div class="l">Total settled funds</div><div class="v">{{ t.settled_net|money }}</div><div class="d">Received in settlement accounts</div></div>
+  <div class="f-stat gold"><div class="l">Available treasury balance</div><div class="v">{{ t.available|money }}</div><div class="d">Settled − reserved − payables</div></div>
+  <div class="f-stat"><div class="l">Reserved funds</div><div class="v">{{ t.reserved|money }}</div><div class="d">Not freely available</div></div>
+  <div class="f-stat"><div class="l">Pending settlements</div><div class="v">{{ t.pending_settlement|money }}</div></div>
+  <div class="f-stat"><div class="l">Total payables</div><div class="v">{{ t.payables|money }}</div><div class="d">Approved, awaiting payout</div></div>
+  <div class="f-stat"><div class="l">Completed outgoing payments</div><div class="v">{{ t.paid_out|money }}</div></div>
+  <div class="f-stat"><div class="l">Total refunds</div><div class="v">{{ t.refunds|money }}</div></div>
+  <div class="f-stat"><div class="l">Operational expenses</div><div class="v">{{ t.expenses|money }}</div><div class="d">Paid expenses</div></div>
+  <div class="f-stat gold"><div class="l">Retained platform revenue</div><div class="v">{{ t.retained|money }}</div></div>
 </div>
-
-<div class="f-card" style="margin-bottom:24px">
-  <div class="h"><h2>Money in vs money out</h2><div class="f-legend"><span><i style="background:var(--f-chart-1)"></i>In</span><span><i style="background:var(--f-chart-2)"></i>Out</span></div></div>
-  <div class="b"><div class="f-bars">
-    {% for m in months %}<div class="grp"><div class="pair">
-      <div class="bar" style="height:{{ m.in_pct }}%" title="In {{ m.in|money }}"></div>
-      <div class="bar out" style="height:{{ m.out_pct }}%" title="Out {{ m.out|money }}"></div>
-    </div><span class="lbl">{{ m.label }}</span></div>{% endfor %}
-  </div></div>
-</div>
-
-<div class="f-card">
-  <div class="h"><h2>Latest ledger movements</h2></div>
-  {% for x in ledger %}
-  <div class="f-row">
-    <span class="f-ico {% if x.cents >= 0 %}in{% endif %}"><i class="ph ph-arrow-{% if x.cents >= 0 %}down-left{% else %}up-right{% endif %}"></i></span>
-    <div class="f-grow"><div class="t">{{ x.title }}</div><div class="m">{{ x.code }} · {{ x.account }} · {% if x.timed %}{{ x.when|date:"M j, h:i A" }}{% else %}{{ x.when|date:"M j" }}{% endif %}</div></div>
-    <div class="amt"><div class="{% if x.cents >= 0 %}f-in{% endif %}">{{ x.cents|signed }}</div>
-      <span class="f-chip {% if x.status == 'settled' %}ok{% elif x.status == 'failed' %}bad{% else %}warn{% endif %}">{{ x.status|capfirst }}</span></div>
-  </div>
-  {% empty %}<div class="f-empty">No money has moved yet.</div>{% endfor %}
-</div>
+<div class="f-card" style="margin-bottom:16px"><div class="h"><div><h2>Treasury accounts</h2><div style="font-size:12.5px;color:var(--f-muted)">Recorded ledger balance vs the latest balance verified against a bank or provider statement.</div></div></div>
+  <div class="f-scroll"><table class="f-table"><tr><th>Account</th><th>Type</th><th class="num">Recorded balance</th><th class="num">Verified balance</th><th class="num">Difference</th></tr>
+  {% for a in accounts %}<tr><td><b>{{ a.name }}</b><div style="font-size:12px;color:var(--f-muted)">{{ a.desc }}</div></td><td><span class="f-chip">{{ a.type }}</span></td><td class="num">{{ a.recorded|money }}</td>
+    <td class="num">{% if a.verified %}{{ a.verified.cents|money }}<div style="font-size:11px;color:var(--f-muted)">{{ a.verified.as_of|date:'d M Y' }} · {{ a.verified.statement_ref }}</div>{% else %}<span style="color:var(--f-muted)">Not yet verified</span>{% endif %}</td>
+    <td class="num">{% if a.difference is None %}—{% elif a.difference == 0 %}<span class="f-chip ok">Matches</span>{% else %}<span class="f-chip bad">{{ a.difference|signed }}</span>{% endif %}</td></tr>{% endfor %}</table></div></div>
+<div class="f-card"><div class="h"><div><h2>Treasury transaction history</h2><div style="font-size:12.5px;color:var(--f-muted)">Settled funds, line by line, with the previous and new balance. Lines are built from recorded settlements, payouts, expenses and refunds — corrections are new entries.</div></div></div>
+  <div class="f-scroll"><table class="f-table"><tr><th>Date</th><th>Treasury txn</th><th>Description</th><th class="num">Debit</th><th class="num">Credit</th><th class="num">Previous</th><th class="num">New balance</th><th>Reference</th></tr>
+  {% for l in journal %}<tr><td style="white-space:nowrap">{{ l.when|date:'d M Y, H:i' }}</td><td><div style="font-family:ui-monospace,monospace;font-size:13px">{{ l.code }}</div><div style="font-size:12px;color:var(--f-muted)">{{ l.kind }}</div></td>
+    <td>{{ l.desc }}<div style="font-size:12px;color:var(--f-muted)">{{ l.ref }}</div></td><td class="num">{% if l.debit %}{{ l.debit|money }}{% endif %}</td><td class="num">{% if l.credit %}{{ l.credit|money }}{% endif %}</td>
+    <td class="num" style="color:var(--f-muted)">{{ l.previous|money }}</td><td class="num"><b>{{ l.balance|money }}</b></td><td style="font-size:12.5px">{{ l.officer|default:'—' }}</td></tr>{% empty %}<tr><td colspan="8" class="f-empty">No settled funds yet. Record a settlement when a store or provider pays out.</td></tr>{% endfor %}</table></div></div>
+{% if can_record %}
+<div class="f-sheet" id="verify"><div class="p"><h2>Record verified balance</h2><form method="post">{% csrf_token %}<input type="hidden" name="action" value="verify">
+  <label class="f-field"><span>Account</span><select name="account">{% for a in accounts %}<option value="{{ a.key }}">{{ a.name }}</option>{% endfor %}</select></label>
+  <label class="f-field"><span>Balance on the statement ($)</span><input type="number" name="amount" step="0.01" required></label>
+  <label class="f-field"><span>Statement date</span><input type="date" name="as_of" value="{{ today|date:'Y-m-d' }}" required></label>
+  <label class="f-field"><span>Statement reference</span><input type="text" name="statement_ref" placeholder="e.g. GTB-STMT-2026-11" required></label>
+  <div style="display:flex;gap:8px;justify-content:flex-end"><button type="button" class="f-btn ghost" data-close>Cancel</button><button class="f-btn">Record</button></div></form></div></div>
+<div class="f-sheet" id="settle"><div class="p"><h2>Record settlement</h2><p style="color:var(--f-muted);margin-top:0">When Google Play, the App Store or a gateway pays Bonovela, mark their succeeded payments up to that date as settled.</p><form method="post">{% csrf_token %}<input type="hidden" name="action" value="settle">
+  <label class="f-field"><span>Provider</span><select name="provider">{% for k, l in providers %}<option value="{{ k }}">{{ l }}</option>{% endfor %}<option value="none">Not recorded (older payments)</option></select></label>
+  <label class="f-field"><span>Payments up to and including</span><input type="date" name="upto" value="{{ today|date:'Y-m-d' }}" required></label>
+  <label class="f-field"><span>Provider payout reference</span><input type="text" name="settlement_ref" placeholder="e.g. GP-PAYOUT-2026-10" required></label>
+  <div style="display:flex;gap:8px;justify-content:flex-end"><button type="button" class="f-btn ghost" data-close>Cancel</button><button class="f-btn">Mark settled</button></div></form></div></div>
+{% endif %}
 {% endblock %}

@@ -90,3 +90,29 @@ def mask_email(email):
     """reader@example.com → re•••@example.com (marketing sees no full emails)."""
     name, _, domain = (email or '').partition('@')
     return f'{name[:2]}•••@{domain}' if domain else (email or '—')
+
+
+def _pk(value):
+    return getattr(value, 'pk', value)
+
+
+@register.filter
+def rd(user):
+    """Reader ID, shared by Finance and Marketing: RD-100042."""
+    return f'RD-{100000 + _pk(user)}'
+
+
+@register.filter
+def aut(user):
+    return f'AUT-{_pk(user)}'
+
+
+@register.filter
+def stf(user):
+    return f'STF-{_pk(user)}'
+
+
+@register.filter
+def payee(user):
+    """AUT- for authors, STF- for staff."""
+    return f"{'STF' if getattr(user, 'role', '') in ('se', 'ce', 'marketing', 'finance') else 'AUT'}-{_pk(user)}"

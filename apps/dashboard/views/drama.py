@@ -184,7 +184,7 @@ def earnings(request):
     earned = AuthorEarning.objects.filter(author=request.user)
     payouts = Payout.objects.filter(author=request.user)
     paid = payouts.filter(status=Payout.STATUS_PAID).aggregate(t=Sum('amount_cents'))['t'] or 0
-    pending = payouts.filter(status=Payout.STATUS_PENDING).aggregate(t=Sum('amount_cents'))['t'] or 0
+    pending = payouts.filter(status__in=Payout.OPEN + (Payout.STATUS_APPROVED,)).aggregate(t=Sum('amount_cents'))['t'] or 0
     total = earned.aggregate(t=Sum('amount_cents'))['t'] or 0
 
     method = PayoutMethod.objects.filter(author=request.user).first()

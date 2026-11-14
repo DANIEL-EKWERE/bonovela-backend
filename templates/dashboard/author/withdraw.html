@@ -1,0 +1,27 @@
+{% extends 'dashboard/base.html' %}{% load bv %}
+{% block title %}Withdraw{% endblock %}
+{% block back %}<a class="back" href="{% url 'dashboard:author_income' %}"><i class="ph ph-caret-left"></i></a>{% endblock %}
+{% block heading %}Withdraw{% endblock %}
+{% block content_class %}narrow{% endblock %}
+{% block content %}
+<form method="post" id="withdrawForm" novalidate>{% csrf_token %}{{ form.confirmed }}
+  {% if form.non_field_errors %}<div class="notice bad" style="margin-bottom:12px">{{ form.non_field_errors|join:" " }}</div>{% endif %}
+  <div class="card">
+    <span class="label"><i class="ph ph-credit-card"></i> Amount</span>
+    <div class="row" style="align-items:center;gap:6px;margin-top:6px"><b style="font-size:28px">$</b>
+      <input type="number" name="amount" step="0.01" min="{{ rules.minimum|dollars }}" max="{{ rules.available|dollars }}" value="{{ form.amount.value|default:'' }}" required style="font-size:26px;font-weight:700;border:0;background:var(--surface);border-radius:8px;padding:6px 10px;flex:1" {% if not rules.can_withdraw %}disabled{% endif %}></div>
+    {{ form.amount.errors }}
+    <p class="hint" style="margin:8px 0 0">Available Balance: {{ rules.available|money }}<br>Amount must be at least {{ rules.minimum|money }}{% if rules.maximum %} and at most {{ rules.maximum|money }}{% endif %}</p>
+  </div>
+  {% if rules.placed_this_month %}<div class="notice warn" style="margin-top:12px">You've placed this month's withdrawal. You can place the next one next month. <a href="{% url 'dashboard:author_withdrawals' %}" style="text-decoration:underline">Withdrawal history</a></div>
+  {% elif rules.available < rules.minimum %}<div class="notice warn" style="margin-top:12px">You can withdraw once your available balance reaches {{ rules.minimum|money }}.</div>{% endif %}
+  <div class="card" style="margin-top:12px">{% include 'dashboard/author/_payout_fields.html' with f=form %}</div>
+  <div class="notice warn" style="margin-top:12px;border:1px solid #F1D9A6"><b>Withdrawal Date:</b> Withdrawals can be made at any time during the month, but each person is limited to one withdrawal per month.</div>
+  <div class="notice warn" style="margin-top:8px;border:1px solid #F1D9A6"><b>Withdrawal Processing Time:</b> Withdrawals are processed on the 11th of each month, covering the requests from the previous month (e.g. on 11 November, the withdrawals placed from 11 October to 10 November are processed and paid).</div>
+  <div class="grid cols-2" style="margin-top:14px;gap:10px">
+    <button type="button" class="btn" id="withdrawSubmit" {% if not rules.can_withdraw %}disabled{% endif %}>SUBMIT</button>
+    <a class="btn" href="{% url 'dashboard:author_income' %}?payment=1" style="background:#FF8A1F;border-color:#FF8A1F">Manage Payment Accounts</a>
+  </div>
+</form>
+{% include 'dashboard/author/_payout_check.html' with form_id='withdrawForm' submit_id='withdrawSubmit' final_label='Place withdrawal' %}
+{% endblock %}

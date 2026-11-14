@@ -17,16 +17,20 @@ class FinanceSettings(models.Model):
     processing_fee_pct = models.DecimalField('Processing fee', max_digits=5, decimal_places=2, default=3,
                                              help_text='Average fee taken by payment processors.')
     minimum_payout_cents = models.PositiveIntegerField('Minimum payout', default=10000,
-                                                       help_text='Authors are paid once earnings reach this amount.')
+                                                       help_text='Authors can withdraw once their balance reaches this amount.')
     chargeback_reserve_pct = models.DecimalField('Chargeback reserve', max_digits=5, decimal_places=2, default=5,
                                                  help_text='Share of new revenue held back for disputes.')
     weekly_payouts = models.BooleanField(default=False, help_text='Pay authors every Friday instead of monthly.')
-    two_person_approval = models.BooleanField(default=True, help_text='Payouts over $5,000 need a second approver.')
+    two_person_approval = models.BooleanField(default=True,
+                                              help_text='Payments of $1,000 or more need two different approvers.')
+    max_withdrawal_cents = models.PositiveIntegerField('Maximum single withdrawal', default=1000000)
+    store_fee_pct = models.DecimalField('App store fee', max_digits=5, decimal_places=2, default=15,
+                                        help_text='Google Play / App Store commission on in-app purchases.')
     auto_approve_small_refunds = models.BooleanField(default=False,
                                                      help_text='Refunds under $5 are approved automatically.')
     updated_at = models.DateTimeField(auto_now=True)
 
-    TWO_PERSON_THRESHOLD_CENTS = 500000
+    TWO_PERSON_THRESHOLD_CENTS = 100000  # $1,000 or more
     SMALL_REFUND_CENTS = 500
 
     class Meta:
@@ -258,6 +262,22 @@ class BonusAward(models.Model):
 
 
 # ── Reconciliation ───────────────────────────────────────────────────────────
+class VerifiedBalance(models.Model):
+    """A Treasury account balance checked against a bank or provider
+    statement. The latest one per account is shown next to the recorded
+    (ledger) balance."""
+
+    account = models.CharField(max_length=20)
+    cents = models.BigIntegerField()
+    statement_ref = models.CharField(max_length=80)
+    as_of = models.DateField()
+    recorded_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='+')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-as_of', '-pk']
+
+
 class ProcessorPayout(models.Model):
     """A payout a processor or bank reported, matched against the ledger."""
 

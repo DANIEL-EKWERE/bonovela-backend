@@ -1,0 +1,13 @@
+{% extends 'dashboard/finance/layout.html' %}{% load bv %}
+{% block title %}Payment Approval Centre{% endblock %}
+{% block content %}
+<div class="f-head"><div><div class="f-eyebrow">Payments</div><h1>Payment Approval Centre</h1><p>Every payment request starts pending. Approved means authorised; Paid means the payout was confirmed with a reference.</p></div>
+  <a class="f-btn ghost" href="{% url 'dashboard:finance_balances' %}"><i class="ph ph-scales"></i>Balances &amp; new requests</a></div>
+<div class="f-grid" style="grid-template-columns:repeat(auto-fit,minmax(240px,1fr));margin-bottom:20px">
+  <div class="f-card"><div class="f-row"><i class="ph ph-stamp" style="font-size:20px;color:var(--f-primary)"></i><div class="f-grow" style="font-size:14px">Only the amount Finance approves is credited as approved earnings — never the requested amount.</div></div></div>
+  <div class="f-card"><div class="f-row"><i class="ph ph-eye-slash" style="font-size:20px;color:var(--f-primary)"></i><div class="f-grow" style="font-size:14px">Rejections are confidential: no email, push or in-app notice is sent, and records are never deleted.</div></div></div>
+  {% if threshold %}<div class="f-card"><div class="f-row"><i class="ph ph-users-three" style="font-size:20px;color:var(--f-primary)"></i><div class="f-grow" style="font-size:14px">Payments of {{ threshold|money }} or more need two different approvers.</div></div></div>{% endif %}
+</div>
+{% include 'dashboard/finance/_requests_list.html' %}
+{% include 'dashboard/finance/_request_panel.html' %}
+{% endblock %}

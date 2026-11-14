@@ -1,0 +1,54 @@
+{# "Please Check Your Information": Submit → this dialog → YES, I am aware → Place withdrawal (or Save). #}
+<div class="sheet" id="payoutCheck"><div class="panel">
+  <h2>Please Check Your Information</h2>
+  <p class="hint" style="margin:6px 0 14px">We will send your payment to the account you provided. Please make sure all information is correct before submitting. If the transfer fails because of incorrect information, your request will be denied and you will need to request again next month.</p>
+  <div class="card flush" id="payoutSummary"></div>
+  <div id="checkStep1"><button type="button" class="btn block" id="payoutYes" style="margin-top:14px">YES, I am aware</button></div>
+  <div id="checkStep2" hidden><div class="notice ok" style="margin-top:14px"><i class="ph ph-check-circle"></i> Thank you for confirming your details.</div>
+    <button type="button" class="btn block" id="payoutPlace" style="margin-top:10px">{{ final_label }}</button></div>
+  <button type="button" class="btn ghost block" data-close style="margin-top:6px">Close</button>
+</div></div>
+<script>
+(() => {
+  const form = document.getElementById('{{ form_id }}');
+  const method = form.elements.method;
+  const syncMethod = () => {
+    const bank = method.value === 'bank';
+    form.querySelectorAll('[data-bank]').forEach(el => el.hidden = !bank);
+    form.querySelector('[data-detail-label]').textContent = bank ? 'Bank account number' : 'PayPal email';
+  };
+  method.addEventListener('change', syncMethod);
+  syncMethod();
+  const rows = [['Withdraw amount', 'amount'], ['Payment method', 'method'], ['Full name of account holder', 'account_name'],
+                ['Account number / IBAN', 'account_detail'], ["Beneficiary's bank", 'bank_name'], ['SWIFT code / BIC', 'swift_code'],
+                ['Bank branch / address', 'address'], ['City', 'city'], ['Country', 'country'], ['Currency', 'currency']];
+  document.getElementById('{{ submit_id }}').addEventListener('click', () => {
+    if (!form.reportValidity()) return;
+    const bank = method.value === 'bank';
+    const summary = document.getElementById('payoutSummary');
+    summary.replaceChildren();
+    for (const [label, name] of rows) {
+      const el = form.elements[name];
+      if (!el || (!bank && el.closest('[data-bank]'))) continue;
+      let value = el.tagName === 'SELECT' ? el.options[el.selectedIndex]?.text : el.value;
+      if (name === 'amount') value = '$ ' + value;
+      const item = document.createElement('div');
+      item.className = 'list-item';
+      item.innerHTML = '<div class="grow"><div class="hint"></div><b></b></div>';
+      item.querySelector('.hint').textContent = label;
+      item.querySelector('b').textContent = value || '—';
+      summary.append(item);
+    }
+    document.getElementById('checkStep1').hidden = false;
+    document.getElementById('checkStep2').hidden = true;
+    document.querySelectorAll('.sheet.open').forEach(s => s.classList.remove('open'));
+    document.getElementById('payoutCheck').classList.add('open');
+  });
+  document.getElementById('payoutYes').addEventListener('click', () => {
+    form.elements.confirmed.value = 'True';
+    document.getElementById('checkStep1').hidden = true;
+    document.getElementById('checkStep2').hidden = false;
+  });
+  document.getElementById('payoutPlace').addEventListener('click', (e) => { e.target.disabled = true; form.submit(); });
+})();
+</script>

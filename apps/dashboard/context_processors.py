@@ -66,11 +66,20 @@ MARKETING_NAV = [
 
 # Pages appear once their URL exists (finance is built in stages).
 FINANCE_NAV = [
-    ('dashboard:finance_home', 'bank', 'Bonovela Treasury'),
+    ('dashboard:finance_home', 'squares-four', 'Finance Overview', {'section': 'Overview'}),
+    ('dashboard:finance_transactions', 'arrows-left-right', 'All Transactions', {'section': 'Records'}),
+    ('dashboard:finance_readers', 'book-open-text', 'Reader Records'),
+    ('dashboard:finance_authors', 'crown-simple', 'Author Records'),
+    ('dashboard:finance_staff', 'users', 'Staff Records'),
+    ('dashboard:finance_coins', 'coins', 'Coin Purchases', {'section': 'Revenue streams'}),
+    ('dashboard:finance_subscription_payments', 'arrows-clockwise', 'Subscriptions'),
+    ('dashboard:finance_gifts', 'gift', 'Reader Gifts'),
+    ('dashboard:finance_approvals', 'stamp', 'Payment Approval Centre', {'section': 'Payments'}),
+    ('dashboard:finance_withdrawals', 'hand-coins', 'Withdrawals'),
+    ('dashboard:finance_treasury', 'bank', 'Bonovela Treasury', {'section': 'Treasury'}),
     ('dashboard:finance_search', 'magnifying-glass', 'Universal Search', {'section': 'Finance Operations'}),
     ('dashboard:finance_revenue', 'chart-pie-slice', 'Revenue Distribution'),
     ('dashboard:finance_subscriptions', 'book-open', 'Short Story Subscriptions'),
-    ('dashboard:finance_payouts', 'hand-coins', 'Author Payouts'),
     ('dashboard:finance_audit', 'scroll', 'Audit Logs'),
     ('dashboard:finance_settings', 'gear-six', 'Finance Settings'),
     ('dashboard:finance_team', 'user-gear', 'Team & Permissions'),

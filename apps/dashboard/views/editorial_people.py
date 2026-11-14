@@ -215,7 +215,7 @@ def commission(request):
     payouts = Payout.objects.filter(author=user)
     booked = AuthorEarning.objects.filter(author=user, type='editor_commission').aggregate(t=Sum('amount_cents'))['t'] or 0
     paid = payouts.filter(status=Payout.STATUS_PAID).aggregate(t=Sum('amount_cents'))['t'] or 0
-    pending = payouts.filter(status=Payout.STATUS_PENDING).aggregate(t=Sum('amount_cents'))['t'] or 0
+    pending = payouts.filter(status__in=Payout.OPEN + (Payout.STATUS_APPROVED,)).aggregate(t=Sum('amount_cents'))['t'] or 0
     return render(request, 'dashboard/editorial/commission.html', {
         **data, 'history': history, 'team_rows': sorted(team_rows, key=lambda r: -r['total']),
         'payouts': payouts[:20], 'booked': booked, 'paid': paid, 'pending': pending,

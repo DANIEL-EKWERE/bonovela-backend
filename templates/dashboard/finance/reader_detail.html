@@ -1,0 +1,11 @@
+{% extends 'dashboard/finance/layout.html' %}{% load bv %}
+{% block title %}{{ code }}{% endblock %}
+{% block content %}
+<div class="f-head"><div><div class="f-eyebrow"><a href="{% url 'dashboard:finance_readers' %}">Reader records</a> · Reader · {{ code }}</div><h1>{{ r.username|default:r.email }}</h1>
+  <p>{{ r.email }} · registered {{ r.date_joined|date:'d M Y' }} {% if r.is_suspended %}<span class="f-chip bad">Suspended</span>{% else %}<span class="f-chip ok">Active</span>{% endif %}</p></div></div>
+<div class="f-stats">
+  {% for label, cents, note in cards %}<div class="f-stat {% if forloop.first %}hero{% endif %}"><div class="l">{{ label }}</div><div class="v">{{ cents|money }}</div>{% if note %}<div class="d">{{ note }}</div>{% endif %}</div>{% endfor %}
+  <div class="f-stat"><div class="l">Most recent transaction</div><div class="v" style="font-size:22px">{{ last.created_at|date:'d M Y'|default:'—' }}</div>{% if last %}<div class="d">{{ last.created_at|date:'d M Y, H:i' }}</div>{% endif %}</div>
+</div>
+{% include 'dashboard/finance/_tx_table.html' with table_title='Complete transaction history' %}
+{% endblock %}

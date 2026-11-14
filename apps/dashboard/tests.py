@@ -211,7 +211,14 @@ class DashboardTests(TestCase):
         r = self.client.get('/author/income/')
         self.assertContains(r, 'IMPORTANT NOTICE')
         self.assertNotContains(r, 'Signing Bonus')
-        self.assertNotContains(r, 'Completion Bonus')
+        # The cards, in the order the client set; no Others or Short Story Subscription.
+        labels = ['Profit Share', 'Completion Bonus', 'One-time Payment', 'Reward Share', 'Carry over',
+                  'Available to withdraw', 'Withdrawal history']
+        html = r.content.decode()
+        self.assertEqual([html.index(f'<span>{x}</span>') for x in labels],
+                         sorted(html.index(f'<span>{x}</span>') for x in labels))
+        self.assertNotIn('<span>Others</span>', html)
+        self.assertNotIn('<span>Short Story Subscription</span>', html)
         bank = {'method': 'bank', 'country': 'Nigeria', 'currency': 'USD', 'bank_name': 'FCMB',
                 'swift_code': 'FCMBNGLA', 'account_detail': '1047547276', 'account_name': 'Joy Mercy Osemeke',
                 'address': '12 Agbara Road', 'city': 'Lagos', 'state': 'Lagos', 'postal_code': '100001'}
@@ -902,7 +909,7 @@ class NewDashboardTests(TestCase):
         e = Expense.objects.get(title='Northwind Cloud')
         self.assertEqual((e.amount_cents, e.status), (412000, 'due'))
         self.assertContains(self.client.get('/finance/expenses/?month=2026-11'), 'Northwind Cloud')
-        self.assertContains(self.client.get('/finance/'), 'Northwind Cloud')
+        self.get_ok('/finance/', '/finance/treasury/')
         self.client.post('/finance/expenses/', {'action': 'paid', 'expense': e.pk})
         e.refresh_from_db()
         self.assertEqual(e.status, 'paid')
@@ -931,8 +938,8 @@ class NewDashboardTests(TestCase):
 
     def test_finance_pages_and_csv(self):
         self.as_role('finance')
-        self.get_ok('/finance/', '/finance/transactions/', '/finance/transactions/?kind=paid&from=2026-01-01&q=reader',
-                    '/finance/balances/', '/finance/balances/?due=1', '/finance/payouts/', '/finance/payouts/?tab=paid',
+        self.get_ok('/finance/', '/finance/transactions/', '/finance/transactions/?category=top_up&status=succeeded&q=reader',
+                    '/finance/balances/', '/finance/balances/?due=1', '/finance/payouts/?tab=balances',
                     '/finance/statements/', '/finance/reports/', '/finance/revenue/', '/finance/revenue/?month=2026-01',
                     '/finance/search/', '/finance/search/?q=reader', '/finance/search/?q=TX-1&type=Transaction')
         for url in ['/finance/transactions/?export=csv', '/finance/balances/?export=csv', '/finance/reports/?download=pl',
@@ -940,8 +947,7 @@ class NewDashboardTests(TestCase):
             r = self.client.get(url)
             self.assertEqual(r['Content-Type'], 'text/csv', url)
             self.assertGreater(len(r.content.splitlines()), 1, url)
-        r = self.client.get('/finance/payouts/?export=csv')  # no payouts yet: header only
-        self.assertEqual(r.content.splitlines()[0], b'id,email,name,usd,period_end,method,reference')
+        self.assertRedirects(self.client.get('/finance/payouts/'), '/finance/approvals/')
 
     def test_finance_stage_two_revenue_search_reports_and_rules(self):
         from apps.catalog.models import Story
@@ -972,16 +978,19 @@ class NewDashboardTests(TestCase):
         self.assertContains(self.client.get(f'/finance/search/?q=PO-{big.pk}'), f'Payout to {creator.display_name}')
         Expense.objects.create(title='Northwind Cloud', category='Hosting', amount_cents=412000)
         self.assertContains(self.client.get('/finance/search/?q=northwind&type=Invoice'), 'Northwind Cloud')
-        # Two-person approval: over $5,000 needs a first approval by someone else.
-        self.client.post(f'/finance/payouts/{big.pk}/', {'action': 'paid', 'reference': 'W-1'})
-        big.refresh_from_db()
-        self.assertEqual(big.status, Payout.STATUS_PENDING)
-        self.client.post(f'/finance/payouts/{big.pk}/', {'action': 'approve'})
-        self.client.post(f'/finance/payouts/{big.pk}/', {'action': 'paid', 'reference': 'W-1'})  # same person
+        # Two-person approval: $1,000 or more needs two different approvers.
+        url = f'/finance/approvals/{big.pk}/'
+        self.client.post(url, {'action': 'approve', 'amount': '6000'})
         big.refresh_from_db()
         self.assertEqual((big.status, big.approved_by.email), (Payout.STATUS_PENDING, 'finance@bonovela.app'))
+        self.client.post(url, {'action': 'approve', 'amount': '6000'})  # same person again
+        big.refresh_from_db()
+        self.assertEqual(big.status, Payout.STATUS_PENDING)
         self.client.force_login(User.objects.get(email='admin@bonovela.app'))
-        self.client.post(f'/finance/payouts/{big.pk}/', {'action': 'paid', 'reference': 'W-1'})
+        self.client.post(url, {'action': 'approve', 'amount': '6000'})
+        big.refresh_from_db()
+        self.assertEqual((big.status, big.second_approved_by.email), (Payout.STATUS_APPROVED, 'admin@bonovela.app'))
+        self.client.post(url, {'action': 'paid', 'reference': 'W-1'})
         big.refresh_from_db()
         self.assertEqual(big.status, Payout.STATUS_PAID)
         # Report downloads are audited.
@@ -1102,10 +1111,126 @@ class NewDashboardTests(TestCase):
         self.client.post('/finance/payouts/generate/')
         self.assertEqual(Payout.objects.filter(author=creator).count(), 1)
 
-        self.client.post(f'/finance/payouts/{payout.pk}/', {'action': 'paid'})  # no reference
+        url = f'/finance/approvals/{payout.pk}/'
+        self.client.post(url, {'action': 'paid', 'reference': 'PP-123'})  # not approved yet
         payout.refresh_from_db()
         self.assertEqual(payout.status, Payout.STATUS_PENDING)
-        self.client.post(f'/finance/payouts/{payout.pk}/', {'action': 'paid', 'reference': 'PP-123'})
+        self.client.post(url, {'action': 'approve', 'amount': f'{payout.requested_cents / 100:.2f}'})
+        self.client.post(url, {'action': 'paid'})  # no reference
+        payout.refresh_from_db()
+        self.assertEqual(payout.status, Payout.STATUS_APPROVED)
+        self.client.post(url, {'action': 'paid', 'reference': 'PP-123'})
         payout.refresh_from_db()
         self.assertEqual(payout.status, Payout.STATUS_PAID)
-        self.assertTrue(creator.inbox.filter(title__startswith='Payout sent').exists())
+        self.assertTrue(creator.inbox.filter(title__startswith='Payment sent').exists())
+
+    BANK = {'method': 'bank', 'country': 'Nigeria', 'currency': 'USD', 'bank_name': 'FCMB',
+            'swift_code': 'FCMBNGLA', 'account_detail': '1047547276', 'account_name': 'Joy Mercy Osemeke',
+            'address': 'Agbara Branch', 'city': 'Lagos', 'state': 'Edo', 'postal_code': '100001'}
+
+    def test_author_withdrawal_minimum_monthly_limit_and_history(self):
+        from apps.wallet.models import AuthorEarning, Payout
+        author = User.objects.get(email='author@bonovela.app')
+        Payout.objects.filter(author=author).delete()
+        AuthorEarning.objects.filter(author=author).delete()
+        AuthorEarning.objects.create(author=author, type='profit_share', amount_cents=9000)
+        self.as_role('author')
+        self.assertContains(self.client.get('/author/income/withdraw/'), 'You can withdraw once')
+        self.client.post('/author/income/withdraw/', {**self.BANK, 'amount': '90', 'confirmed': 'True'})
+        self.assertFalse(Payout.objects.filter(author=author).exists())  # under the $100 minimum
+        AuthorEarning.objects.create(author=author, type='one_time', amount_cents=21000)  # $300 available
+        self.client.post('/author/income/withdraw/', {**self.BANK, 'amount': '200'})  # not confirmed in the dialog
+        self.assertFalse(Payout.objects.filter(author=author).exists())
+        self.client.post('/author/income/withdraw/', {**self.BANK, 'amount': '400', 'confirmed': 'True'})  # > balance
+        self.assertFalse(Payout.objects.filter(author=author).exists())
+        r = self.client.post('/author/income/withdraw/', {**self.BANK, 'amount': '200', 'confirmed': 'True',
+                                                         'intermediary_swift': 'FCMBNGLA', 'nickname': 'Reina'})
+        self.assertRedirects(r, '/author/income/withdrawals/')
+        w = Payout.objects.get(author=author)
+        self.assertEqual((w.category, w.requested_cents, w.status), ('withdrawal', 20000, 'pending'))
+        self.assertEqual(author.payout_method.nickname, 'Reina')
+        # One withdrawal a month.
+        self.client.post('/author/income/withdraw/', {**self.BANK, 'amount': '100', 'confirmed': 'True'})
+        self.assertEqual(Payout.objects.filter(author=author).count(), 1)
+        page = self.client.get('/author/income/withdrawals/')
+        self.assertContains(page, '$200.00')
+        self.assertContains(page, 'Pending')
+        self.assertContains(self.client.get(f'/author/income/withdrawals/?id={w.pk}'), 'Amount requested')
+        # Finance pays $150 of it; the author sees it as successful.
+        self.as_role('finance')
+        self.assertContains(self.client.get('/finance/withdrawals/'), w.code)
+        self.client.post(f'/finance/approvals/{w.pk}/', {'action': 'approve', 'amount': '150'})
+        self.client.post(f'/finance/approvals/{w.pk}/', {'action': 'paid', 'reference': 'PSTK-TRF-1'})
+        w.refresh_from_db()
+        self.assertEqual((w.status, w.amount_cents, w.requested_cents), ('paid', 15000, 20000))
+        self.as_role('author')
+        self.assertContains(self.client.get('/author/income/withdrawals/'), 'Successful')
+        self.assertContains(self.client.get('/author/income/'), '$150.00')  # $300 − $150 paid
+
+    def test_finance_records_approvals_and_treasury(self):
+        from apps.finance.models import AuditEntry, VerifiedBalance
+        from apps.wallet.models import AuthorEarning, Payout, PayoutMethod, Transaction
+        reader = User.objects.get(email='reader@bonovela.app')
+        author = User.objects.get(email='author@bonovela.app')
+        Transaction.objects.create(user=reader, kind='top_up', title='Coin package — 500 coins', coins=500,
+                                   price_cents=499, provider='google_play', reference='GPA.1')
+        Transaction.objects.create(user=reader, kind='subscription', title='Premium Monthly', price_cents=799,
+                                   provider='paystack', status='failed')
+        PayoutMethod.objects.create(author=author, method='bank', account_name='Ada', account_detail='0123456789',
+                                    bank_name='GTBank')
+        AuthorEarning.objects.create(author=author, type='profit_share', amount_cents=50000)
+        req = Payout.objects.create(author=author, amount_cents=40000, period_end=timezone.localdate())
+        self.as_role('finance')
+        code = f'RD-{100000 + reader.pk}'
+        self.get_ok('/finance/', '/finance/?days=7', '/finance/treasury/', '/finance/transactions/',
+                    '/finance/readers/', f'/finance/readers/{code}/', '/finance/authors/', f'/finance/authors/AUT-{author.pk}/',
+                    '/finance/staff/', '/finance/coins/', '/finance/subscription-payments/', '/finance/gifts/',
+                    '/finance/approvals/', f'/finance/approvals/?tab=all&open={req.pk}', '/finance/withdrawals/',
+                    '/finance/readers/?q=reader', '/finance/transactions/?q=' + code)
+        self.assertContains(self.client.get('/finance/coins/'), 'Google Play')
+        self.assertContains(self.client.get('/finance/transactions/?status=failed'), 'Premium Monthly')
+        self.assertEqual(self.client.get('/finance/readers/RD-x/').status_code, 404)
+        csv = self.client.get('/finance/coins/?export=csv')
+        self.assertIn('GPA.1', csv.content.decode())
+        # Revenue: only succeeded payments count; store fee comes off.
+        r = self.client.get('/finance/')
+        self.assertGreaterEqual(r.context['p']['gross'], 499)
+        # Partial approval, review, hold, confidential rejection.
+        url = f'/finance/approvals/{req.pk}/'
+        self.client.post(url, {'action': 'approve', 'amount': '500'})  # more than requested: refused
+        req.refresh_from_db()
+        self.assertEqual(req.status, 'pending')
+        self.client.post(url, {'action': 'review'})
+        self.client.post(url, {'action': 'hold'})
+        req.refresh_from_db()
+        self.assertEqual(req.status, 'hold')
+        self.client.post(url, {'action': 'reject'})  # needs a reason
+        req.refresh_from_db()
+        self.assertEqual(req.status, 'hold')
+        inbox_before = author.inbox.count()
+        self.client.post(url, {'action': 'reject', 'note': 'Duplicate request'})
+        req.refresh_from_db()
+        self.assertEqual((req.status, req.rejection_reason), ('rejected', 'Duplicate request'))
+        self.assertEqual(author.inbox.count(), inbox_before)  # nobody is told
+        self.assertEqual(req.events.count(), 3)
+        self.assertTrue(AuditEntry.objects.filter(reference=req.code, action__contains='confidential').exists())
+        # Rejected money is back in the balance; the author never sees the rejection.
+        from apps.wallet.services import available_to_withdraw
+        earned = sum(e.amount_cents for e in AuthorEarning.objects.filter(author=author))
+        held = sum(p.amount_cents for p in Payout.objects.filter(author=author, status__in=Payout.COMMITTED))
+        self.assertEqual(available_to_withdraw(author), earned - held)
+        self.assertNotIn(req.pk, Payout.objects.filter(status__in=Payout.COMMITTED).values_list('pk', flat=True))
+        self.as_role('author')
+        self.assertNotContains(self.client.get('/author/income/withdrawals/'), req.code)
+        # Treasury: settle the Google Play payments and verify a balance.
+        self.as_role('finance')
+        self.client.post('/finance/treasury/', {'action': 'settle', 'provider': 'google_play',
+                                                'upto': timezone.localdate().isoformat(), 'settlement_ref': 'GP-1'})
+        self.assertTrue(Transaction.objects.get(reference='GPA.1').settled_at)
+        self.client.post('/finance/treasury/', {'action': 'verify', 'account': 'settled', 'amount': '4.24',
+                                                'as_of': timezone.localdate().isoformat(), 'statement_ref': 'GTB-1'})
+        self.assertEqual(VerifiedBalance.objects.get().cents, 424)
+        page = self.client.get('/finance/treasury/')
+        self.assertContains(page, 'GTB-1')
+        self.assertContains(page, 'Settlement from Google Play')
+

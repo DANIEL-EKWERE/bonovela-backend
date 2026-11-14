@@ -1,0 +1,21 @@
+{% extends 'dashboard/finance/layout.html' %}{% load bv %}
+{% block title %}{{ a|aut }}{% endblock %}
+{% block content %}
+<div class="f-head"><div><div class="f-eyebrow"><a href="{% url 'dashboard:finance_authors' %}">Author records</a> · Author · {{ a|aut }}</div><h1>{{ a.display_name }}</h1><p>{{ a.email }}{% if method %} · paid by {{ method.get_method_display }} to {{ method.account_name }}{% endif %}</p></div></div>
+<div class="f-stats">
+  <div class="f-stat hero"><div class="l">Book revenue generated</div><div class="v">{{ book|money }}</div><div class="d">Chapter unlocks, excluding gifts</div></div>
+  <div class="f-stat"><div class="l">Reader gifts received</div><div class="v">{{ gifts|money }}</div></div>
+  <div class="f-stat"><div class="l">Calculated author earnings</div><div class="v">{{ totals.calculated|money }}</div><div class="d">From earning records</div></div>
+  <div class="f-stat"><div class="l">Approved earnings</div><div class="v">{{ totals.approved|money }}</div><div class="d">Only Finance-approved amounts</div></div>
+  <div class="f-stat"><div class="l">Pending earnings</div><div class="v">{{ totals.pending|money }}</div><div class="d">Requests awaiting a decision</div></div>
+  <div class="f-stat"><div class="l">Rejected requests</div><div class="v">{{ totals.rejected }}</div><div class="d">Confidential — not shown to the author</div></div>
+  <div class="f-stat"><div class="l">Payments received</div><div class="v">{{ totals.paid|money }}</div><div class="d">Withdrawals: {{ totals.withdrawn|money }}</div></div>
+  <div class="f-stat gold"><div class="l">Outstanding payable</div><div class="v">{{ totals.payable|money }}</div><div class="d">Approved, awaiting payout</div></div>
+</div>
+<div class="f-card" style="margin-bottom:16px"><div class="h"><h2>Published books</h2><span style="color:var(--f-muted);font-size:13px">{{ stories|length }} book{{ stories|length|pluralize }}</span></div>
+  <div class="f-scroll"><table class="f-table"><tr><th>Book ID</th><th>Title</th><th>Editor</th><th>Status</th><th>Created</th></tr>
+  {% for s in stories %}<tr><td style="font-family:ui-monospace,monospace;font-size:13px">{{ s.book_code }}</td><td>{{ s.display_title }}</td><td>{{ s.editor.display_name|default:'—' }}</td><td>{{ s.get_status_display }}{% if s.is_signed %} · Signed{% endif %}</td><td>{{ s.created_at|date:'d M Y' }}</td></tr>{% empty %}<tr><td colspan="5" class="f-empty">No books.</td></tr>{% endfor %}</table></div></div>
+<div class="f-card" style="margin-bottom:16px"><div class="h"><div><h2>Complete payment history</h2><div style="font-size:12.5px;color:var(--f-muted)">Requested vs approved amounts, payout references and status.</div></div></div>
+  {% include 'dashboard/finance/_requests_table.html' with hide_payee=1 %}</div>
+{% include 'dashboard/finance/_tx_table.html' with table_title='Earning transactions' %}
+{% endblock %}

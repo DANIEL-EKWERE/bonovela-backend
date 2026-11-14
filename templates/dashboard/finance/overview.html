@@ -1,0 +1,43 @@
+{% extends 'dashboard/finance/layout.html' %}{% load bv %}
+{% block title %}Finance Overview{% endblock %}
+{% block content %}
+<div class="f-head"><div><div class="f-eyebrow">Finance overview</div><h1>Bonovela's financial position</h1><p>Every figure is calculated from recorded transactions, earnings, payment requests and the Treasury ledger.</p></div>
+  <form method="get"><select name="days" onchange="this.form.submit()" style="width:auto;min-width:160px">{% for d, l in ranges %}<option value="{{ d }}" {% if d == days %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></form></div>
+<div class="f-stats">
+  <div class="f-stat hero"><div class="l">Total gross revenue<i class="ph ph-trend-up"></i></div><div class="v">{{ p.gross|money }}</div><div class="d">{{ p.count }} payments · {{ p.failed }} failed</div></div>
+  <div class="f-stat hero"><div class="l">Total net revenue<i class="ph ph-money"></i></div><div class="v">{{ p.net|money }}</div><div class="d">After {{ p.fees|money }} store &amp; provider fees</div></div>
+  <div class="f-stat"><div class="l">Total settled revenue<i class="ph ph-shield-check"></i></div><div class="v">{{ p.settled|money }}</div><div class="d">Net received in settlement accounts</div></div>
+  <div class="f-stat gold"><div class="l">Available treasury funds<i class="ph ph-bank"></i></div><div class="v">{{ t.available|money }}</div><div class="d">Settled funds minus reserved &amp; payable</div></div>
+  <div class="f-stat"><div class="l">Total reserved funds<i class="ph ph-piggy-bank"></i></div><div class="v">{{ t.reserved|money }}</div><div class="d">Calculated shares not yet approved, and the chargeback reserve</div></div>
+  <div class="f-stat"><div class="l">Pending settlements<i class="ph ph-hourglass"></i></div><div class="v">{{ t.pending_settlement|money }}</div><div class="d">Confirmed by providers, not yet in the bank</div></div>
+  <div class="f-stat"><div class="l">Total author earnings<i class="ph ph-crown-simple"></i></div><div class="v">{{ p.author_earnings|money }}</div><div class="d">Calculated in this period</div></div>
+  <div class="f-stat"><div class="l">Approved author payments<i class="ph ph-stamp"></i></div><div class="v">{{ p.approved_authors|money }}</div></div>
+  <div class="f-stat"><div class="l">Total pending payments<i class="ph ph-wallet"></i></div><div class="v">{{ p.pending_requests|money }}</div><div class="d">{{ p.pending_n }} request{{ p.pending_n|pluralize }} awaiting a decision</div></div>
+  <div class="f-stat"><div class="l">Completed withdrawals<i class="ph ph-download-simple"></i></div><div class="v">{{ p.withdrawals_paid|money }}</div></div>
+  <div class="f-stat"><div class="l">Total staff commissions<i class="ph ph-users"></i></div><div class="v">{{ p.staff_commissions|money }}</div><div class="d">Senior and Chief Editor shares</div></div>
+  <div class="f-stat"><div class="l">Total platform expenses<i class="ph ph-receipt"></i></div><div class="v">{{ p.expenses|money }}</div><div class="d">Paid in this period</div></div>
+  <div class="f-stat"><div class="l">Total refunds<i class="ph ph-arrow-u-up-left"></i></div><div class="v">{{ p.refunds|money }}</div></div>
+  <div class="f-stat gold"><div class="l">Platform retained revenue<i class="ph ph-link"></i></div><div class="v">{{ p.retained|money }}</div><div class="d">Net revenue less author and staff shares</div></div>
+</div>
+<div class="f-grid" style="grid-template-columns:minmax(0,2fr) minmax(0,1fr);margin-bottom:16px">
+  <div class="f-card"><div class="h"><div><h2>Revenue</h2><div style="font-size:12.5px;color:var(--f-muted)">Gross vs net per day · {{ range_label|lower }}</div></div><div class="f-legend"><span><i style="background:var(--f-chart-1)"></i>Gross</span><span><i style="background:var(--f-chart-2)"></i>Net</span></div></div>
+    <div class="b"><svg viewBox="0 -6 {{ chart_w }} {{ chart_h|add:12 }}" style="width:100%;height:220px" preserveAspectRatio="none">
+      {% for y in grid_lines %}<line x1="0" x2="{{ chart_w }}" y1="{{ y }}" y2="{{ y }}" stroke="#EDDDDD" stroke-dasharray="3 4" vector-effect="non-scaling-stroke"/>{% endfor %}
+      <polyline points="{{ gross_line }}" fill="none" stroke="var(--f-chart-1)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+      <polyline points="{{ net_line }}" fill="none" stroke="var(--f-chart-2)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+    </svg><div style="display:flex;justify-content:space-between;font-size:12px;color:var(--f-muted)"><span>{{ first_day|date:'d M' }}</span><span>Peak day {{ peak|money }}</span><span>{{ last_day|date:'d M' }}</span></div></div></div>
+  <div class="f-card"><div class="h"><h2>Revenue by category</h2></div><div class="b">
+    {% for name, cents, w in cats %}<div class="f-hbar"><span>{{ name }}</span><div class="track"><div class="fill" style="width:{{ w|floatformat:1 }}%"></div></div><span>{{ cents|money0 }}</span></div>{% endfor %}
+    <p style="font-size:12px;color:var(--f-muted);margin:10px 0 0">Gifts and unlocks are paid with coins, at coin value.</p></div></div>
+</div>
+<div class="f-grid" style="grid-template-columns:1fr 1fr;margin-bottom:16px">
+  <div class="f-card"><div class="h"><h2>Revenue by payment provider</h2></div><div class="f-scroll"><table class="f-table">
+    <tr><th>Provider</th><th class="num">Payments</th><th class="num">Gross</th><th class="num">Fees</th><th class="num">Net</th></tr>
+    {% for r in providers %}<tr><td>{{ r.name }}</td><td class="num">{{ r.n }}</td><td class="num">{{ r.gross|money }}</td><td class="num" style="color:var(--f-muted)">{{ r.fees|money }}</td><td class="num"><b>{{ r.net|money }}</b></td></tr>{% empty %}<tr><td colspan="5" class="f-empty">No payments in this period.</td></tr>{% endfor %}
+  </table></div></div>
+  <div class="f-card"><div class="h"><h2>Recent financial activity</h2><a href="{% url 'dashboard:finance_audit' %}" style="font-size:13px;color:var(--f-primary)">Audit log →</a></div>
+    {% for a in activity %}<div class="f-row"><div class="f-grow"><div class="t">{{ a.action }}</div><div class="m">{{ a.reference|default:a.category }} · {{ a.actor_label }}</div></div><span class="m">{{ a.created_at|date:'d M Y, H:i' }}</span></div>{% empty %}<div class="f-empty">Nothing recorded yet.</div>{% endfor %}</div>
+</div>
+<div class="f-card"><div class="h"><h2>Latest transactions</h2><a href="{% url 'dashboard:finance_transactions' %}" style="font-size:13px;color:var(--f-primary)">All transactions →</a></div>
+  {% for t in latest %}<div class="f-row"><div class="f-grow"><div class="t">{{ t.title }}</div><div class="m" style="font-family:ui-monospace,monospace">{{ t.code }} · {{ t.user|rd }}</div></div><span class="amt">{{ t.value_cents|money }}</span>{% include 'dashboard/finance/_tx_status.html' with st=t.status label=t.get_status_display %}</div>{% empty %}<div class="f-empty">No transactions yet.</div>{% endfor %}</div>
+{% endblock %}

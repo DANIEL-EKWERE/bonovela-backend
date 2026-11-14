@@ -39,7 +39,7 @@ def _cents(qs):
 def home(request):
     now = timezone.now()
     week, month = now - timedelta(days=7), now - timedelta(days=30)
-    paid = Transaction.objects.filter(kind__in=PAID_KINDS)
+    paid = Transaction.objects.filter(kind__in=PAID_KINDS, status='succeeded')
 
     # Revenue per day for the last 14 days (simple bar chart).
     days = []
@@ -145,7 +145,7 @@ def money(request):
     tx = Transaction.objects.select_related('user', 'story').order_by('-created_at')
     if kind:
         tx = tx.filter(kind=kind)
-    paid = Transaction.objects.filter(kind__in=PAID_KINDS)
+    paid = Transaction.objects.filter(kind__in=PAID_KINDS, status='succeeded')
     earnings = AuthorEarning.objects.all()
     top_authors = (earnings.values('author__pen_name', 'author__email')
                    .annotate(total=Sum('amount_cents')).order_by('-total')[:8])

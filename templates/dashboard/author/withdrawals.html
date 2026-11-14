@@ -1,0 +1,28 @@
+{% extends 'dashboard/base.html' %}{% load bv %}
+{% block title %}Withdrawal history{% endblock %}
+{% block back %}<a class="back" href="{% url 'dashboard:author_income' %}"><i class="ph ph-caret-left"></i></a>{% endblock %}
+{% block heading %}Withdrawal history{% endblock %}
+{% block content_class %}narrow{% endblock %}
+{% block content %}
+<div class="row between" style="margin-bottom:10px"><span class="muted">Tap a withdrawal to see its details.</span><a class="btn sm" href="{% url 'dashboard:author_withdraw' %}">Withdraw</a></div>
+<div class="card flush">
+  {% for p in rows %}<a class="list-item" href="?id={{ p.pk }}">
+    <div class="grow"><b>{{ p.requested_cents|money }}</b><div class="hint">{{ p.get_category_display }} · {{ p.created_at|date:'M d, Y' }}</div></div>
+    <span class="chip {% if p.status == 'paid' %}green{% elif p.status == 'failed' %}pink{% elif p.status == 'approved' %}grey{% else %}gold{% endif %}">{{ p.author_status }}</span>
+    <i class="ph ph-caret-right"></i></a>
+  {% empty %}<div class="empty" style="padding:30px;text-align:center"><p class="hint">No withdrawals yet.</p></div>{% endfor %}
+</div>
+{% if current %}<div class="sheet open" id="detail"><div class="panel">
+  <div class="row between" style="margin-bottom:12px"><h2>{{ current.get_category_display }}</h2><a class="icon-btn" href="?"><i class="ph ph-x"></i></a></div>
+  <div class="card" style="text-align:center"><div class="hint">Amount requested</div><div style="font-size:30px;font-weight:700">{{ current.requested_cents|money }}</div>
+    <span class="chip {% if current.status == 'paid' %}green{% elif current.status == 'failed' %}pink{% elif current.status == 'approved' %}grey{% else %}gold{% endif %}">{{ current.author_status }}</span></div>
+  <div class="card flush" style="margin-top:10px">
+    <div class="list-item"><span class="grow hint">Requested on</span><b>{{ current.created_at|date:'M d, Y' }}</b></div>
+    {% if current.approved_cents is not None %}<div class="list-item"><span class="grow hint">Amount approved</span><b>{{ current.approved_cents|money }}</b></div>{% endif %}
+    {% if current.paid_at %}<div class="list-item"><span class="grow hint">Paid on</span><b>{{ current.paid_at|date:'M d, Y' }}</b></div>
+    <div class="list-item"><span class="grow hint">Payment reference</span><b>{{ current.reference }}</b></div>{% endif %}
+    <div class="list-item"><span class="grow hint">Paid to</span><b style="text-align:right">{{ current.method|default:'—' }}</b></div>
+  </div>
+  <p class="hint" style="margin-top:10px">{% if current.status == 'paid' %}This payment was sent successfully.{% elif current.status == 'approved' %}Approved — the transfer is being processed.{% elif current.status == 'failed' %}The transfer didn't go through. The amount is back in your available balance; check your payment info.{% else %}Waiting to be processed on the 11th.{% endif %}</p>
+</div></div>{% endif %}
+{% endblock %}

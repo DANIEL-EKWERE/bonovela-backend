@@ -119,7 +119,7 @@ def readers(start):
 
 
 def revenue(start=None, users=None):
-    qs = Transaction.objects.filter(kind__in=PAID)
+    qs = Transaction.objects.filter(kind__in=PAID, status='succeeded')
     if start:
         qs = qs.filter(created_at__date__gte=start)
     if users is not None:
@@ -129,7 +129,7 @@ def revenue(start=None, users=None):
 
 def revenue_by_source(users=None):
     """Verified revenue grouped by the readers' acquisition source."""
-    qs = Transaction.objects.filter(kind__in=PAID)
+    qs = Transaction.objects.filter(kind__in=PAID, status='succeeded')
     if users is not None:
         qs = qs.filter(user__in=users)
     rows = defaultdict(int)
@@ -192,7 +192,7 @@ def funnel(start):
     links = CampaignLink.objects.aggregate(c=Sum('clicks'), p=Sum('previews'), s=Sum('store_visits'))
     new = segments.readers().filter(date_joined__date__gte=start)
     progress = ReadingProgress.objects.filter(user__in=new)
-    paid = Transaction.objects.filter(kind__in=PAID, created_at__date__gte=start)
+    paid = Transaction.objects.filter(kind__in=PAID, status='succeeded', created_at__date__gte=start)
     advertised = AdCampaign.objects.exclude(story=None).values('story')
     values = {
         'ad_impression': ads['impressions'], 'ad_click': ads['clicks'] + (links['c'] or 0),

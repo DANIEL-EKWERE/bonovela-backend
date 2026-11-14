@@ -87,7 +87,7 @@ class PayoutForm(forms.ModelForm):
     class Meta:
         model = PayoutMethod
         fields = ['method', 'country', 'currency', 'bank_name', 'swift_code', 'account_detail', 'account_name',
-                  'address', 'city', 'state', 'postal_code']
+                  'intermediary_swift', 'nickname', 'email', 'address', 'city', 'state', 'postal_code']
 
     def clean(self):
         data = super().clean()
@@ -100,6 +100,13 @@ class PayoutForm(forms.ModelForm):
         if not data.get('confirmed'):
             raise forms.ValidationError('Please check your information and confirm before submitting.')
         return data
+
+
+class WithdrawalForm(PayoutForm):
+    """The withdrawal page: the amount plus the payment account it goes to
+    (saved as the author's payment info)."""
+
+    amount = forms.DecimalField(min_value=0, max_digits=10, decimal_places=2)
 
 
 def _check_image(f):

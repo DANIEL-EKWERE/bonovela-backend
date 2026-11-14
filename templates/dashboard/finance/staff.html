@@ -1,0 +1,13 @@
+{% extends 'dashboard/finance/layout.html' %}{% load bv %}
+{% block title %}Staff Records{% endblock %}
+{% block content %}
+<div class="f-head"><div><div class="f-eyebrow">Records</div><h1>Staff Financial Records</h1><p>Senior Editors, the Chief Editor, Marketing and Finance.</p></div></div>
+<div class="f-card f-scroll"><table class="f-table">
+  <tr><th>Staff member</th><th>Department · position</th><th>Arrangement</th><th class="num">Calculated</th><th class="num">Approved</th><th class="num">Pending</th><th class="num">Paid</th></tr>
+  {% for r in rows %}<tr style="cursor:pointer" onclick="location='{% url 'dashboard:finance_staff_member' r.u|stf %}'">
+    <td><b>{{ r.u.display_name }}</b><div style="font-size:12px;color:var(--f-muted)">{{ r.u|stf }} · {{ r.u.email }}</div></td>
+    <td>{{ r.dept }} · {{ r.pos }} {% if r.u.is_active %}<span class="f-chip ok">Active</span>{% else %}<span class="f-chip">Inactive</span>{% endif %}</td>
+    <td>{{ r.arrangement }}</td><td class="num">{{ r.calculated|money }}</td><td class="num">{{ r.approved|money }}</td><td class="num">{{ r.pending|money }}</td><td class="num">{{ r.paid|money }}</td>
+  </tr>{% empty %}<tr><td colspan="7" class="f-empty">No staff yet.</td></tr>{% endfor %}
+</table></div>
+{% endblock %}

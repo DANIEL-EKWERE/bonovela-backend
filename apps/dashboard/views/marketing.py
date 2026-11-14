@@ -175,7 +175,7 @@ def _reader_rows(qs):
     from apps.marketing.models import ReaderActivity
     now = timezone.now()
     return (qs.select_related('reader_profile')
-            .annotate(spent=_sub(Transaction.objects.filter(kind__in=segments.PAID_KINDS), 'price_cents', Sum),
+            .annotate(spent=_sub(Transaction.objects.filter(kind__in=segments.PAID_KINDS, status='succeeded'), 'price_cents', Sum),
                       books=_sub(ReadingProgress.objects.all(), 'pk', Count),
                       chapters=_sub(ReadingProgress.objects.all(), 'chapter_number', Sum),
                       seen=_sub(ReaderActivity.objects.all(), 'date', Max),
@@ -217,7 +217,7 @@ def readers(request):
 def paying(request):
     cfg = segments.MarketingSettings.current()
     payers = segments.segment('paying', cfg=cfg)
-    paid = Transaction.objects.filter(kind__in=segments.PAID_KINDS, user__in=payers)
+    paid = Transaction.objects.filter(kind__in=segments.PAID_KINDS, status='succeeded', user__in=payers)
     total = segments.readers().count()
     revenue = analytics.revenue(users=payers)
     by_source = analytics.revenue_by_source(payers)
@@ -253,7 +253,7 @@ def reader_profile(request, code):
     member_of = [c for c in segments.SEGMENTS if segments.contains(c, reader, cfg)]
     return render(request, 'dashboard/marketing/reader.html', {
         'r': reader, 'member_of': [(segments.SEGMENTS[k][0], segments.SEGMENTS[k][1]) for k in member_of],
-        'purchases': Transaction.objects.filter(user=reader, kind__in=segments.PAID_KINDS)[:10],
+        'purchases': Transaction.objects.filter(user=reader, kind__in=segments.PAID_KINDS, status='succeeded')[:10],
         'progress': ReadingProgress.objects.filter(user=reader).select_related('story')[:10],
         'codes': reader.redeemed_codes.all()[:10],
     })

@@ -1,0 +1,1 @@
+<span class="f-chip {% if st == 'succeeded' or st == 'paid' or st == 'approved' %}ok{% elif st == 'pending' or st == 'review' or st == 'hold' %}warn{% elif st == 'failed' or st == 'reversed' or st == 'rejected' %}bad{% endif %}">{{ label }}</span>

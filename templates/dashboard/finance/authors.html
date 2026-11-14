@@ -1,0 +1,15 @@
+{% extends 'dashboard/finance/layout.html' %}{% load bv %}
+{% block title %}Author Records{% endblock %}
+{% block content %}
+<div class="f-head"><div><div class="f-eyebrow">Records</div><h1>Author Financial Records</h1><p>The Author ID is the primary identifier; email is an additional searchable identifier.</p></div>
+  <form method="get"><input type="search" name="q" value="{{ q }}" placeholder="AUT-, pen name or email" style="width:240px"></form></div>
+<div class="f-card f-scroll"><table class="f-table">
+  <tr><th>Author</th><th class="num">Books</th><th class="num">Book revenue</th><th class="num">Gifts received</th><th class="num">Calculated</th><th class="num">Approved</th><th class="num">Pending</th><th class="num">Outstanding payable</th></tr>
+  {% for r in rows %}<tr style="cursor:pointer" onclick="location='{% url 'dashboard:finance_author' r.u|aut %}'">
+    <td><b>{{ r.u.display_name }}</b><div style="font-size:12px;color:var(--f-muted)">{{ r.u|aut }} · {{ r.u.email }}</div></td>
+    <td class="num">{{ r.u.books }}</td><td class="num">{{ r.book|money }}</td><td class="num">{{ r.gifts|money }}</td>
+    <td class="num">{{ r.calculated|money }}</td><td class="num">{{ r.approved|money }}</td><td class="num">{{ r.pending|money }}</td><td class="num"><b>{{ r.payable|money }}</b></td>
+  </tr>{% empty %}<tr><td colspan="8" class="f-empty">No authors match.</td></tr>{% endfor %}
+</table>{% include 'dashboard/finance/_pager.html' with query='q='|add:q %}</div>
+<p style="font-size:12.5px;color:var(--f-muted);margin-top:12px">Book revenue and gifts are coins readers spent on the author's books, at coin value (1 coin = 1¢). Calculated earnings come from the author's earning records.</p>
+{% endblock %}

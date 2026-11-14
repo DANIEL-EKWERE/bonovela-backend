@@ -2,7 +2,7 @@ from django.contrib.auth.views import LogoutView
 from django.urls import path
 
 # Drama Studio is closed for now: re-add `drama` here and uncomment its routes below.
-from .views import admin, author, auth, editorial, finance, marketing, marketing_promo as promo
+from .views import admin, author, auth, editorial, finance, finance_records as fin, marketing, marketing_promo as promo
 from .views import editorial_people as people
 from .views import editorial_quality as quality
 
@@ -31,6 +31,8 @@ urlpatterns = [
     path('author/calendar/', author.update_calendar, name='author_calendar'),
     path('author/comments/', author.comments, name='author_comments'),
     path('author/income/', author.income, name='author_income'),
+    path('author/income/withdraw/', author.withdraw, name='author_withdraw'),
+    path('author/income/withdrawals/', author.withdrawals, name='author_withdrawals'),
 
     # Editorial (Editor / Senior Editor / Chief Editor)
     path('editorial/', editorial.home, name='editorial_home'),
@@ -104,12 +106,24 @@ urlpatterns = [
     path('b/<str:book_id>/store/', promo.book_link_store, name='book_link_store'),
 
     # Finance
-    path('finance/', finance.home, name='finance_home'),
-    path('finance/transactions/', finance.transactions, name='finance_transactions'),
+    path('finance/', fin.overview, name='finance_home'),
+    path('finance/treasury/', fin.treasury, name='finance_treasury'),
+    path('finance/transactions/', fin.transactions, name='finance_transactions'),
+    path('finance/readers/', fin.readers, name='finance_readers'),
+    path('finance/readers/<str:code>/', fin.reader_detail, name='finance_reader'),
+    path('finance/authors/', fin.authors, name='finance_authors'),
+    path('finance/authors/<str:code>/', fin.author_detail, name='finance_author'),
+    path('finance/staff/', fin.staff, name='finance_staff'),
+    path('finance/staff/<str:code>/', fin.staff_detail, name='finance_staff_member'),
+    path('finance/coins/', fin.coins, name='finance_coins'),
+    path('finance/subscription-payments/', fin.subscription_payments, name='finance_subscription_payments'),
+    path('finance/gifts/', fin.gifts, name='finance_gifts'),
+    path('finance/approvals/', fin.approvals, name='finance_approvals'),
+    path('finance/approvals/<int:pk>/', fin.request_action, name='finance_request_action'),
+    path('finance/withdrawals/', fin.withdrawals, name='finance_withdrawals'),
     path('finance/balances/', finance.balances, name='finance_balances'),
     path('finance/payouts/', finance.payouts, name='finance_payouts'),
     path('finance/payouts/generate/', finance.payout_generate, name='finance_payout_generate'),
-    path('finance/payouts/<int:pk>/', finance.payout_action, name='finance_payout_action'),
     path('finance/payouts/commission/', finance.book_commission, name='finance_book_commission'),
     path('finance/statements/', finance.reports, name='finance_statements'),  # old link → Financial Reports
     path('finance/revenue/', finance.revenue, name='finance_revenue'),

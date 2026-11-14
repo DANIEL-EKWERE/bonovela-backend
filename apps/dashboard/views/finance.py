@@ -70,7 +70,8 @@ def _balances():
     """One row per payee with earnings: earned, paid, pending, balance."""
     earned = dict(AuthorEarning.objects.values_list('author').annotate(t=Sum('amount_cents')))
     paid = dict(Payout.objects.filter(status=Payout.STATUS_PAID).values_list('author').annotate(t=Sum('amount_cents')))
-    pending = dict(Payout.objects.filter(status=Payout.STATUS_PENDING).values_list('author').annotate(t=Sum('amount_cents')))
+    pending = dict(Payout.objects.filter(status__in=Payout.OPEN + (Payout.STATUS_APPROVED,)).values_list('author')
+                   .annotate(t=Sum('amount_cents')))
     users = User.objects.in_bulk(list(earned))
     methods = {m.author_id: m for m in PayoutMethod.objects.filter(author__in=list(earned))}
     rows = []
@@ -79,84 +80,6 @@ def _balances():
         rows.append({'user': users[uid], 'earned': total, 'paid': p, 'pending': q, 'balance': total - p - q,
                      'method': methods.get(uid)})
     return sorted(rows, key=lambda r: -r['balance'])
-
-
-@finance_area
-def home(request):
-    """Bonovela Treasury: what is held, what can be released, what is owed."""
-    now, today = timezone.now(), timezone.localdate()
-    fs = FinanceSettings.current()
-    sales = Transaction.objects.filter(kind__in=PAID_KINDS)
-    paid_payouts = Payout.objects.filter(status=Payout.STATUS_PAID)
-    paid_expenses = Expense.objects.filter(status=Expense.STATUS_PAID)
-    money_in = _cents(sales)
-    money_out = _cents(paid_payouts, 'amount_cents') + _cents(paid_expenses, 'amount_cents')
-    held = money_in - money_out
-    pending_payouts = _cents(Payout.objects.filter(status=Payout.STATUS_PENDING), 'amount_cents')
-    bills_due = _cents(Expense.objects.filter(status=Expense.STATUS_DUE), 'amount_cents')
-    recent_sales = _cents(sales.filter(created_at__gte=now - timedelta(days=90)))
-    reserved = int(recent_sales * fs.chargeback_reserve_pct / 100)
-    pending = pending_payouts + bills_due
-
-    months = []
-    for back in range(5, -1, -1):
-        start, end = _month_start(today, back), _month_start(today, back - 1)
-        span = {'created_at__date__gte': start, 'created_at__date__lt': end}
-        out = (_cents(paid_payouts.filter(paid_at__date__gte=start, paid_at__date__lt=end), 'amount_cents')
-               + _cents(paid_expenses.filter(date__gte=start, date__lt=end), 'amount_cents'))
-        months.append({'label': start.strftime('%b'), 'in': _cents(sales.filter(**span)), 'out': out})
-    peak = max([m['in'] for m in months] + [m['out'] for m in months] + [1])
-    for m in months:
-        m['in_pct'], m['out_pct'] = round(m['in'] * 100 / peak), round(m['out'] * 100 / peak)
-
-    ledger = []
-    for t in sales.select_related('user').order_by('-created_at')[:10]:
-        ledger.append({'when': t.created_at, 'title': t.title, 'code': f'TX-{t.pk}', 'account': 'Reader Wallets',
-                       'cents': t.price_cents, 'status': 'settled', 'timed': True})
-    for p in Payout.objects.select_related('author').order_by('-created_at')[:10]:
-        ledger.append({'when': p.paid_at or p.created_at, 'title': f'Author payout — {p.author.display_name}',
-                       'code': f'PO-{p.pk}', 'account': 'Author Earnings', 'cents': -p.amount_cents,
-                       'status': {'paid': 'settled', 'pending': 'pending', 'failed': 'failed'}[p.status], 'timed': True})
-    for e in Expense.objects.order_by('-date', '-pk')[:10]:
-        ledger.append({'when': e.paid_at or datetime.combine(e.date, datetime.min.time(), tzinfo=now.tzinfo),
-                       'title': e.title, 'code': e.code, 'account': 'Operating Expenses', 'cents': -e.amount_cents,
-                       'status': 'settled' if e.status == Expense.STATUS_PAID else 'pending', 'timed': bool(e.paid_at)})
-    ledger.sort(key=lambda x: x['when'], reverse=True)
-
-    return render(request, 'dashboard/finance/treasury.html', {
-        'held': held, 'settled': max(0, held - pending - reserved), 'pending': pending, 'reserved': reserved,
-        'pending_payouts': pending_payouts, 'bills_due': bills_due, 'reserve_pct': fs.chargeback_reserve_pct,
-        'months': months, 'ledger': ledger[:12],
-    })
-
-
-@finance_area
-def transactions(request):
-    qs = Transaction.objects.select_related('user', 'story').order_by('-created_at')
-    kind = request.GET.get('kind', '')
-    q = request.GET.get('q', '').strip()
-    start, end = request.GET.get('from', ''), request.GET.get('to', '')
-    if kind == 'paid':
-        qs = qs.filter(kind__in=PAID_KINDS)
-    elif kind:
-        qs = qs.filter(kind=kind)
-    if q:
-        qs = qs.filter(Q(user__email__icontains=q) | Q(title__icontains=q))
-    try:
-        if start:
-            qs = qs.filter(created_at__date__gte=datetime.strptime(start, '%Y-%m-%d').date())
-        if end:
-            qs = qs.filter(created_at__date__lte=datetime.strptime(end, '%Y-%m-%d').date())
-    except ValueError:
-        messages.error(request, 'Dates must look like 2026-11-01.')
-    if request.GET.get('export') == 'csv':
-        return _csv('bonovela-transactions.csv', ['id', 'date', 'user', 'kind', 'title', 'coins', 'bonus_used', 'usd'],
-                    ([t.pk, t.created_at.isoformat(), t.user.email, t.kind, t.title, t.coins, t.bonus_used,
-                      f'{t.price_cents / 100:.2f}'] for t in qs.iterator()))
-    return render(request, 'dashboard/finance/transactions.html', {
-        'tx': qs[:200], 'count': qs.count(), 'total': _cents(qs), 'kind': kind, 'q': q, 'start': start, 'end': end,
-        'kinds': Transaction.KIND_CHOICES, 'query': request.GET.urlencode(),
-    })
 
 
 @finance_area
@@ -170,9 +93,9 @@ def balances(request):
                     ([r['user'].email, r['user'].display_name, *(f'{r[k] / 100:.2f}' for k in
                       ('earned', 'paid', 'pending', 'balance')), r['method'].get_method_display() if r['method'] else '']
                      for r in rows))
-    return render(request, 'dashboard/finance/payouts.html', {
-        'rows': rows, 'minimum': minimum, 'due': bool(request.GET.get('due')), 'tab': 'balances',
-        'statuses': Payout.STATUS_CHOICES, 'can_approve': request.finance_member.can('approve_payouts'),
+    return render(request, 'dashboard/finance/balances.html', {
+        'rows': rows, 'minimum': minimum, 'due': bool(request.GET.get('due')),
+        'can_approve': request.finance_member.can('approve_payouts'),
         'due_ready': [r for r in rows if r['balance'] >= minimum and r['method']],
         'due_missing': [r for r in rows if r['balance'] >= minimum and not r['method']],
     })
@@ -180,24 +103,10 @@ def balances(request):
 
 @finance_area
 def payouts(request):
-    """Author Payouts: pending / paid / failed payouts, and every balance."""
-    tab = request.GET.get('tab', Payout.STATUS_PENDING)
-    if tab == 'balances':
+    """Old Author Payouts link: balances, or the Payment Approval Centre."""
+    if request.GET.get('tab') == 'balances':
         return balances(request)
-    qs = Payout.objects.filter(status=tab).select_related('author', 'created_by', 'approved_by')
-    if request.GET.get('export') == 'csv':
-        return _csv(f'bonovela-payouts-{tab}.csv', ['id', 'email', 'name', 'usd', 'period_end', 'method', 'reference'],
-                    ([p.pk, p.author.email, p.author.display_name, f'{p.amount_cents / 100:.2f}', p.period_end,
-                      p.method, p.reference] for p in qs))
-    minimum = _minimum()
-    due = [r for r in _balances() if r['balance'] >= minimum]
-    return render(request, 'dashboard/finance/payouts.html', {
-        'payouts': qs, 'tab': tab, 'total': _cents(qs, 'amount_cents'), 'statuses': Payout.STATUS_CHOICES,
-        'due_ready': [r for r in due if r['method']], 'due_missing': [r for r in due if not r['method']],
-        'minimum': minimum, 'can_approve': request.finance_member.can('approve_payouts'),
-        'two_person_cents': FinanceSettings.TWO_PERSON_THRESHOLD_CENTS
-        if FinanceSettings.current().two_person_approval else None,
-    })
+    return redirect('dashboard:finance_approvals')
 
 
 @finance_area
@@ -211,15 +120,19 @@ def payout_generate(request):
     for r in _balances():
         if r['balance'] >= minimum and r['method']:
             m = r['method']
+            staff = r['user'].role in ('se', 'ce', 'marketing', 'finance')
             Payout.objects.create(
                 author=r['user'], amount_cents=r['balance'], period_end=today, created_by=request.user,
+                category=Payout.CAT_STAFF if staff else Payout.CAT_EARNINGS,
                 method=f'{m.get_method_display()} · {m.account_name} · {m.bank_name + " · " if m.bank_name else ""}{m.account_detail}',
             )
             made += 1
     if made:
-        audit(request.finance_member, 'Created payouts', 'Payout', detail=f'{made} author{"s" if made != 1 else ""}')
-    messages.success(request, f'Created {made} payout{"s" if made != 1 else ""}.' if made else 'Nobody is due a payout.')
-    return redirect('dashboard:finance_payouts')
+        audit(request.finance_member, 'Created payment requests', 'Payout',
+              detail=f'{made} payee{"s" if made != 1 else ""}')
+    messages.success(request, f'Created {made} payment request{"s" if made != 1 else ""}.' if made
+                     else 'Nobody is due a payout.')
+    return redirect('dashboard:finance_approvals')
 
 
 @finance_area
@@ -232,44 +145,7 @@ def book_commission(request):
     made = book_commissions(last_month)
     messages.success(request, f'Booked {made} commission line{"s" if made != 1 else ""} for {last_month:%B %Y}.'
                      if made else f'{last_month:%B %Y} commission is already booked.')
-    return redirect('dashboard:finance_payouts')
-
-
-@finance_area
-@require_POST
-def payout_action(request, pk):
-    require(request.finance_member, 'approve_payouts')
-    payout = get_object_or_404(Payout, pk=pk)
-    action = request.POST.get('action')
-    needs_two = (FinanceSettings.current().two_person_approval
-                 and payout.amount_cents > FinanceSettings.TWO_PERSON_THRESHOLD_CENTS)
-    if action == 'approve' and payout.status == Payout.STATUS_PENDING and needs_two and not payout.approved_by_id:
-        payout.approved_by, payout.approved_at = request.user, timezone.now()
-        payout.save(update_fields=['approved_by', 'approved_at'])
-        audit(request.finance_member, 'First approval of payout', 'Approval', f'PO-{payout.pk}', money(payout.amount_cents))
-        messages.success(request, 'Approved. A second approver now marks it paid.')
-    elif action == 'paid' and payout.status == Payout.STATUS_PENDING:
-        ref = request.POST.get('reference', '').strip()
-        if needs_two and (not payout.approved_by_id or payout.approved_by_id == request.user.pk):
-            messages.error(request, 'Payouts over $5,000 need two people: one approves, a different one marks it paid.')
-            return redirect('dashboard:finance_payouts')
-        if not ref:
-            messages.error(request, 'Add the bank or PayPal reference first.')
-            return redirect('dashboard:finance_payouts')
-        payout.status, payout.reference, payout.paid_at = Payout.STATUS_PAID, ref, timezone.now()
-        payout.save(update_fields=['status', 'reference', 'paid_at'])
-        from apps.engagement.models import InboxMessage
-        InboxMessage.objects.create(user=payout.author, title='Payout sent 💸',
-                                    body=f'We sent you ${payout.amount_cents / 100:,.2f}. Reference: {ref}.')
-        audit(request.finance_member, 'Approved payout', 'Approval', f'PO-{payout.pk}', money(payout.amount_cents))
-        messages.success(request, f'Marked {payout.author.display_name} as paid.')
-    elif action == 'failed' and payout.status == Payout.STATUS_PENDING:
-        payout.status = Payout.STATUS_FAILED
-        payout.note = request.POST.get('note', '')[:200]
-        payout.save(update_fields=['status', 'note'])
-        audit(request.finance_member, 'Marked payout failed', 'Payout', f'PO-{payout.pk}', money(payout.amount_cents))
-        messages.success(request, 'Marked as failed. The amount is back in their balance.')
-    return redirect(f"{reverse('dashboard:finance_payouts')}?tab={payout.status}")
+    return redirect('dashboard:finance_approvals')
 
 
 # ── Expenses ─────────────────────────────────────────────────────────────────
@@ -346,7 +222,9 @@ SETTING_FIELDS = [
     # name, label, kind (pct | usd | bool), group
     ('author_share_pct', 'Author share', 'pct', 'Revenue'),
     ('processing_fee_pct', 'Processing fee', 'pct', 'Revenue'),
+    ('store_fee_pct', 'App store fee', 'pct', 'Revenue'),
     ('minimum_payout_cents', 'Minimum payout', 'usd', 'Payouts'),
+    ('max_withdrawal_cents', 'Maximum single withdrawal', 'usd', 'Payouts'),
     ('chargeback_reserve_pct', 'Chargeback reserve', 'pct', 'Payouts'),
     ('weekly_payouts', 'Weekly payouts', 'bool', 'Payouts'),
     ('two_person_approval', 'Two-person approval', 'bool', 'Approvals'),
@@ -371,6 +249,8 @@ def finance_settings(request):
         changes, errors = [], []
         for name, label, kind, _ in SETTING_FIELDS:
             old = getattr(fs, name)
+            if kind != 'bool' and name not in request.POST:
+                continue  # not on the submitted form: unchanged
             raw = request.POST.get(name, '')
             try:
                 if kind == 'bool':
@@ -496,7 +376,7 @@ def revenue(request):
     end = _month_start(month, -1)
     fs = FinanceSettings.current()
     span = {'created_at__date__gte': month, 'created_at__date__lt': end}
-    gross = _cents(Transaction.objects.filter(kind__in=PAID_KINDS, **span))
+    gross = _cents(Transaction.objects.filter(kind__in=PAID_KINDS, status='succeeded', **span))
     fees = int(gross * fs.processing_fee_pct / 100)
     earnings = AuthorEarning.objects.filter(type__in=AUTHOR_INCOME, **span)
     to_authors = _cents(earnings, 'amount_cents')
@@ -580,7 +460,7 @@ def search(request):
                     results.append({'type': 'Author', 'title': u.display_name, 'when': u.date_joined, 'cents': earned,
                                     'meta': f'AU-{u.pk} · {u.email} · {u.stories.count()} titles · lifetime earnings'})
                 else:
-                    paid = Transaction.objects.filter(user=u, kind__in=PAID_KINDS)
+                    paid = Transaction.objects.filter(user=u, kind__in=PAID_KINDS, status='succeeded')
                     results.append({'type': 'Reader', 'title': u.email, 'when': u.date_joined, 'cents': _cents(paid),
                                     'meta': f'R-{u.pk} · lifetime spend · {paid.count()} purchases'})
         if want('Payout'):
@@ -612,7 +492,7 @@ def search(request):
 def _pl(start, end):
     """Profit & loss figures for [start, end)."""
     span = {'created_at__date__gte': start, 'created_at__date__lt': end}
-    revenue_ = _cents(Transaction.objects.filter(kind__in=PAID_KINDS, **span))
+    revenue_ = _cents(Transaction.objects.filter(kind__in=PAID_KINDS, status='succeeded', **span))
     fees = int(revenue_ * FinanceSettings.current().processing_fee_pct / 100)
     authors = _cents(AuthorEarning.objects.filter(**span), 'amount_cents')
     expenses_ = _cents(Expense.objects.filter(date__gte=start, date__lt=end), 'amount_cents')
@@ -650,7 +530,7 @@ def reports(request):
     if report == 'cash':
         audit(member, 'Downloaded report', 'Report', detail=f'Cash Flow Statement · {last:%B %Y}')
         rows = []
-        for t in Transaction.objects.filter(kind__in=PAID_KINDS, created_at__date__gte=last, created_at__date__lt=this):
+        for t in Transaction.objects.filter(kind__in=PAID_KINDS, status='succeeded', created_at__date__gte=last, created_at__date__lt=this):
             rows.append((t.created_at.date(), 'In', 'Reader Wallets', t.title, money2(t.price_cents)))
         for p in Payout.objects.filter(status=Payout.STATUS_PAID, paid_at__date__gte=last, paid_at__date__lt=this):
             rows.append((p.paid_at.date(), 'Out', 'Author Earnings', f'Payout PO-{p.pk} · {p.author.email}',
@@ -916,7 +796,7 @@ def support(request):
     if q:
         found = User.objects.filter(Q(email__iexact=q) | Q(pk=_id_of(q, 'R') or 0)).first()
     for t in shown:
-        t.payments = Transaction.objects.filter(user=t.reader, kind__in=PAID_KINDS).order_by('-created_at')[:3]
+        t.payments = Transaction.objects.filter(user=t.reader, kind__in=PAID_KINDS, status='succeeded').order_by('-created_at')[:3]
     return render(request, 'dashboard/finance/support.html', {
         'tickets': shown[:200], 'tab': tab, 'open_n': open_t.count(),
         'ready_n': open_t.filter(issue='not_delivered').count(), 'readers_n': open_t.values('reader').distinct().count(),
@@ -1006,7 +886,7 @@ def _ledger_for(source, start, end):
         method = 'PayPal' if source == 'PayPal' else 'Bank'
         return _cents(Payout.objects.filter(status=Payout.STATUS_PAID, paid_at__date__gte=start,
                                             paid_at__date__lte=end, method__icontains=method), 'amount_cents')
-    sales = _cents(Transaction.objects.filter(kind__in=PAID_KINDS, created_at__date__gte=start, created_at__date__lte=end))
+    sales = _cents(Transaction.objects.filter(kind__in=PAID_KINDS, status='succeeded', created_at__date__gte=start, created_at__date__lte=end))
     return sales - int(sales * FinanceSettings.current().processing_fee_pct / 100)
 
 

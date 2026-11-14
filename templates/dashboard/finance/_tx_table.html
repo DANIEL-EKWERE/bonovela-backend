@@ -1,0 +1,26 @@
+{% load bv %}<div class="f-card">
+  <form class="h" method="get" style="flex-wrap:wrap">
+    <h2>{{ table_title|default:'Transactions' }}</h2>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <input type="search" name="q" value="{{ filters.q }}" placeholder="TXN-, RD-, reference or email" style="width:230px">
+      {% if show_category %}<select name="category" onchange="this.form.submit()" style="width:auto"><option value="">All categories</option>{% for k, l in categories %}<option value="{{ k }}" {% if k == filters.category %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>{% endif %}
+      <select name="status" onchange="this.form.submit()" style="width:auto"><option value="">All statuses</option>{% for k, l in statuses %}<option value="{{ k }}" {% if k == filters.status %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+      <a class="f-btn ghost sm" href="?{{ query }}{% if query %}&{% endif %}export=csv"><i class="ph ph-download-simple"></i>Export CSV</a>
+    </div>
+  </form>
+  <div class="f-scroll"><table class="f-table">
+    <tr><th>Date</th><th>Transaction</th>{% if not hide_reader %}<th>Reader</th>{% endif %}<th>Product</th>{% if extra_col %}<th>{{ extra_col }}</th>{% endif %}<th>Provider</th><th class="num">Amount</th><th>Status</th><th>Settlement</th></tr>
+    {% for t in page %}<tr>
+      <td style="white-space:nowrap">{{ t.created_at|date:'d M Y, H:i' }}</td>
+      <td><div style="font-family:ui-monospace,monospace;font-size:13px">{{ t.code }}</div><div style="font-size:12px;color:var(--f-muted)">{{ t.category }}</div></td>
+      {% if not hide_reader %}<td><a href="{% url 'dashboard:finance_reader' t.user|rd %}" style="font-family:ui-monospace,monospace;font-size:13px;color:var(--f-primary)">{{ t.user|rd }}</a></td>{% endif %}
+      <td>{{ t.title|truncatechars:48 }}</td>
+      {% if extra_col == 'Coins' %}<td class="num">{{ t.coins|floatformat:'0g' }}</td>{% elif extra_col == 'Plan' %}<td>{{ t.title }}</td>{% elif extra_col == 'Author' %}<td>{% if t.story %}<a href="{% url 'dashboard:finance_author' t.story.author_id|aut %}" style="font-family:ui-monospace,monospace;font-size:13px;color:var(--f-primary)">{{ t.story.author_id|aut }}</a>{% else %}—{% endif %}</td>{% endif %}
+      <td>{{ t.get_provider_display|default:'—' }}</td>
+      <td class="num">{{ t.value_cents|money }}{% if not t.is_money %}<div style="font-size:11px;color:var(--f-muted)">{{ t.coins|cut:'-' }} coins</div>{% endif %}</td>
+      <td>{% include 'dashboard/finance/_tx_status.html' with st=t.status label=t.get_status_display %}</td>
+      <td>{% if not t.is_money or t.status != 'succeeded' %}—{% elif t.settled_at %}<span class="f-chip ok">Settled</span>{% else %}<span class="f-chip">Unsettled</span>{% endif %}</td>
+    </tr>{% empty %}<tr><td colspan="10" class="f-empty">No transactions match.</td></tr>{% endfor %}
+  </table></div>
+  {% include 'dashboard/finance/_pager.html' %}
+</div>

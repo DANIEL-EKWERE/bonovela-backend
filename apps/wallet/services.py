@@ -115,15 +115,72 @@ def spend(user, amount: int, *, title: str, kind: str, story=None, chapter=None)
 
 
 def available_to_withdraw(user) -> int:
-    """Earnings (USD cents) not yet paid out or already queued for payout."""
+    """Earnings (USD cents) not yet paid out, approved or requested.
+    Rejected and failed requests go back into the balance."""
     from django.db.models import Sum
 
     from .models import AuthorEarning, Payout
 
     earned = AuthorEarning.objects.filter(author=user).aggregate(t=Sum('amount_cents'))['t'] or 0
-    out = Payout.objects.filter(author=user, status__in=[Payout.STATUS_PAID, Payout.STATUS_PENDING]).aggregate(
+    out = Payout.objects.filter(author=user, status__in=Payout.COMMITTED).aggregate(
         t=Sum('amount_cents'))['t'] or 0
     return max(0, earned - out)
+
+
+class WithdrawalError(Exception):
+    pass
+
+
+def withdrawal_rules(user):
+    """What the author may withdraw now: balance, limits and whether this
+    month's withdrawal is already placed."""
+    from apps.finance.models import FinanceSettings
+
+    from .models import Payout
+
+    fs = FinanceSettings.current()
+    today = timezone.localdate()
+    placed = Payout.objects.filter(author=user, category=Payout.CAT_WITHDRAWAL, created_at__year=today.year,
+                                   created_at__month=today.month).exclude(
+        status__in=[Payout.STATUS_REJECTED, Payout.STATUS_FAILED]).exists()
+    available = available_to_withdraw(user)
+    return {'available': available, 'minimum': fs.minimum_payout_cents, 'maximum': fs.max_withdrawal_cents,
+            'placed_this_month': placed,
+            'can_withdraw': available >= fs.minimum_payout_cents and not placed}
+
+
+def place_withdrawal(user, cents, method):
+    """Create the author's withdrawal request for Finance to approve.
+    [method] is their saved PayoutMethod. One per calendar month."""
+    from .models import Payout
+
+    with transaction.atomic():
+        from django.contrib.auth import get_user_model
+        get_user_model().objects.select_for_update().filter(pk=user.pk).first()  # one request at a time per author
+        rules = withdrawal_rules(user)
+        if rules['placed_this_month']:
+            raise WithdrawalError('You have already placed a withdrawal this month. You can place the next one '
+                                  'next month.')
+        if cents < rules['minimum']:
+            raise WithdrawalError(f'Amount must be at least ${rules["minimum"] / 100:,.2f}.')
+        if cents > rules['available']:
+            raise WithdrawalError(f'Amount is more than your available balance (${rules["available"] / 100:,.2f}).')
+        if cents > rules['maximum']:
+            raise WithdrawalError(f'The most you can withdraw at once is ${rules["maximum"] / 100:,.2f}.')
+        if not method:
+            raise WithdrawalError('Add your payment account first.')
+        detail = f'{method.bank_name} · ' if method.bank_name else ''
+        return Payout.objects.create(
+            author=user, category=Payout.CAT_WITHDRAWAL, amount_cents=cents, requested_cents=cents,
+            period_end=timezone.localdate(), created_by=user,
+            method=f'{method.get_method_display()} · {method.account_name} · {detail}{method.account_detail}'[:160])
+
+
+def author_status(payout):
+    """How a payment request reads to the author (rejections stay internal)."""
+    from .models import Payout
+    return {Payout.STATUS_APPROVED: 'Processing', Payout.STATUS_PAID: 'Successful',
+            Payout.STATUS_FAILED: 'Failed — returned to balance'}.get(payout.status, 'Pending')
 
 
 def has_plus(user) -> bool:

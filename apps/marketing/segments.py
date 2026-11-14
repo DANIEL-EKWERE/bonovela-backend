@@ -39,7 +39,7 @@ def segment(key, base=None, cfg=None):
     cfg = cfg or MarketingSettings.current()
     qs = base if base is not None else readers()
     now = timezone.now()
-    paid = Transaction.objects.filter(user=OuterRef('pk'), kind__in=PAID_KINDS)
+    paid = Transaction.objects.filter(user=OuterRef('pk'), kind__in=PAID_KINDS, status='succeeded')
     if key == 'paying':
         return qs.filter(Exists(paid))
     if key == 'never':
