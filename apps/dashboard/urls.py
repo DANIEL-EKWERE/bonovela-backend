@@ -1,7 +1,8 @@
 from django.contrib.auth.views import LogoutView
 from django.urls import path
 
-from .views import admin, author, auth, drama, editorial, finance, marketing, marketing_promo as promo
+# Drama Studio is closed for now: re-add `drama` here and uncomment its routes below.
+from .views import admin, author, auth, editorial, finance, marketing, marketing_promo as promo
 from .views import editorial_people as people
 from .views import editorial_quality as quality
 
@@ -56,19 +57,19 @@ urlpatterns = [
     path('editorial/messages/', people.team_messages, name='editorial_messages'),
     path('editorial/reports/', people.reports, name='editorial_reports'),
 
-    # Drama Studio (drama creators)
-    path('drama-studio/', drama.dramas, name='drama_list'),
-    path('drama-studio/new/', drama.drama_form, name='drama_new'),
-    path('drama-studio/analytics/', drama.stats_all, name='drama_stats_all'),
-    path('drama-studio/earnings/', drama.earnings, name='drama_earnings'),
-    path('drama-studio/<int:pk>/', drama.episodes, name='drama_episodes'),
-    path('drama-studio/<int:pk>/edit/', drama.drama_form, name='drama_edit'),
-    path('drama-studio/<int:pk>/action/', drama.drama_action, name='drama_action'),
-    path('drama-studio/<int:pk>/stats/', drama.stats, name='drama_stats'),
-    path('drama-studio/<int:pk>/episodes/new/', drama.episode_form, name='drama_episode_new'),
-    path('drama-studio/<int:pk>/episodes/<int:episode_id>/', drama.episode_form, name='drama_episode_edit'),
-    path('drama-studio/<int:pk>/episodes/<int:episode_id>/action/', drama.episode_action,
-         name='drama_episode_action'),
+    # Drama Studio (drama creators) — closed for now.
+    # path('drama-studio/', drama.dramas, name='drama_list'),
+    # path('drama-studio/new/', drama.drama_form, name='drama_new'),
+    # path('drama-studio/analytics/', drama.stats_all, name='drama_stats_all'),
+    # path('drama-studio/earnings/', drama.earnings, name='drama_earnings'),
+    # path('drama-studio/<int:pk>/', drama.episodes, name='drama_episodes'),
+    # path('drama-studio/<int:pk>/edit/', drama.drama_form, name='drama_edit'),
+    # path('drama-studio/<int:pk>/action/', drama.drama_action, name='drama_action'),
+    # path('drama-studio/<int:pk>/stats/', drama.stats, name='drama_stats'),
+    # path('drama-studio/<int:pk>/episodes/new/', drama.episode_form, name='drama_episode_new'),
+    # path('drama-studio/<int:pk>/episodes/<int:episode_id>/', drama.episode_form, name='drama_episode_edit'),
+    # path('drama-studio/<int:pk>/episodes/<int:episode_id>/action/', drama.episode_action,
+    #      name='drama_episode_action'),
 
     # Marketing
     path('marketing/', marketing.home, name='marketing_home'),

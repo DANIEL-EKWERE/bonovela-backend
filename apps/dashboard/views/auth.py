@@ -1,7 +1,10 @@
 from django.contrib import messages
-from django.contrib.auth import views as auth_views
+from django.contrib.auth import logout, views as auth_views
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import redirect
+
+# Drama Studio is closed for now: drama creators can't sign in to the dashboard.
+DRAMA_CLOSED = 'Drama Studio is closed for now.'
 
 
 class LoginView(auth_views.LoginView):
@@ -11,6 +14,9 @@ class LoginView(auth_views.LoginView):
     def form_valid(self, form):
         if form.get_user().is_suspended:
             messages.error(self.request, 'This account is suspended.')
+            return redirect('dashboard:login')
+        if form.get_user().is_drama_creator:
+            messages.error(self.request, DRAMA_CLOSED)
             return redirect('dashboard:login')
         response = super().form_valid(form)
         from apps.users.ip import record
@@ -27,7 +33,10 @@ def home(request):
     if user.is_editor:
         return redirect('dashboard:editorial_home')
     if user.is_drama_creator:
-        return redirect('dashboard:drama_list')
+        # Drama Studio is closed for now; was: redirect('dashboard:drama_list')
+        logout(request)
+        messages.error(request, DRAMA_CLOSED)
+        return redirect('dashboard:login')
     if user.is_marketing:
         return redirect('dashboard:marketing_home')
     if user.is_finance:

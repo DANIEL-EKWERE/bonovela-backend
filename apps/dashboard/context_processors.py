@@ -31,11 +31,12 @@ EDITORIAL_NAV = [
     ('dashboard:editorial_reports', 'clipboard-text', 'Reports', {}),
 ]
 
-DRAMA_NAV = [
-    ('dashboard:drama_list', 'film-slate', 'Dramas'),
-    ('dashboard:drama_stats_all', 'chart-bar', 'Analytics'),
-    ('dashboard:drama_earnings', 'wallet', 'Earnings'),
-]
+# Drama Studio is closed for now (routes commented out in urls.py).
+# DRAMA_NAV = [
+#     ('dashboard:drama_list', 'film-slate', 'Dramas'),
+#     ('dashboard:drama_stats_all', 'chart-bar', 'Analytics'),
+#     ('dashboard:drama_earnings', 'wallet', 'Earnings'),
+# ]
 
 MARKETING_NAV = [
     ('dashboard:marketing_home', 'squares-four', 'Marketing Overview', {'section': 'Overview'}),
@@ -122,8 +123,8 @@ def dashboard_globals(request):
             lv = level(user)
         area = {'ce': 'Chief Editor', 'se': 'Senior Editor'}.get(lv, 'Editorial')
         nav = EDITORIAL_NAV
-    elif path.startswith('/drama-studio'):
-        area, nav = 'Drama Studio', DRAMA_NAV
+    # elif path.startswith('/drama-studio'):
+    #     area, nav = 'Drama Studio', DRAMA_NAV
     elif path.startswith('/marketing'):
         area, nav = 'Marketing', MARKETING_NAV
     elif path.startswith('/finance'):
@@ -141,8 +142,9 @@ def dashboard_globals(request):
             from apps.editorial.team import level
             areas.append(({'ce': 'Chief Editor', 'se': 'Senior Editor'}.get(level(user), 'Senior Editor'),
                           reverse('dashboard:editorial_home')))
-        if user.is_drama_creator or admin:
-            areas.append(('Drama Studio', reverse('dashboard:drama_list')))
+        # Drama Studio is closed for now.
+        # if user.is_drama_creator or admin:
+        #     areas.append(('Drama Studio', reverse('dashboard:drama_list')))
         if user.is_marketing or admin or hasattr(user, 'marketing_member'):
             areas.append(('Marketing', reverse('dashboard:marketing_home')))
         if user.is_finance or admin:

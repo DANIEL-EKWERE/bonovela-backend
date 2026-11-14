@@ -1,5 +1,6 @@
 from datetime import timedelta
 from io import StringIO
+from unittest import skip
 
 from django.conf import settings
 from django.core.management import call_command
@@ -585,16 +586,27 @@ class NewDashboardTests(TestCase):
             self.assertEqual(r.status_code, 200, f'{url} → {r.status_code}')
 
     def test_role_redirects_and_access(self):
-        for role, home in [('creator', '/drama-studio/'), ('marketing', '/marketing/'), ('finance', '/finance/')]:
+        for role, home in [('marketing', '/marketing/'), ('finance', '/finance/')]:
             self.as_role(role)
             self.assertRedirects(self.client.get('/'), home)
         self.as_role('finance')
         self.assertEqual(self.client.get('/marketing/').status_code, 403)
-        self.assertEqual(self.client.get('/drama-studio/').status_code, 403)
+        self.assertEqual(self.client.get('/drama-studio/').status_code, 404)  # Drama Studio closed
         self.as_role('author')
         self.assertEqual(self.client.get('/finance/').status_code, 403)
 
-    # ── Drama Studio ─────────────────────────────────────────────────────────
+    # ── Drama Studio (closed for now) ────────────────────────────────────────
+    def test_drama_studio_closed(self):
+        self.client.logout()
+        r = self.client.post('/login/', {'username': 'creator@bonovela.app', 'password': PASSWORD})
+        self.assertRedirects(r, '/login/')
+        self.assertNotIn('_auth_user_id', self.client.session)
+        self.as_role('creator')  # a session from before the closure is signed out
+        self.assertRedirects(self.client.get('/'), '/login/')
+        self.assertNotIn('_auth_user_id', self.client.session)
+        self.assertEqual(self.client.get('/drama-studio/').status_code, 404)
+
+    @skip('Drama Studio is closed for now')
     def test_drama_pages_render(self):
         from apps.drama.models import Drama
         self.as_role('creator')
@@ -605,6 +617,7 @@ class NewDashboardTests(TestCase):
                     f'/drama-studio/{d.pk}/stats/', f'/drama-studio/{d.pk}/episodes/new/',
                     f'/drama-studio/{d.pk}/episodes/{ep.pk}/')
 
+    @skip('Drama Studio is closed for now')
     def test_creator_uploads_and_publishes(self):
         from django.core.files.uploadedfile import SimpleUploadedFile
         from apps.drama.models import Drama, Episode
@@ -640,6 +653,7 @@ class NewDashboardTests(TestCase):
         d.refresh_from_db()
         self.assertTrue(d.is_published)
 
+    @skip('Drama Studio is closed for now')
     def test_creator_cannot_edit_others_drama(self):
         from apps.drama.models import Drama
         other = User.objects.create_user(email='c2@x.com', username='c2', password=PASSWORD, role=User.ROLE_CREATOR)
