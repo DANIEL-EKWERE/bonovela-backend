@@ -1,0 +1,36 @@
+{% extends 'dashboard/finance/layout.html' %}{% load bv %}
+{% block title %}Refunds & Chargebacks{% endblock %}
+{% block content %}
+<div class="f-head">
+  <div><div class="f-eyebrow">Disputes</div><h1>Refunds &amp; Chargebacks</h1><p>Open a case to see every purchase, coin and chapter the reader used, then refund what’s fair.</p></div>
+  {% if can_act %}<button class="f-btn" data-open="newCase"><i class="ph ph-plus"></i>Open a case</button>{% endif %}
+</div>
+<div class="f-stats">
+  <div class="f-stat hero"><div class="l">Open cases</div><div class="v">{{ open_n }}</div></div>
+  <div class="f-stat"><div class="l">Amount at risk</div><div class="v">{{ at_risk|money }}</div></div>
+  <div class="f-stat"><a href="{% url 'dashboard:finance_support' %}"><div class="l">Payment issues</div><div class="v">{{ issues_n }}</div><div class="d">Not fixed yet · Reader Support</div></a></div>
+</div>
+<div class="f-tabs"><a href="?tab=open" class="{% if tab == 'open' %}on{% endif %}">Open ({{ open_n }})</a><a href="?tab=resolved" class="{% if tab != 'open' %}on{% endif %}">Resolved</a></div>
+<div class="f-card">
+  {% for c in cases %}
+  <div class="f-row">
+    <div class="f-grow"><div class="t">{{ c.reason }} <span class="f-chip">{{ c.get_kind_display }}</span> <span class="f-chip {% if c.status == 'open' %}warn{% elif c.status == 'refunded' %}ok{% else %}bad{% endif %}">{{ c.get_status_display|lower }}</span></div>
+      <div class="m">{{ c.code }} · R-{{ c.reader.pk }} · {{ c.reader.email }} · {{ c.processor }} · {{ c.created_at|date:"M j, h:i A" }}</div></div>
+    <div class="amt">{{ c.amount_cents|money }}</div>
+    <a class="f-btn sm ghost" href="{% url 'dashboard:finance_refund_case' c.pk %}">Review</a>
+  </div>
+  {% empty %}<div class="f-empty">No {% if tab == 'open' %}open{% else %}resolved{% endif %} cases.</div>{% endfor %}
+</div>
+<div class="f-sheet" id="newCase"><div class="p"><h2>Open a case</h2>
+  <form method="post">{% csrf_token %}
+    <label class="f-field"><span>Reader's account email</span><input type="email" name="email" required></label>
+    <div class="f-grid" style="grid-template-columns:1fr 1fr">
+      <label class="f-field"><span>Type</span><select name="kind">{% for k, l in kinds %}<option value="{{ k }}">{{ l }}</option>{% endfor %}</select></label>
+      <label class="f-field"><span>Processor</span><select name="processor">{% for k, l in processors %}<option value="{{ k }}">{{ l }}</option>{% endfor %}</select></label>
+      <label class="f-field"><span>Amount (USD)</span><input type="number" name="amount" step="0.01" min="0.01" required></label>
+      <label class="f-field"><span>Transaction (optional)</span><input type="text" name="transaction" placeholder="TX-123"></label>
+    </div>
+    <label class="f-field"><span>Reason</span><input type="text" name="reason" maxlength="160" required placeholder="e.g. Accidental coin purchase"></label>
+    <div style="display:flex;gap:8px;justify-content:flex-end"><button type="button" class="f-btn ghost" data-close>Cancel</button><button class="f-btn">Open case</button></div>
+  </form></div></div>
+{% endblock %}

@@ -1,0 +1,22 @@
+{% extends 'dashboard/finance/layout.html' %}{% load bv %}
+{% block title %}Financial Reports{% endblock %}
+{% block content %}
+<div class="f-head"><div><div class="f-eyebrow">Statements</div><h1>Financial Reports</h1>
+  <p>Download statements for management, accountants and tax filings.</p></div></div>
+<div class="f-stats">
+  <div class="f-stat hero"><div class="l">Revenue ({{ this|date:"M" }})</div><div class="v">{{ now.revenue|money0 }}</div>
+    <div class="d">{% if change is not None %}{% if change >= 0 %}+{% endif %}{{ change }}% vs {{ last|date:"F" }}{% else %}No sales in {{ last|date:"F" }} to compare{% endif %}</div></div>
+  <div class="f-stat"><div class="l">Operating expenses</div><div class="v">{{ now.expenses|money0 }}</div><div class="d">{{ this|date:"F" }}</div></div>
+  <div class="f-stat"><div class="l">Net margin</div><div class="v">{% if margin is not None %}{{ margin }}%{% else %}—{% endif %}</div><div class="d">After fees, author earnings and expenses</div></div>
+</div>
+<div class="f-card"><div class="h"><h2>Available reports</h2></div>
+  {% for key, title, desc in reports %}
+  <div class="f-row">
+    <span class="f-ico"><i class="ph ph-file-text"></i></span>
+    <div class="f-grow"><div class="t">{{ title }}</div><div class="m">{{ desc }}</div></div>
+    <a class="f-btn ghost sm" href="?download={{ key }}"><i class="ph ph-download-simple"></i>Download</a>
+  </div>
+  {% endfor %}
+  <div class="f-note">CSV files open in Excel, Google Sheets or Numbers. Every download is recorded in the Audit Logs.</div>
+</div>
+{% endblock %}

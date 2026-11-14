@@ -21,6 +21,13 @@ def money0(cents):
 
 
 @register.filter
+def dollars(cents):
+    """1999 → 19.99 (for form inputs)"""
+    cents = int(cents or 0)
+    return f'{cents / 100:.2f}'
+
+
+@register.filter
 def signed(cents):
     """1482040 → +$14,820.40 · -324000 → −$3,240.00"""
     cents = int(cents or 0)

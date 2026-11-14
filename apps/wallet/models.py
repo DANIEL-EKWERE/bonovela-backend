@@ -207,6 +207,7 @@ class AuthorEarning(models.Model):
         ('others', 'Others'),
         ('carry_over', 'Carry over'),
         ('reward_share', 'Reward Share'),
+        ('subscription_share', 'Short Story Subscription'),
         ('editor_commission', 'Editorial Commission'),
     ]
     # No card on the Income page: no longer paid (signing, completion) or
@@ -241,6 +242,9 @@ class Payout(models.Model):
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='+')
     created_at = models.DateTimeField(auto_now_add=True)
     paid_at = models.DateTimeField(null=True, blank=True)
+    # First approval of a large payout when two-person approval is on.
+    approved_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    approved_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         ordering = ['-created_at']

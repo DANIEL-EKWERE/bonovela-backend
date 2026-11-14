@@ -121,3 +121,163 @@ class Expense(models.Model):
     @property
     def code(self):
         return f'EX-{self.pk}'
+
+
+# ── Short Story Subscriptions ────────────────────────────────────────────────
+class SubscriberRead(models.Model):
+    """A Plus subscriber reading a short-story chapter they didn't pay coins
+    for; the subscription pool is shared by these reads."""
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='+')
+    chapter = models.ForeignKey('catalog.Chapter', on_delete=models.CASCADE, related_name='+')
+    story = models.ForeignKey('catalog.Story', on_delete=models.CASCADE, related_name='+')
+    author = models.ForeignKey(User, on_delete=models.CASCADE, related_name='+')
+    month = models.DateField(help_text='First day of the month', db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['user', 'chapter', 'month'], name='one_read_per_month')]
+
+
+class SubscriptionShare(models.Model):
+    """An author's share of one month's subscription pool, decided by Finance."""
+
+    STATUS_WAITING, STATUS_APPROVED, STATUS_SKIPPED = 'waiting', 'approved', 'skipped'
+    STATUS_CHOICES = [(STATUS_WAITING, 'Waiting for decision'), (STATUS_APPROVED, 'Approved'),
+                      (STATUS_SKIPPED, "Don't pay")]
+
+    month = models.DateField()
+    author = models.ForeignKey(User, on_delete=models.CASCADE, related_name='+')
+    reads = models.PositiveIntegerField(default=0)
+    suggested_cents = models.PositiveIntegerField(default=0)
+    approved_cents = models.PositiveIntegerField(default=0)
+    status = models.CharField(max_length=8, choices=STATUS_CHOICES, default=STATUS_WAITING)
+    decided_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    decided_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-reads']
+        constraints = [models.UniqueConstraint(fields=['month', 'author'], name='one_share_per_author_month')]
+
+
+# ── Refunds & Chargebacks ────────────────────────────────────────────────────
+PROCESSORS = [(p, p) for p in ('Google Play', 'Apple', 'Stripe', 'PayPal', 'Bank', 'Other')]
+
+
+class RefundCase(models.Model):
+    KIND_REFUND, KIND_CHARGEBACK = 'refund', 'chargeback'
+    KIND_CHOICES = [(KIND_REFUND, 'Refund'), (KIND_CHARGEBACK, 'Chargeback')]
+    STATUS_OPEN, STATUS_REFUNDED, STATUS_REJECTED = 'open', 'refunded', 'rejected'
+    STATUS_CHOICES = [(STATUS_OPEN, 'Open'), (STATUS_REFUNDED, 'Refunded'), (STATUS_REJECTED, 'Rejected')]
+
+    reader = models.ForeignKey(User, on_delete=models.CASCADE, related_name='+')
+    transaction = models.ForeignKey('wallet.Transaction', on_delete=models.SET_NULL, null=True, blank=True,
+                                    related_name='+')
+    kind = models.CharField(max_length=10, choices=KIND_CHOICES, default=KIND_REFUND)
+    reason = models.CharField(max_length=160)
+    processor = models.CharField(max_length=12, choices=PROCESSORS, default='Google Play')
+    amount_cents = models.PositiveIntegerField()
+    refunded_cents = models.PositiveIntegerField(default=0)
+    coins_removed = models.PositiveIntegerField(default=0)
+    status = models.CharField(max_length=8, choices=STATUS_CHOICES, default=STATUS_OPEN, db_index=True)
+    resolution = models.CharField(max_length=200, blank=True)
+    opened_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='+')
+    decided_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    created_at = models.DateTimeField(auto_now_add=True)
+    decided_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    @property
+    def code(self):
+        return f"{'CB' if self.kind == self.KIND_CHARGEBACK else 'RF'}-{self.pk}"
+
+
+# ── Reader Support ───────────────────────────────────────────────────────────
+class SupportTicket(models.Model):
+    CATEGORY_CHOICES = [('coins', 'Coins'), ('subscription', 'Subscription'), ('other', 'Other')]
+    ISSUE_CHOICES = [('not_delivered', 'Paid, not delivered'), ('failed', 'Payment failed'),
+                     ('no_payment', 'No payment found'), ('credited', 'Already credited'), ('other', 'Other')]
+    STATUS_OPEN, STATUS_RESOLVED = 'open', 'resolved'
+    STATUS_CHOICES = [(STATUS_OPEN, 'Open'), (STATUS_RESOLVED, 'Resolved')]
+
+    reader = models.ForeignKey(User, on_delete=models.CASCADE, related_name='support_tickets')
+    category = models.CharField(max_length=12, choices=CATEGORY_CHOICES, default='coins')
+    issue = models.CharField(max_length=14, choices=ISSUE_CHOICES, default='not_delivered')
+    message = models.TextField()
+    payment_ref = models.CharField(max_length=80, blank=True, help_text='Store order ID or receipt the reader gave')
+    status = models.CharField(max_length=8, choices=STATUS_CHOICES, default=STATUS_OPEN, db_index=True)
+    resolution = models.CharField(max_length=200, blank=True)
+    resolved_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    created_at = models.DateTimeField(auto_now_add=True)
+    resolved_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    @property
+    def code(self):
+        return f'ST-{self.pk}'
+
+
+# ── Bonuses & Incentives ─────────────────────────────────────────────────────
+class BonusProgram(models.Model):
+    AUDIENCE_CHOICES = [('authors', 'Authors (cash to their income)'), ('readers', 'Readers (coins)')]
+
+    name = models.CharField(max_length=80)
+    description = models.CharField(max_length=200)
+    audience = models.CharField(max_length=8, choices=AUDIENCE_CHOICES, default='authors')
+    monthly_budget_cents = models.PositiveIntegerField()
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-is_active', 'name']
+
+
+class BonusAward(models.Model):
+    STATUS_SCHEDULED, STATUS_PAID, STATUS_CANCELLED = 'scheduled', 'paid', 'cancelled'
+    STATUS_CHOICES = [(STATUS_SCHEDULED, 'Scheduled'), (STATUS_PAID, 'Paid'), (STATUS_CANCELLED, 'Cancelled')]
+
+    program = models.ForeignKey(BonusProgram, on_delete=models.PROTECT, related_name='awards')
+    recipient = models.ForeignKey(User, on_delete=models.CASCADE, related_name='+')
+    amount_cents = models.PositiveIntegerField(help_text='USD cents; for readers, coins (1 coin = 1¢)')
+    date = models.DateField(default=timezone.localdate)
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=STATUS_SCHEDULED)
+    note = models.CharField(max_length=160, blank=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='+')
+    paid_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-date', '-pk']
+
+    @property
+    def code(self):
+        return f'BN-{self.pk}'
+
+
+# ── Reconciliation ───────────────────────────────────────────────────────────
+class ProcessorPayout(models.Model):
+    """A payout a processor or bank reported, matched against the ledger."""
+
+    STATUS_MATCHED, STATUS_REVIEW, STATUS_RESOLVED = 'matched', 'review', 'resolved'
+    STATUS_CHOICES = [(STATUS_MATCHED, 'Matched'), (STATUS_REVIEW, 'Needs review'), (STATUS_RESOLVED, 'Resolved')]
+
+    source = models.CharField(max_length=12, choices=PROCESSORS)
+    reference = models.CharField(max_length=80)
+    period_start = models.DateField()
+    period_end = models.DateField()
+    processor_cents = models.IntegerField(help_text="What the processor's statement says")
+    ledger_cents = models.IntegerField(help_text="What Bonovela's ledger says for the same period")
+    status = models.CharField(max_length=8, choices=STATUS_CHOICES, default=STATUS_REVIEW)
+    resolution = models.CharField(max_length=200, blank=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='+')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-period_end', '-pk']
+
+    @property
+    def difference(self):
+        return self.processor_cents - self.ledger_cents

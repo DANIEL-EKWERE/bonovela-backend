@@ -13,6 +13,7 @@ from .models import (
     ChapterUnlock,
     Gift,
     Subscription,
+    SubscriptionPlan,
     Transaction,
     Vote,
     VoucherEntry,
@@ -48,6 +49,38 @@ def grant_vouchers(user, amount: int, source: str):
         wallet.save(update_fields=['vouchers'])
         VoucherEntry.objects.create(user=user, amount=amount, source=source)
 
+
+
+@transaction.atomic
+def credit_coins(user, coins: int, title: str) -> Transaction:
+    """Adds coins (support credits, reader bonuses)."""
+    wallet = Wallet.objects.select_for_update().get(pk=wallet_for(user).pk)
+    wallet.coins += coins
+    wallet.save(update_fields=['coins'])
+    return Transaction.objects.create(user=user, kind=Transaction.KIND_REWARD, title=title, coins=coins)
+
+
+@transaction.atomic
+def remove_coins(user, coins: int, title: str) -> int:
+    """Takes back up to [coins] (refunds); returns how many were still there."""
+    wallet = Wallet.objects.select_for_update().get(pk=wallet_for(user).pk)
+    taken = min(coins, wallet.coins)
+    if taken:
+        wallet.coins -= taken
+        wallet.save(update_fields=['coins'])
+        Transaction.objects.create(user=user, kind=Transaction.KIND_REWARD, title=title, coins=-taken)
+    return taken
+
+
+def extend_plus(user, days: int):
+    """Adds Plus days (support credits) on top of any active subscription."""
+    plan = SubscriptionPlan.objects.order_by('days').first()
+    if not plan:
+        raise ValueError('No subscription plan exists yet.')
+    now = timezone.now()
+    current = user.subscriptions.filter(ends_at__gt=now).order_by('-ends_at').first()
+    start = current.ends_at if current else now
+    return Subscription.objects.create(user=user, plan=plan, starts_at=start, ends_at=start + timedelta(days=days))
 
 @transaction.atomic
 def spend(user, amount: int, *, title: str, kind: str, story=None, chapter=None) -> tuple[int, int]:
@@ -111,9 +144,11 @@ def can_read(user, chapter) -> bool:
 
 
 def _credit_author(story, coins: int, note: str):
-    """Signed authors earn a share of coins spent on their book (1 coin ≈ 1¢)."""
+    """Signed authors earn a share of coins spent on their book (1 coin ≈ 1¢).
+    The share is Finance Settings › Author share."""
     if story.is_signed and coins:
-        share = int(coins * settings.BONOVELA['AUTHOR_SHARE'])
+        from apps.finance.models import FinanceSettings
+        share = int(coins * FinanceSettings.current().author_share_pct / 100)
         if share:
             AuthorEarning.objects.create(author=story.author, story=story, type='profit_share', amount_cents=share, note=note)
 

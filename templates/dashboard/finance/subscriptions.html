@@ -1,0 +1,52 @@
+{% extends 'dashboard/finance/layout.html' %}{% load bv %}
+{% block title %}Short Story Subscriptions{% endblock %}
+{% block content %}
+<div class="f-head">
+  <div><div class="f-eyebrow"><a href="?month={{ prev|date:'Y-m' }}">‹</a> {{ month|date:"F Y" }} {% if next %}<a href="?month={{ next|date:'Y-m' }}">›</a>{% endif %}</div>
+    <h1>Short Story Subscriptions</h1><p>Subscription money is shared between authors by how many of their short story chapters subscribers read.</p></div>
+  <a class="f-btn ghost" href="?month={{ month|date:'Y-m' }}&export=csv"><i class="ph ph-download-simple"></i>Download breakdown</a>
+</div>
+<div class="f-stats">
+  <div class="f-stat hero"><div class="l">Author pool</div><div class="v">{{ pool.pool|money }}</div><div class="d">{{ pool.reads }} chapter{{ pool.reads|pluralize }} read</div></div>
+  <div class="f-stat"><div class="l">Approved</div><div class="v">{{ approved_cents|money }}</div><div class="d">{{ approved_n }} of {{ shares|length }} authors</div></div>
+  <div class="f-stat"><div class="l">Waiting for decision</div><div class="v">{{ waiting_cents|money }}</div><div class="d">{{ waiting_n }} author{{ waiting_n|pluralize }}</div></div>
+  <div class="f-stat"><div class="l">Not paid out</div><div class="v">{{ skipped_cents|money }}</div><div class="d">Skipped or reduced — stays with Bonovela</div></div>
+</div>
+<div class="f-card" style="margin-bottom:20px"><div class="h"><h2>How the pool is worked out</h2></div>
+  <div class="f-row"><div class="f-grow">{{ pool.active }} active subscription{{ pool.active|pluralize }}</div><div class="amt">{{ pool.revenue|money }}</div></div>
+  <div class="f-row"><div class="f-grow">Processing fees ({{ pool.fee_pct|floatformat:"-2" }}%)</div><div class="amt">− {{ pool.fees|money }}</div></div>
+  <div class="f-row"><div class="f-grow">Bonovela ({{ pool.bonovela_pct|floatformat:"-2" }}% of the rest)</div><div class="amt">− {{ pool.bonovela|money }}</div></div>
+  <div class="f-row"><div class="f-grow"><b>Shared between authors ({{ pool.author_pct|floatformat:"-2" }}%)</b></div><div class="amt">{{ pool.pool|money }}</div></div>
+  <div class="f-note" style="text-align:left">Each plan counts for the days it covers, so annual plans count as about one twelfth per month. Authors are not notified when you approve, change or reject their payment.</div>
+</div>
+<div class="f-tabs" style="justify-content:space-between">
+  <span style="display:flex;gap:6px"><a href="?month={{ month|date:'Y-m' }}" class="{% if tab != 'subscriptions' %}on{% endif %}">Authors ({{ shares|length }})</a><a href="?month={{ month|date:'Y-m' }}&tab=subscriptions" class="{% if tab == 'subscriptions' %}on{% endif %}">Subscriptions ({{ pool.active }})</a></span>
+  {% if can_decide and waiting_n and tab != 'subscriptions' %}<form method="post">{% csrf_token %}<button class="f-btn sm" name="action" value="approve_all" onclick="return confirm('Approve the suggested amount for {{ waiting_n }} authors?')">Approve all waiting</button></form>{% endif %}
+</div>
+{% if tab == 'subscriptions' %}
+<div class="f-card f-scroll"><table class="f-table"><tr><th>Reader</th><th>Plan</th><th>From</th><th>Until</th></tr>
+  {% for s in subs %}<tr><td>{{ s.user.email }}</td><td>{{ s.plan.name }}</td><td>{{ s.starts_at|date:"M j, Y" }}</td><td>{{ s.ends_at|date:"M j, Y" }}</td></tr>
+  {% empty %}<tr><td colspan="4" class="f-empty">No subscriptions this month.</td></tr>{% endfor %}</table></div>
+{% else %}
+<div class="f-card">
+  {% for s in shares %}
+  <div class="f-row" style="align-items:flex-start;flex-wrap:wrap">
+    <span class="f-ico" style="font-weight:700">{{ s.author.display_name|first|upper }}</span>
+    <div class="f-grow" style="min-width:220px"><div class="t">{{ s.author.display_name }} <span class="m">AU-{{ s.author.pk }}</span></div>
+      <div class="m">{{ s.reads }} chapter{{ s.reads|pluralize }} read · {{ s.subscribers }} subscriber{{ s.subscribers|pluralize }} · {{ s.pct }}% of reads</div>
+      <div class="m">{% for title, n in s.titles %}{{ title }} · {{ n }}{% if not forloop.last %} &nbsp;|&nbsp; {% endif %}{% endfor %}</div></div>
+    {% if s.status == 'waiting' and can_decide %}
+      <form method="post" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">{% csrf_token %}<input type="hidden" name="share" value="{{ s.pk }}">
+        <span class="m">Suggested {{ s.suggested_cents|money }}</span>
+        <div class="f-suffix" style="max-width:120px"><span>$</span><input type="number" name="amount" step="0.01" min="0" value="{{ s.suggested_cents|dollars }}"></div>
+        <button class="f-btn sm ghost" name="action" value="skip">Don’t pay</button>
+        <button class="f-btn sm" name="action" value="approve">Approve</button>
+      </form>
+    {% else %}
+      <div class="amt"><span class="f-chip {% if s.status == 'approved' %}ok{% elif s.status == 'skipped' %}bad{% else %}warn{% endif %}">{{ s.get_status_display }}</span><div>{% if s.status == 'approved' %}{{ s.approved_cents|money }}{% else %}{{ s.suggested_cents|money }}{% endif %}</div></div>
+    {% endif %}
+  </div>
+  {% empty %}<div class="f-empty">No subscriber reads of short stories in {{ month|date:"F" }} yet.</div>{% endfor %}
+</div>
+{% endif %}
+{% endblock %}

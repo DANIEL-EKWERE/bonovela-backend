@@ -1,0 +1,50 @@
+{% extends 'dashboard/finance/layout.html' %}{% load bv %}
+{% block title %}Revenue Distribution{% endblock %}
+{% block content %}
+<div class="f-head">
+  <div><div class="f-eyebrow"><a href="?month={{ prev|date:'Y-m' }}">‹</a> {{ month|date:"F Y" }} {% if next %}<a href="?month={{ next|date:'Y-m' }}">›</a>{% endif %}</div>
+    <h1>Revenue Distribution</h1><p>Every dollar readers spend, split between authors, Bonovela and payment processors.</p></div>
+  <a class="f-btn ghost" href="?month={{ month|date:'Y-m' }}&export=csv"><i class="ph ph-download-simple"></i>CSV</a>
+</div>
+<div class="f-stats">
+  <div class="f-stat hero"><div class="l">Reader spending</div><div class="v">{{ gross|money0 }}</div><div class="d">Coin packs and subscriptions</div></div>
+  <div class="f-stat"><div class="l">To authors</div><div class="v">{{ to_authors|money0 }}</div><div class="d">{{ authors_pct }}% of net</div></div>
+  <div class="f-stat"><div class="l">To Bonovela</div><div class="v">{{ to_bonovela|money0 }}</div><div class="d">{{ bonovela_pct }}% of net</div></div>
+  <div class="f-stat"><div class="l">Processing fees</div><div class="v">{{ fees|money0 }}</div><div class="d">{{ fee_pct|floatformat:"-2" }}% of gross</div></div>
+</div>
+<div class="f-grid f-two" style="margin-bottom:24px">
+  <div class="f-card"><div class="h"><h2>Split</h2></div><div class="b">
+    {% for label, cents, color in split %}<div class="f-hbar"><span>{{ label }}</span><span class="track"><span class="fill" style="display:block;background:{{ color }};width:{% if gross %}{% widthratio cents gross 100 %}{% else %}0{% endif %}%"></span></span><b>{{ cents|money0 }}</b></div>{% endfor %}
+  </div></div>
+  <div class="f-card"><div class="h"><h2>Preview author share</h2><b id="pvPct">{{ share|floatformat:"0" }}%</b></div><div class="b">
+    <input type="range" id="pv" min="0" max="100" step="1" value="{{ share|floatformat:'0' }}" style="width:100%;accent-color:var(--f-primary)">
+    <div class="f-grid" style="grid-template-columns:1fr 1fr;margin-top:12px">
+      <div><div class="m" style="color:var(--f-muted);font-size:13px">Authors would get</div><div class="display" style="font-size:24px" id="pvA">—</div></div>
+      <div><div class="m" style="color:var(--f-muted);font-size:13px">Bonovela would keep</div><div class="display" style="font-size:24px" id="pvB">—</div></div>
+    </div>
+    <p style="color:var(--f-muted);font-size:13px;margin:12px 0 0">Preview only — change the real share in <a href="{% url 'dashboard:finance_settings' %}" style="text-decoration:underline">Finance Settings</a>.</p>
+  </div></div>
+</div>
+<div class="f-card f-scroll"><div class="h"><h2>By title</h2></div>
+  <table class="f-table"><tr><th>Title</th><th class="num">Gross</th><th class="num">Author</th><th class="num">Bonovela</th></tr>
+  {% for r in titles %}<tr><td><b>{{ r.story.display_title }}</b><div style="color:var(--f-muted);font-size:12.5px">{{ r.story.author.display_name }}</div></td>
+    <td class="num">{{ r.gross|money0 }}</td><td class="num">{{ r.author|money0 }}</td><td class="num">{{ r.bonovela|money0 }}</td></tr>
+  {% empty %}<tr><td colspan="4" class="f-empty">No reader spending on books in {{ month|date:"F" }}.</td></tr>{% endfor %}
+  </table>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+(() => {
+  const net = {{ net }}, fmt = (c) => '$' + Math.round(c / 100).toLocaleString();
+  const pv = document.getElementById('pv');
+  const draw = () => {
+    const a = Math.round(net * pv.value / 100);
+    document.getElementById('pvPct').textContent = pv.value + '%';
+    document.getElementById('pvA').textContent = fmt(a);
+    document.getElementById('pvB').textContent = fmt(net - a);
+  };
+  pv.addEventListener('input', draw); draw();
+})();
+</script>
+{% endblock %}

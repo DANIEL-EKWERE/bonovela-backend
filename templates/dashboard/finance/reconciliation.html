@@ -1,0 +1,36 @@
+{% extends 'dashboard/finance/layout.html' %}{% load bv %}
+{% block title %}Reconciliation{% endblock %}
+{% block content %}
+<div class="f-head">
+  <div><div class="f-eyebrow">Matching</div><h1>Reconciliation</h1><p>Every processor payout must match the ledger to the cent.</p></div>
+  {% if can_act %}<button class="f-btn" data-open="newPayout"><i class="ph ph-plus"></i>Record a payout</button>{% endif %}
+</div>
+<div class="f-stats">
+  <div class="f-stat hero"><div class="l">Matched</div><div class="v">{{ matched_n }} / {{ total_n }}</div></div>
+  <div class="f-stat"><div class="l">Needs review</div><div class="v">{{ review_n }}</div></div>
+  <div class="f-stat"><div class="l">Unexplained difference</div><div class="v">{{ unexplained|money }}</div></div>
+</div>
+<div class="f-card f-scroll"><div class="h"><h2>Processor payouts</h2></div>
+  <table class="f-table"><tr><th>Source</th><th class="num">Processor</th><th class="num">Ledger</th><th class="num">Difference</th><th>Status</th></tr>
+  {% for r in rows %}<tr>
+    <td><b>{{ r.source }}</b><div style="color:var(--f-muted);font-size:12.5px">{{ r.reference }} · {{ r.period_start|date:"M j" }}–{{ r.period_end|date:"M j, Y" }}</div></td>
+    <td class="num">{{ r.processor_cents|money }}</td><td class="num">{{ r.ledger_cents|money }}</td>
+    <td class="num">{% if r.difference %}{{ r.difference|money }}{% else %}—{% endif %}</td>
+    <td>{% if r.status == 'review' and can_act %}<form method="post" style="display:flex;gap:6px">{% csrf_token %}<input type="hidden" name="payout" value="{{ r.pk }}"><input type="text" name="note" placeholder="Why it differs" style="min-width:150px"><button class="f-btn sm">Resolve</button></form>
+      {% else %}<span class="f-chip {% if r.status == 'matched' %}ok{% elif r.status == 'resolved' %}gold{% else %}warn{% endif %}" {% if r.resolution %}title="{{ r.resolution }}"{% endif %}>{{ r.get_status_display }}</span>{% endif %}</td>
+  </tr>{% empty %}<tr><td colspan="5" class="f-empty">No payouts recorded yet. Record each Google Play, Apple, Stripe, PayPal or bank payout from its statement; Bonovela's ledger total for the same period is filled in for you.</td></tr>{% endfor %}
+  </table>
+</div>
+<div class="f-sheet" id="newPayout"><div class="p"><h2>Record a processor payout</h2>
+  <form method="post">{% csrf_token %}<input type="hidden" name="action" value="add">
+    <div class="f-grid" style="grid-template-columns:1fr 1fr">
+      <label class="f-field"><span>Source</span><select name="source">{% for k, l in processors %}<option value="{{ k }}">{{ l }}</option>{% endfor %}</select></label>
+      <label class="f-field"><span>Payout reference</span><input type="text" name="reference" maxlength="80" required placeholder="GPA.3381-2210"></label>
+      <label class="f-field"><span>Period from</span><input type="date" name="start" required></label>
+      <label class="f-field"><span>Period to</span><input type="date" name="end" value="{{ today|date:'Y-m-d' }}" required></label>
+    </div>
+    <label class="f-field"><span>Amount on the statement (USD)</span><input type="number" name="amount" step="0.01" required>
+      <small>Stores: sales less fees for the period. PayPal / Bank: author payouts sent in the period.</small></label>
+    <div style="display:flex;gap:8px;justify-content:flex-end"><button type="button" class="f-btn ghost" data-close>Cancel</button><button class="f-btn">Record</button></div>
+  </form></div></div>
+{% endblock %}

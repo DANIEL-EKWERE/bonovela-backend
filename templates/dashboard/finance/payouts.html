@@ -40,7 +40,12 @@
       {% if p.status == 'pending' and can_approve %}
       <form method="post" action="{% url 'dashboard:finance_payout_action' p.pk %}" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">{% csrf_token %}
         <input type="text" name="reference" placeholder="Transfer reference" style="flex:1;min-width:160px;max-width:280px">
-        <button class="f-btn sm" name="action" value="paid">Mark paid</button>
+        {% if two_person_cents and p.amount_cents > two_person_cents and not p.approved_by_id %}
+          <button class="f-btn sm ghost" name="action" value="approve">Approve (1 of 2)</button>
+        {% else %}
+          {% if p.approved_by_id %}<span class="f-chip gold" title="First approval">Approved by {{ p.approved_by.display_name }}</span>{% endif %}
+          <button class="f-btn sm" name="action" value="paid">Mark paid</button>
+        {% endif %}
         <button class="f-btn sm danger" name="action" value="failed" onclick="this.form.note.value = prompt('Why did it fail?') || ''">Failed</button>
         <input type="hidden" name="note">
       </form>

@@ -737,14 +737,161 @@ class NewDashboardTests(TestCase):
         self.as_role('finance')
         self.get_ok('/finance/', '/finance/transactions/', '/finance/transactions/?kind=paid&from=2026-01-01&q=reader',
                     '/finance/balances/', '/finance/balances/?due=1', '/finance/payouts/', '/finance/payouts/?tab=paid',
-                    '/finance/statements/')
-        for url in ['/finance/transactions/?export=csv', '/finance/balances/?export=csv',
-                    '/finance/statements/?export=csv']:
+                    '/finance/statements/', '/finance/reports/', '/finance/revenue/', '/finance/revenue/?month=2026-01',
+                    '/finance/search/', '/finance/search/?q=reader', '/finance/search/?q=TX-1&type=Transaction')
+        for url in ['/finance/transactions/?export=csv', '/finance/balances/?export=csv', '/finance/reports/?download=pl',
+                    '/finance/reports/?download=tax', '/finance/revenue/?export=csv']:
             r = self.client.get(url)
             self.assertEqual(r['Content-Type'], 'text/csv', url)
             self.assertGreater(len(r.content.splitlines()), 1, url)
         r = self.client.get('/finance/payouts/?export=csv')  # no payouts yet: header only
         self.assertEqual(r.content.splitlines()[0], b'id,email,name,usd,period_end,method,reference')
+
+    def test_finance_stage_two_revenue_search_reports_and_rules(self):
+        from apps.catalog.models import Story
+        from apps.finance.models import AuditEntry, Expense, FinanceSettings
+        from apps.wallet import services as wallet
+        from apps.wallet.models import AuthorEarning, Payout, Transaction
+        reader = User.objects.get(email='reader@bonovela.app')
+        Transaction.objects.create(user=reader, kind=Transaction.KIND_TOP_UP, title='Coin pack — 1,200 coins',
+                                   coins=1200, price_cents=1999)
+        # Author share comes from Finance Settings.
+        fs = FinanceSettings.current()
+        fs.author_share_pct = 60
+        fs.save()
+        story = Story.objects.filter(is_signed=True).first()
+        before = AuthorEarning.objects.filter(author=story.author).count()
+        wallet._credit_author(story, 100, 'test')
+        self.assertEqual(AuthorEarning.objects.filter(author=story.author).latest('pk').amount_cents, 60)
+        self.assertEqual(AuthorEarning.objects.filter(author=story.author).count(), before + 1)
+
+        self.as_role('finance')
+        r = self.client.get('/finance/revenue/')
+        self.assertContains(r, 'Reader spending')
+        self.assertEqual(r.context['gross'] - r.context['fees'], r.context['net'])
+        # Search finds a transaction by amount and a payout by ID.
+        self.assertContains(self.client.get('/finance/search/?q=19.99'), 'Coin pack — 1,200 coins')
+        creator = User.objects.get(email='creator@bonovela.app')
+        big = Payout.objects.create(author=creator, amount_cents=600000, period_end=timezone.localdate())
+        self.assertContains(self.client.get(f'/finance/search/?q=PO-{big.pk}'), f'Payout to {creator.display_name}')
+        Expense.objects.create(title='Northwind Cloud', category='Hosting', amount_cents=412000)
+        self.assertContains(self.client.get('/finance/search/?q=northwind&type=Invoice'), 'Northwind Cloud')
+        # Two-person approval: over $5,000 needs a first approval by someone else.
+        self.client.post(f'/finance/payouts/{big.pk}/', {'action': 'paid', 'reference': 'W-1'})
+        big.refresh_from_db()
+        self.assertEqual(big.status, Payout.STATUS_PENDING)
+        self.client.post(f'/finance/payouts/{big.pk}/', {'action': 'approve'})
+        self.client.post(f'/finance/payouts/{big.pk}/', {'action': 'paid', 'reference': 'W-1'})  # same person
+        big.refresh_from_db()
+        self.assertEqual((big.status, big.approved_by.email), (Payout.STATUS_PENDING, 'finance@bonovela.app'))
+        self.client.force_login(User.objects.get(email='admin@bonovela.app'))
+        self.client.post(f'/finance/payouts/{big.pk}/', {'action': 'paid', 'reference': 'W-1'})
+        big.refresh_from_db()
+        self.assertEqual(big.status, Payout.STATUS_PAID)
+        # Report downloads are audited.
+        r = self.client.get('/finance/reports/?download=pl')
+        self.assertEqual(r['Content-Type'], 'text/csv')
+        self.assertIn(b'Net profit', r.content)
+        self.assertTrue(AuditEntry.objects.filter(action='Downloaded report').exists())
+        self.assertEqual(self.client.get('/finance/reports/?download=authors')['Content-Type'], 'text/csv')
+
+    def test_finance_stage_three_desks(self):
+        from datetime import timedelta as td
+        from apps.catalog.models import Chapter, Story
+        from apps.finance.models import (BonusAward, BonusProgram, FinanceSettings, ProcessorPayout, RefundCase,
+                                         SubscriberRead, SubscriptionShare, SupportTicket)
+        from apps.wallet import services as wallet
+        from apps.wallet.models import AuthorEarning, Subscription, SubscriptionPlan, Transaction
+        from rest_framework.test import APIClient
+        reader = User.objects.get(email='reader@bonovela.app')
+        plan = SubscriptionPlan.objects.order_by('days').first() or SubscriptionPlan.objects.create(
+            name='Monthly', price_cents=999, days=30)
+        now = timezone.now()
+        Subscription.objects.create(user=reader, plan=plan, starts_at=now - td(days=1), ends_at=now + td(days=30))
+        # A Plus reader opening a paid short-story chapter is a subscriber read.
+        story = Story.objects.visible_in_app().filter(is_short=True).first()
+        chapter = story.chapters.filter(status=Chapter.STATUS_PUBLISHED).order_by('number').last()
+        self.assertFalse(chapter.is_free, 'seed short story needs a paid chapter')
+        api = APIClient()
+        api.force_authenticate(reader)
+        api.get(f'/api/books/{story.pk}/chapters/{chapter.number}/')
+        api.get(f'/api/books/{story.pk}/chapters/{chapter.number}/')  # same month: counted once
+        self.assertEqual(SubscriberRead.objects.filter(user=reader, chapter=chapter).count(), 1)
+
+        self.as_role('finance')
+        r = self.client.get('/finance/subscriptions/')
+        self.assertGreater(r.context['pool']['pool'], 0)
+        share = SubscriptionShare.objects.get(author=story.author)
+        self.assertEqual(share.suggested_cents, r.context['pool']['pool'])  # only author with reads
+        self.client.post('/finance/subscriptions/', {'action': 'approve', 'share': share.pk, 'amount': '1.50'})
+        share.refresh_from_db()
+        self.assertEqual((share.status, share.approved_cents), ('approved', 150))
+        self.assertTrue(AuthorEarning.objects.filter(author=story.author, type='subscription_share',
+                                                     amount_cents=150).exists())
+        self.assertEqual(self.client.get('/finance/subscriptions/?export=csv')['Content-Type'], 'text/csv')
+
+        # Refunds: small ones approve themselves when the setting is on; others are decided on the case page.
+        fs = FinanceSettings.current()
+        fs.auto_approve_small_refunds = True
+        fs.save()
+        self.client.post('/finance/refunds/', {'email': reader.email, 'amount': '2.99', 'reason': 'Bought twice',
+                                               'kind': 'refund', 'processor': 'Google Play'})
+        self.assertEqual(RefundCase.objects.get(amount_cents=299).status, 'refunded')
+        wallet.credit_coins(reader, 500, 'test coins')
+        self.client.post('/finance/refunds/', {'email': reader.email, 'amount': '19.99', 'reason': 'Accidental pack',
+                                               'kind': 'refund', 'processor': 'Stripe'})
+        case = RefundCase.objects.get(amount_cents=1999)
+        self.assertContains(self.client.get(f'/finance/refunds/{case.pk}/'), 'test coins')
+        before = wallet.wallet_for(reader).coins
+        self.client.post(f'/finance/refunds/{case.pk}/', {'action': 'refund', 'amount': '19.99', 'coins': '500'})
+        case.refresh_from_db()
+        self.assertEqual((case.status, case.coins_removed), ('refunded', 500))
+        self.assertEqual(wallet.wallet_for(reader).coins, before - 500)
+
+        # Support: log a report, check payments, credit coins and Plus days.
+        self.client.post('/finance/support/', {'action': 'new', 'email': reader.email, 'category': 'coins',
+                                               'issue': 'not_delivered', 'message': 'Bought 1,000 coins, got nothing'})
+        ticket = SupportTicket.objects.get()
+        self.assertContains(self.client.get(f'/finance/support/?q={reader.email}'), 'Their latest payments')
+        coins = wallet.wallet_for(reader).coins
+        ends = reader.subscriptions.order_by('-ends_at').first().ends_at
+        self.client.post('/finance/support/', {'action': 'credit', 'ticket': ticket.pk, 'coins': '1000', 'days': '7'})
+        ticket.refresh_from_db()
+        self.assertEqual(ticket.status, 'resolved')
+        self.assertEqual(wallet.wallet_for(reader).coins, coins + 1000)
+        self.assertGreater(reader.subscriptions.order_by('-ends_at').first().ends_at, ends)
+        self.assertTrue(reader.inbox.filter(title__contains='credited').exists())
+
+        # Bonuses: author programmes pay into income, reader programmes pay coins.
+        self.client.post('/finance/bonuses/', {'action': 'program', 'name': 'Top 10 Monthly Authors',
+                                               'description': 'Cash bonus', 'audience': 'authors', 'budget': '15000'})
+        prog = BonusProgram.objects.get()
+        self.client.post('/finance/bonuses/', {'action': 'award', 'program': prog.pk, 'email': story.author.email,
+                                               'amount': '2500', 'date': timezone.localdate().isoformat()})
+        award = BonusAward.objects.get()
+        self.client.post('/finance/bonuses/', {'action': 'pay', 'award': award.pk})
+        award.refresh_from_db()
+        self.assertEqual(award.status, 'paid')
+        self.assertTrue(AuthorEarning.objects.filter(author=story.author, type='others', amount_cents=250000).exists())
+        self.assertEqual(self.client.get('/finance/bonuses/').context['programs'][0].used, 250000)
+
+        # Reconciliation: matched when the statement equals the ledger, otherwise resolve with a note.
+        today = timezone.localdate().isoformat()
+        self.client.post('/finance/reconciliation/', {'action': 'add', 'source': 'Bank', 'reference': 'WIRE-1',
+                                                      'start': today, 'end': today, 'amount': '0'})
+        self.assertEqual(ProcessorPayout.objects.get(reference='WIRE-1').status, 'matched')
+        self.client.post('/finance/reconciliation/', {'action': 'add', 'source': 'Apple', 'reference': 'AAPL-1',
+                                                      'start': today, 'end': today, 'amount': '12.00'})
+        diff = ProcessorPayout.objects.get(reference='AAPL-1')
+        self.assertEqual(diff.status, 'review')
+        self.client.post('/finance/reconciliation/', {'payout': diff.pk, 'note': ''})
+        diff.refresh_from_db()
+        self.assertEqual(diff.status, 'review')  # needs an explanation
+        self.client.post('/finance/reconciliation/', {'payout': diff.pk, 'note': 'Apple FX rounding'})
+        diff.refresh_from_db()
+        self.assertEqual(diff.status, 'resolved')
+        self.get_ok('/finance/refunds/?tab=resolved', '/finance/support/?tab=resolved',
+                    '/finance/subscriptions/?tab=subscriptions', '/finance/reconciliation/')
 
     def test_payout_flow(self):
         from apps.wallet.models import Payout, PayoutMethod

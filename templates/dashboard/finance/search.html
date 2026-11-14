@@ -1,0 +1,27 @@
+{% extends 'dashboard/finance/layout.html' %}{% load bv %}
+{% block title %}Universal Search{% endblock %}
+{% block content %}
+<div class="f-head"><div><div class="f-eyebrow">Find anything</div><h1>Universal Search</h1>
+  <p>Search every record in Bonovela Finance by name, email, ID or amount.</p></div></div>
+<form method="get" style="margin-bottom:14px">
+  <div style="position:relative;max-width:640px"><i class="ph ph-magnifying-glass" style="position:absolute;left:14px;top:12px;color:var(--f-muted)"></i>
+    <input type="search" name="q" value="{{ q }}" placeholder="e.g. jordan@mail.com, TX-88213, PO-55, 19.99, Northwind" style="padding-left:40px" autofocus>
+    {% if kind %}<input type="hidden" name="type" value="{{ kind }}">{% endif %}</div>
+</form>
+<div class="f-tabs">
+  <a href="?q={{ q|urlencode }}" class="{% if not kind %}on{% endif %}">All</a>
+  {% for t in types %}<a href="?q={{ q|urlencode }}&type={{ t }}" class="{% if kind == t %}on{% endif %}">{{ t }}</a>{% endfor %}
+</div>
+{% if q %}
+<p style="color:var(--f-muted);font-size:14px">{{ results|length }} result{{ results|length|pluralize }}</p>
+<div class="f-card">
+  {% for r in results %}
+  <div class="f-row">
+    <span class="f-chip gold" style="min-width:92px;text-align:center">{{ r.type }}</span>
+    <div class="f-grow"><div class="t">{{ r.title }}</div><div class="m">{{ r.meta }} · {{ r.when|date:"M j, Y" }}</div></div>
+    <div class="amt">{{ r.cents|money }}</div>
+  </div>
+  {% empty %}<div class="f-empty">Nothing matches “{{ q }}”.</div>{% endfor %}
+</div>
+{% else %}<div class="f-card"><div class="f-empty">Type a name, email, ID (TX-, PO-, EX-, AU-, R-) or an amount.</div></div>{% endif %}
+{% endblock %}

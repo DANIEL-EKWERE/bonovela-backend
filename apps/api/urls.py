@@ -36,6 +36,7 @@ urlpatterns = [
     path('books/<int:pk>/vote/', v.vote),
     path('reviews/<int:review_id>/like/', v.like_review),
     path('reports/', v.report),
+    path('support/', v.support),
     path('authors/<int:user_id>/', v.author_profile),
     path('authors/<int:user_id>/follow/', v.follow),
     path('following/', v.following),

@@ -1,0 +1,51 @@
+{% extends 'dashboard/finance/layout.html' %}{% load bv %}
+{% block title %}Bonuses & Incentives{% endblock %}
+{% block content %}
+<div class="f-head">
+  <div><div class="f-eyebrow">Rewards</div><h1>Bonuses &amp; Incentives</h1><p>Programs that reward top authors and loyal readers, with budget tracking.</p></div>
+  {% if can_act %}<div style="display:flex;gap:8px"><button class="f-btn ghost" data-open="newProgram"><i class="ph ph-plus"></i>New programme</button>{% if active_programs %}<button class="f-btn" data-open="newAward"><i class="ph ph-gift"></i>Schedule a bonus</button>{% endif %}</div>{% endif %}
+</div>
+<div class="f-grid" style="grid-template-columns:repeat(auto-fit,minmax(260px,1fr));margin-bottom:24px">
+  {% for p in programs %}
+  <div class="f-card"><div class="b">
+    <div style="display:flex;justify-content:space-between;gap:8px"><h2 style="font-size:18px">{{ p.name }}</h2>{% if not p.is_active %}<span class="f-chip">Paused</span>{% endif %}</div>
+    <p style="color:var(--f-muted);font-size:13.5px;margin:6px 0 14px">{{ p.description }}</p>
+    <div class="display" style="font-size:26px">{{ p.used|money0 }} <span style="font-size:14px;color:var(--f-muted);font-family:Manrope">of {{ p.monthly_budget_cents|money0 }}</span></div>
+    <div class="f-hbar" style="grid-template-columns:1fr"><span class="track"><span class="fill" style="display:block;width:{{ p.pct }}%;{% if p.pct >= 90 %}background:var(--f-warning){% endif %}"></span></span></div>
+    <div style="display:flex;justify-content:space-between;align-items:center"><span style="color:var(--f-muted);font-size:13px">{{ p.pct }}% of monthly budget used · {{ p.get_audience_display }}</span>
+      {% if can_act %}<form method="post">{% csrf_token %}<input type="hidden" name="program" value="{{ p.pk }}"><button class="f-btn sm ghost" name="action" value="toggle">{% if p.is_active %}Pause{% else %}Resume{% endif %}</button></form>{% endif %}</div>
+  </div></div>
+  {% empty %}<div class="f-card"><div class="f-empty">No programmes yet. Create one, e.g. “Top 10 Monthly Authors”, with a monthly budget.</div></div>{% endfor %}
+</div>
+<div class="f-card"><div class="h"><h2>Recent bonuses</h2></div>
+  {% for a in awards %}
+  <div class="f-row">
+    <div class="f-grow"><div class="t">{{ a.recipient.display_name }}</div><div class="m">{{ a.program.name }} · {{ a.code }} · {{ a.date|date:"M j, Y" }}{% if a.note %} · {{ a.note }}{% endif %}</div></div>
+    <span class="f-chip {% if a.status == 'paid' %}ok{% elif a.status == 'scheduled' %}warn{% else %}bad{% endif %}">{{ a.get_status_display|lower }}</span>
+    <div class="amt" style="min-width:80px">{% if a.program.audience == 'readers' %}{{ a.amount_cents }} coins{% else %}{{ a.amount_cents|money0 }}{% endif %}</div>
+    {% if a.status == 'scheduled' and can_act %}<form method="post" style="display:flex;gap:6px">{% csrf_token %}<input type="hidden" name="award" value="{{ a.pk }}"><button class="f-btn sm" name="action" value="pay" onclick="return confirm('Pay {{ a.recipient.display_name|escapejs }} now?')">Pay now</button><button class="f-btn sm ghost" name="action" value="cancel">Cancel</button></form>{% endif %}
+  </div>
+  {% empty %}<div class="f-empty">No bonuses yet.</div>{% endfor %}
+</div>
+<div class="f-sheet" id="newProgram"><div class="p"><h2>New programme</h2>
+  <form method="post">{% csrf_token %}<input type="hidden" name="action" value="program">
+    <label class="f-field"><span>Name</span><input type="text" name="name" maxlength="80" required placeholder="Top 10 Monthly Authors"></label>
+    <label class="f-field"><span>What it rewards</span><input type="text" name="description" maxlength="200" placeholder="Cash bonus for the ten highest-earning authors each month."></label>
+    <div class="f-grid" style="grid-template-columns:1fr 1fr">
+      <label class="f-field"><span>Who gets it</span><select name="audience">{% for k, l in audiences %}<option value="{{ k }}">{{ l }}</option>{% endfor %}</select></label>
+      <label class="f-field"><span>Monthly budget (USD)</span><input type="number" name="budget" min="1" step="1" required></label>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end"><button type="button" class="f-btn ghost" data-close>Cancel</button><button class="f-btn">Create</button></div>
+  </form></div></div>
+<div class="f-sheet" id="newAward"><div class="p"><h2>Schedule a bonus</h2>
+  <form method="post">{% csrf_token %}<input type="hidden" name="action" value="award">
+    <label class="f-field"><span>Programme</span><select name="program">{% for p in active_programs %}<option value="{{ p.pk }}">{{ p.name }} ({{ p.get_audience_display }})</option>{% endfor %}</select></label>
+    <label class="f-field"><span>Recipient's account email</span><input type="email" name="email" required></label>
+    <div class="f-grid" style="grid-template-columns:1fr 1fr">
+      <label class="f-field"><span>Amount (USD; coins for readers ÷ 100)</span><input type="number" name="amount" step="0.01" min="0.01" required></label>
+      <label class="f-field"><span>Pay on</span><input type="date" name="date" value="{{ today|date:'Y-m-d' }}" required></label>
+    </div>
+    <label class="f-field"><span>Note (optional)</span><input type="text" name="note" maxlength="160"></label>
+    <div style="display:flex;gap:8px;justify-content:flex-end"><button type="button" class="f-btn ghost" data-close>Cancel</button><button class="f-btn">Schedule</button></div>
+  </form></div></div>
+{% endblock %}

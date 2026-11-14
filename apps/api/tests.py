@@ -92,6 +92,15 @@ class BonovelaAPITests(TestCase):
         mafia_books = Story.objects.visible_in_app().filter(genre__name='Mafia', is_short=False).count()
         self.assertGreaterEqual(len(dark['books']), min(8, mafia_books))
 
+    def test_reader_support_report(self):
+        c = self.login()
+        self.assertEqual(c.post('/api/support/', {'message': ''}, format='json').status_code, 400)
+        r = c.post('/api/support/', {'category': 'coins', 'message': 'Paid for 1,000 coins, got nothing',
+                                     'payment_ref': 'GPA.1234'}, format='json')
+        self.assertEqual((r.status_code, r.data[0]['status']), (201, 'open'))
+        from apps.finance.models import SupportTicket
+        self.assertEqual(SupportTicket.objects.get().payment_ref, 'GPA.1234')
+
     def test_geo_lists(self):
         countries = APIClient().get('/api/geo/countries/').data
         self.assertIn({'code': 'NG', 'name': 'Nigeria', 'dial': '+234'}, countries)

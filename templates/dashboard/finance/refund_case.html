@@ -1,0 +1,36 @@
+{% extends 'dashboard/finance/layout.html' %}{% load bv %}
+{% block title %}{{ case.code }}{% endblock %}
+{% block content %}
+<div class="f-head"><div><div class="f-eyebrow"><a href="{% url 'dashboard:finance_refunds' %}">‹ Refunds &amp; Chargebacks</a></div>
+  <h1>{{ case.code }} · {{ case.reason }}</h1>
+  <p>{{ case.get_kind_display }} · {{ case.processor }} · {{ case.amount_cents|money }} · opened {{ case.created_at|date:"M j, h:i A" }}</p></div>
+  <span class="f-chip {% if case.status == 'open' %}warn{% elif case.status == 'refunded' %}ok{% else %}bad{% endif %}" style="font-size:14px">{{ case.get_status_display }}</span></div>
+<div class="f-grid f-two">
+  <div class="f-grid">
+    <div class="f-card"><div class="h"><h2>Reader</h2></div><div class="b">
+      <div class="t"><b>{{ reader.email }}</b> · R-{{ reader.pk }}</div>
+      <div class="m" style="color:var(--f-muted);font-size:13px">Joined {{ reader.date_joined|date:"M j, Y" }} · wallet {{ wallet.coins }} coins, {{ wallet.vouchers }} vouchers</div>
+      {% if case.transaction %}<div style="margin-top:8px">Disputed: <b>TX-{{ case.transaction.pk }}</b> {{ case.transaction.title }} · {{ case.transaction.price_cents|money }}</div>{% endif %}
+    </div></div>
+    {% if case.status == 'open' and can_act %}
+    <form class="f-card" method="post">{% csrf_token %}<div class="h"><h2>Decision</h2></div><div class="b">
+      <div class="f-grid" style="grid-template-columns:1fr 1fr">
+        <label class="f-field"><span>Refund (USD)</span><input type="number" name="amount" step="0.01" min="0" max="{{ case.amount_cents|dollars }}" value="{{ case.amount_cents|dollars }}"></label>
+        <label class="f-field"><span>Take back coins</span><input type="number" name="coins" min="0" value="0"><small>Only what is still in the wallet</small></label>
+      </div>
+      <label class="f-field"><span>Note</span><input type="text" name="note" maxlength="200" placeholder="What you decided and why"></label>
+      <div style="display:flex;gap:8px"><button class="f-btn danger" name="action" value="reject">Reject</button><button class="f-btn" name="action" value="refund">Refund</button></div>
+    </div></form>
+    {% else %}<div class="f-card"><div class="b">{{ case.resolution }}{% if case.refunded_cents %} · refunded {{ case.refunded_cents|money }}{% endif %}{% if case.coins_removed %} · {{ case.coins_removed }} coins taken back{% endif %}{% if case.decided_by %}<div class="m" style="color:var(--f-muted);font-size:13px">{{ case.decided_by.display_name }} · {{ case.decided_at|date:"M j, h:i A" }}</div>{% endif %}</div></div>{% endif %}
+  </div>
+  <div class="f-grid">
+    <div class="f-card"><div class="h"><h2>Purchases &amp; coin use</h2></div>
+      {% for t in purchases %}<div class="f-row"><div class="f-grow"><div class="t">{{ t.title }}</div><div class="m">TX-{{ t.pk }} · {{ t.get_kind_display }} · {{ t.created_at|date:"M j, h:i A" }}</div></div>
+        <div class="amt">{% if t.price_cents %}{{ t.price_cents|money }}{% endif %}<div class="m">{% if t.coins %}{{ t.coins }} coins{% endif %}{% if t.bonus_used %} · {{ t.bonus_used }} bonus{% endif %}</div></div></div>
+      {% empty %}<div class="f-empty">No purchases.</div>{% endfor %}</div>
+    <div class="f-card"><div class="h"><h2>Chapters unlocked</h2></div>
+      {% for u in unlocks %}<div class="f-row"><div class="f-grow"><div class="t">{{ u.chapter.story.display_title }}</div><div class="m">Chapter {{ u.chapter.number }}</div></div></div>
+      {% empty %}<div class="f-empty">No chapters unlocked.</div>{% endfor %}</div>
+  </div>
+</div>
+{% endblock %}

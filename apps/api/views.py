@@ -18,7 +18,7 @@ from apps.catalog.models import Chapter, Genre, Story, Tag
 from apps.engagement.models import InboxMessage, LibraryEntry, ReadingProgress, Report, Review, ReviewReply
 from apps.users.models import Follow
 from apps.wallet import services
-from apps.wallet.models import AutoUnlock, GiftItem
+from apps.wallet.models import AutoUnlock, ChapterUnlock, GiftItem
 
 from . import serializers as s
 
@@ -225,7 +225,20 @@ def chapter_detail(request, pk, number):
             except services.InsufficientBalance:
                 pass
         ReadingProgress.objects.update_or_create(user=user, story=story, defaults={'chapter_number': number})
+        _record_subscriber_read(user, chapter)
     return Response(s.ChapterDetailSerializer(chapter, context={'request': request}).data)
+
+
+def _record_subscriber_read(user, chapter):
+    """Plus members reading a paid short-story chapter they didn't buy: one
+    read per chapter per month, for Finance › Short Story Subscriptions."""
+    story = chapter.story
+    if (not story.is_short or chapter.is_free or story.author_id == user.id or not services.has_plus(user)
+            or ChapterUnlock.objects.filter(user=user, chapter=chapter).exists()):
+        return
+    from apps.finance.models import SubscriberRead
+    SubscriberRead.objects.get_or_create(user=user, chapter=chapter, month=timezone.localdate().replace(day=1),
+                                         defaults={'story': story, 'author_id': story.author_id})
 
 
 @api_view(['POST'])
@@ -449,3 +462,24 @@ def states(request, code):
     """[{code, name}] states/regions of a country (may be empty)."""
     from apps.editorial import geo
     return Response(geo.states(code))
+
+
+# ── Reader support ───────────────────────────────────────────────────────────
+@api_view(['GET', 'POST'])
+@permission_classes([permissions.IsAuthenticated])
+def support(request):
+    """A reader reporting a payment problem (lands in Finance › Reader Support).
+    GET lists their reports."""
+    from apps.finance.models import SupportTicket
+    if request.method == 'POST':
+        message = (request.data.get('message') or '').strip()
+        if not message:
+            return Response({'detail': 'Tell us what happened.'}, status=400)
+        category = request.data.get('category') if request.data.get('category') in dict(SupportTicket.CATEGORY_CHOICES) else 'other'
+        SupportTicket.objects.create(reader=request.user, category=category, message=message[:2000],
+                                     payment_ref=(request.data.get('payment_ref') or '')[:80])
+    return Response([
+        {'id': f'ST-{t.pk}', 'category': t.category, 'message': t.message, 'status': t.status,
+         'resolution': t.resolution, 'created_at': t.created_at}
+        for t in request.user.support_tickets.all()[:50]
+    ], status=201 if request.method == 'POST' else 200)

@@ -179,7 +179,6 @@ BONOVELA = {
     'CHAPTER_PRICE': 15,  # coins per locked novel chapter
     'FREE_SHORT_CHAPTERS': 3,
     'SHORT_CHAPTER_PRICE': 10,
-    'AUTHOR_SHARE': 0.5,  # signed authors' share of unlock revenue
     'PROMOTION_DAYS': 7,  # default length of a CE-approved promotion
     'CHECKIN_REWARDS': [15, 20, 20, 20, 20, 20, 20],
     'BONUS_EXPIRY_DAYS': 3,

@@ -1,0 +1,55 @@
+{% extends 'dashboard/finance/layout.html' %}{% load bv %}
+{% block title %}Reader Support{% endblock %}
+{% block content %}
+<div class="f-head">
+  <div><div class="f-eyebrow">Help desk</div><h1>Reader Support</h1><p>When a reader says they paid but got nothing, ask for their reader ID, check their payments here, then credit their account.</p></div>
+  {% if can_act %}<button class="f-btn" data-open="newTicket"><i class="ph ph-plus"></i>Log a report</button>{% endif %}
+</div>
+<div class="f-stats">
+  <div class="f-stat hero"><div class="l">Open reports</div><div class="v">{{ open_n }}</div></div>
+  <div class="f-stat"><div class="l">Paid, not delivered</div><div class="v">{{ ready_n }}</div><div class="d">Check payments, then credit</div></div>
+  <div class="f-stat"><div class="l">Readers</div><div class="v">{{ readers_n }}</div><div class="d">With an open report</div></div>
+</div>
+<form method="get" class="f-card" style="margin-bottom:20px"><div class="b" style="display:flex;gap:8px;flex-wrap:wrap">
+  <input type="search" name="q" value="{{ q }}" placeholder="Find reader: email or reader ID (R-123)" style="flex:1;min-width:220px"><button class="f-btn ghost">Find reader</button></div>
+  {% if q %}{% if found %}
+    <div class="f-row"><div class="f-grow"><div class="t">{{ found.email }} · R-{{ found.pk }}</div><div class="m">Their latest payments and coin movements</div></div></div>
+    {% for t in found_payments %}<div class="f-row"><div class="f-grow"><div class="t">{{ t.title }}</div><div class="m">TX-{{ t.pk }} · {{ t.get_kind_display }} · {{ t.created_at|date:"M j, h:i A" }}</div></div><div class="amt">{% if t.price_cents %}{{ t.price_cents|money }}{% else %}{{ t.coins }} coins{% endif %}</div></div>
+    {% empty %}<div class="f-empty">No payments on this account.</div>{% endfor %}
+  {% else %}<div class="f-empty">No reader matches “{{ q }}”.</div>{% endif %}{% endif %}
+</form>
+<div class="f-tabs"><a href="?tab=open" class="{% if tab == 'open' %}on{% endif %}">Open ({{ open_n }})</a><a href="?tab=resolved" class="{% if tab != 'open' %}on{% endif %}">Resolved</a></div>
+<div class="f-card">
+  {% for t in tickets %}
+  <div class="f-row" style="align-items:flex-start;flex-wrap:wrap">
+    <div class="f-grow" style="min-width:240px">
+      <div class="t"><span class="f-chip">{{ t.get_category_display }}</span> <span class="f-chip {% if t.issue == 'not_delivered' %}warn{% elif t.issue == 'credited' %}ok{% else %}bad{% endif %}">{{ t.get_issue_display }}</span></div>
+      <div style="margin:6px 0">“{{ t.message }}”</div>
+      <div class="m">{{ t.code }} · R-{{ t.reader.pk }} · {{ t.reader.email }} · {{ t.created_at|date:"M j, h:i A" }}{% if t.payment_ref %} · ref {{ t.payment_ref }}{% endif %}</div>
+      <div class="m">Recent payments: {% for p in t.payments %}TX-{{ p.pk }} {{ p.title }} ({{ p.price_cents|money }}){% if not forloop.last %}, {% endif %}{% empty %}none recorded{% endfor %}</div>
+      {% if t.status == 'resolved' %}<div class="m" style="margin-top:4px"><b>{{ t.resolution }}</b> · {{ t.resolved_by.display_name }}</div>{% endif %}
+    </div>
+    {% if t.status == 'open' and can_act %}
+    <form method="post" style="display:grid;gap:6px;grid-template-columns:repeat(3,90px) auto;align-items:end">{% csrf_token %}<input type="hidden" name="ticket" value="{{ t.pk }}">
+      <label class="f-field" style="margin:0"><span style="font-size:11px">Coins</span><input type="number" name="coins" min="0" value="0"></label>
+      <label class="f-field" style="margin:0"><span style="font-size:11px">Bonus</span><input type="number" name="bonus" min="0" value="0"></label>
+      <label class="f-field" style="margin:0"><span style="font-size:11px">Plus days</span><input type="number" name="days" min="0" value="0"></label>
+      <span style="display:flex;gap:6px"><button class="f-btn sm" name="action" value="credit">Credit</button><button class="f-btn sm ghost" name="action" value="close" title="Close without crediting">Close</button></span>
+      <input type="text" name="note" placeholder="Note (optional)" style="grid-column:1 / -1">
+    </form>
+    {% endif %}
+  </div>
+  {% empty %}<div class="f-empty">No {% if tab == 'open' %}open{% else %}resolved{% endif %} reports.</div>{% endfor %}
+</div>
+<div class="f-sheet" id="newTicket"><div class="p"><h2>Log a report</h2>
+  <form method="post">{% csrf_token %}<input type="hidden" name="action" value="new">
+    <label class="f-field"><span>Reader's account email</span><input type="email" name="email" required></label>
+    <div class="f-grid" style="grid-template-columns:1fr 1fr">
+      <label class="f-field"><span>About</span><select name="category">{% for k, l in categories %}<option value="{{ k }}">{{ l }}</option>{% endfor %}</select></label>
+      <label class="f-field"><span>What happened</span><select name="issue">{% for k, l in issues %}<option value="{{ k }}">{{ l }}</option>{% endfor %}</select></label>
+    </div>
+    <label class="f-field"><span>What the reader said</span><textarea name="message" rows="3" required></textarea></label>
+    <label class="f-field"><span>Store order ID / receipt (optional)</span><input type="text" name="payment_ref" maxlength="80"></label>
+    <div style="display:flex;gap:8px;justify-content:flex-end"><button type="button" class="f-btn ghost" data-close>Cancel</button><button class="f-btn">Log report</button></div>
+  </form></div></div>
+{% endblock %}
