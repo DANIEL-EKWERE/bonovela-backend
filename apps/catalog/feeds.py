@@ -85,11 +85,14 @@ def shelf_sections(categories, base):
         shown = set()  # filled-in books aren't repeated across a category's shelves
         for i, shelf in enumerate(cat.shelves.all()):
             picks = [by_id[e.story_id] for e in shelf.approved if e.story_id in by_id]
-            seen = {b.id for b in picks} | shown
+            seen = {b.id for b in picks}
             candidates = ranked(FILL_ORDER[i % len(FILL_ORDER)])
             tagged = [b for b in candidates if any(t.name == shelf.title for t in b.tags.all())]
             in_genre = [b for b in candidates if b.genre_id in genre_ids] if genre_ids else candidates
-            for b in tagged + in_genre:
+            # Books not on an earlier shelf of this category first; repeats only
+            # when the catalogue is too small to fill the shelf otherwise.
+            fill = tagged + in_genre
+            for b in [b for b in fill if b.id not in shown] + [b for b in fill if b.id in shown]:
                 if len(picks) >= SHELF_SIZE:
                     break
                 if b.id not in seen:

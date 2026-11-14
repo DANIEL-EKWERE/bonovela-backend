@@ -67,8 +67,12 @@ class BonovelaAPITests(TestCase):
         self.assertEqual([s['title'] for s in sections],
                          ['Free for now', 'Free Reads', 'Rising Stars', 'Featured for you', 'New Arrivals'])
         self.assertEqual(sections[2]['layout'], 'paged_list')
-        ids = [b['id'] for s in sections for b in s['books']]
-        self.assertEqual(len(ids), len(set(ids)))  # filled-in books aren't repeated across shelves
+        # Earlier shelves don't crowd out later ones, and repeats come last.
+        self.assertTrue(all(s['books'] for s in sections))
+        first = {b['id'] for b in sections[0]['books']}
+        second = [b['id'] for b in sections[1]['books']]
+        fresh = [i for i in second if i not in first]
+        self.assertEqual(second[:len(fresh)], fresh)
 
     def test_shelf_feeds_use_few_queries(self):
         from django.db import connection
