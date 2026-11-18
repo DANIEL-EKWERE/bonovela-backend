@@ -46,10 +46,17 @@ class DashboardTests(TestCase):
 
     def test_reader_sees_intro_and_can_become_author(self):
         reader = self.login('reader@bonovela.app')
-        self.assertContains(self.client.get('/author/'), 'author', status_code=200)
-        self.client.post('/author/become/')
+        page = self.client.get('/author/')
+        self.assertContains(page, 'Bonovela Author Policy')
+        self.assertContains(page, 'STRICT ORIGINALITY')
+        self.client.post('/author/become/')  # didn't tick "I agree"
+        reader.refresh_from_db()
+        self.assertEqual(reader.role, User.ROLE_READER)
+        self.client.post('/author/become/', {'agree': 'on'})
         reader.refresh_from_db()
         self.assertEqual(reader.role, User.ROLE_AUTHOR)
+        self.assertIsNotNone(reader.author_policy_agreed_at)
+        self.assertContains(self.client.get('/author/policy/'), 'APPEALS')
 
     def test_non_admin_cannot_open_admin(self):
         self.login('author@bonovela.app')
@@ -1233,4 +1240,48 @@ class NewDashboardTests(TestCase):
         page = self.client.get('/finance/treasury/')
         self.assertContains(page, 'GTB-1')
         self.assertContains(page, 'Settlement from Google Play')
+
+    def test_contract_rejection_cooldown_and_approval_email(self):
+        from datetime import timedelta as td
+        from django.core import mail
+        from apps.editorial import services as editorial
+        from apps.editorial.models import ContractApplication
+        story = Story.objects.filter(is_signed=False, author__email='author@bonovela.app').first() or \
+            Story.objects.filter(is_signed=False).first()
+        story.applications.all().delete()
+        se, ce = User.objects.get(email='se@bonovela.app'), User.objects.get(email='ce@bonovela.app')
+        # Rejected without a reason: the author sees the standard message and must wait 24 hours.
+        app = ContractApplication.objects.create(story=story)
+        editorial.se_decide(app, se, 'reject')
+        app.refresh_from_db()
+        self.assertEqual(app.feedback, ContractApplication.AUTO_REJECTION)
+        self.assertEqual(app.author_view()['title'], 'Application Closed:')
+        self.assertIsNotNone(story.contract_cooldown_until)
+        self.assertFalse(story.can_apply_for_contract)
+        self.client.force_login(story.author)
+        page = self.client.get('/author/')
+        self.assertContains(page, 'Rejected')
+        self.assertContains(page, 'compelling pacing')
+        ContractApplication.objects.filter(pk=app.pk).update(rejected_at=timezone.now() - td(hours=25))
+        self.assertIsNone(story.contract_cooldown_until)
+        # Applied → "under review"; contract sent → email with the book details.
+        app2 = ContractApplication.objects.create(story=story)
+        self.assertIn('support@bonovela.com', app2.author_view()['message'])
+        editorial.se_decide(app2, se, 'approve')
+        with self.captureOnCommitCallbacks(execute=True):
+            editorial.ce_send_contract(app2, ce)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn('Congratulations', mail.outbox[0].subject)
+        html = mail.outbox[0].alternatives[0][0]
+        self.assertIn(story.display_title, html)
+        self.assertIn('bonovela-logo', html)
+        self.assertEqual(app2.author_view()['title'], 'Contract Sent to Your email')
+        self.assertContains(self.client.get('/author/'), 'Contract Sent to Your email')
+
+    def test_chapter_formatting_keeps_every_word(self):
+        story = Story.objects.first()
+        messy = '  First   line\r\n\r\n\r\n\r\nshe said it was\nraining.\u00a0\u00a0Then\t he left.\n\n\n  "Wait," she called.\n"No."'
+        ch = Chapter.objects.create(story=story, number=999, content=messy)
+        self.assertEqual(ch.content, 'First line\n\nshe said it was raining. Then he left.\n\n"Wait," she called.\n\n"No."')
+        self.assertEqual(ch.content.split(), messy.split())
 

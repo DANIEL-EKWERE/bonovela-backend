@@ -3,7 +3,7 @@
 <div class="flag-banner {% if prior_rejected %}red{% endif %}">
   <i class="ph-fill ph-flag"></i>
   <div class="grow">
-    <b>{% if prior_rejected %}Previously rejected{% else %}Previously sent back{% endif %}{% if prior_other_team %} by another Senior Editor's team{% endif %}</b>
+    <b>{% if prior_rejected %}Previously rejected{% else %}Previously sent back{% endif %}{% if prior_other_team %} by {% for m in prior %}{% if m.other_team and m.rejected_by_team %}{{ m.rejected_by_team }}{% if not forloop.last %}, {% endif %}{% endif %}{% endfor %}'s team{% endif %}</b>
     <div class="small">This submission matches {{ prior|length }} earlier submission{{ prior|length|pluralize }} that an editor turned down: {% for m in prior %}{{ m.reasons.0.label|lower }}{% if not forloop.last %}; {% endif %}{% endfor %}.</div>
   </div>
   <button class="btn sm" type="button" data-open="priorInfo">See more info</button>
@@ -18,7 +18,7 @@
       <b>{{ m.title }}</b>
       <span class="chip {% if m.status == 'rejected' %}red{% else %}gold{% endif %}">{{ m.status_label }}</span>
     </div>
-    <div class="row wrap" style="gap:4px;margin:6px 0">{% for r in m.reasons %}<span class="chip pink">{{ r.label }}</span>{% endfor %}{% if m.other_team %}<span class="chip red">Another SE's team</span>{% endif %}</div>
+    <div class="row wrap" style="gap:4px;margin:6px 0">{% for r in m.reasons %}<span class="chip pink">{{ r.label }}</span>{% endfor %}{% if m.rejected_by_team %}<span class="chip {% if m.other_team %}red{% else %}grey{% endif %}">SE: {{ m.rejected_by_team }}</span>{% endif %}</div>
     <table class="small" style="width:100%;border-collapse:collapse">
       <tr><td class="hint" style="padding:3px 10px 3px 0;width:38%">Rejected by</td><td><b>{{ m.rejected_by|default:'—' }}</b>{% if m.rejected_by_role %} ({{ m.rejected_by_role }}){% endif %}</td></tr>
       <tr><td class="hint" style="padding:3px 10px 3px 0">Senior Editor / team</td><td>{{ m.rejected_by_team|default:'—' }}</td></tr>

@@ -39,11 +39,12 @@
         <div class="row"><i class="ph{% if key == app.status %}-fill ph-circle pink{% else %} ph-circle muted{% endif %}"></i><span {% if key == app.status %}style="font-weight:600"{% endif %}>{{ label }}</span></div>
       {% endif %}{% endfor %}
     </div>
-    <p class="hint" style="margin-top:12px">Applied {{ app.created_at|date:"M d, Y" }}. If you don't hear back within 30 business days, contact support@bonovela.app.</p>
+    <p class="hint" style="margin-top:12px">Applied {{ app.created_at|date:"M d, Y" }}. {{ app.UNDER_REVIEW }}</p>
   </div>
 
 {% else %}
-  {% if app and app.feedback %}<div class="notice {% if app.status == 'rejected' %}bad{% else %}warn{% endif %}" style="margin-top:12px"><b>Editor feedback:</b> {{ app.feedback }}</div>{% endif %}
+  {% if app and app.status == 'rejected' %}{% with v=app.author_view %}<div class="app-panel bad" style="margin:12px 0"><b>{{ v.title }}</b><p>{{ v.message|linebreaksbr }}</p></div>{% endwith %}
+  {% elif app and app.feedback %}<div class="notice warn" style="margin-top:12px"><b>Editor feedback:</b> {{ app.feedback }}</div>{% endif %}
   <div class="card">
     <h2>{% if story.can_apply_for_contract %}Apply for Contract{% else %}Contract{% endif %}</h2>
     <p class="muted small" style="margin:6px 0 14px">Contracted books appear in the app, get promoted, and earn money.</p>
@@ -54,6 +55,8 @@
     </div>
     {% if story.can_apply_for_contract %}
       <a class="btn block lg" href="{% url 'dashboard:author_contract' story.pk %}">Apply for Contract</a>
+    {% elif story.contract_cooldown_until %}
+      <p class="hint">You can apply again {{ story.contract_cooldown_until|timeuntil }} from now (24 hours after the decision).</p>
     {% else %}
       <p class="hint">The application opens once your book reaches {{ min_words|stringformat:'d' }} published words.</p>
     {% endif %}

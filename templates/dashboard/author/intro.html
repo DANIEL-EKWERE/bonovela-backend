@@ -11,6 +11,14 @@
     <div class="row top"><i class="ph ph-megaphone pink" style="font-size:26px"></i><div><b>Get featured</b><p class="small muted">Top new stories are promoted on Discover.</p></div></div>
     <div class="row top"><i class="ph ph-chart-line-up pink" style="font-size:26px"></i><div><b>Track your readers</b><p class="small muted">See reads, comments and income in one place.</p></div></div>
   </div>
-  <form method="post" action="{% url 'dashboard:become_author' %}">{% csrf_token %}<button class="btn lg">Become an author</button></form>
+  <form method="post" action="{% url 'dashboard:become_author' %}" style="text-align:left;max-width:520px;margin:0 auto">{% csrf_token %}
+    <details class="card" style="margin-bottom:12px;background:var(--surface)">
+      <summary style="cursor:pointer;font-weight:600"><i class="ph ph-shield-check pink"></i> Bonovela Author Policy <span class="hint" style="display:inline;font-weight:400">— tap to read (optional)</span></summary>
+      <div style="max-height:360px;overflow:auto;margin-top:10px">{% include 'dashboard/author/_policy_body.html' %}</div>
+      <p class="hint" style="margin-top:8px"><a class="pink" href="{% url 'dashboard:author_policy' %}" target="_blank">Open the full policy ›</a></p>
+    </details>
+    <label class="check-row" style="margin-bottom:14px"><input type="checkbox" name="agree" required onchange="this.form.querySelector('button').disabled = !this.checked"> I have read and agree to the Bonovela Author Policy</label>
+    <div style="text-align:center"><button class="btn lg" disabled>I agree — create my author account</button></div>
+  </form>
 </div>
 {% endblock %}

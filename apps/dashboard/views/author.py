@@ -34,7 +34,8 @@ def author_area(view):
     @wraps(view)
     def wrapper(request, *args, **kwargs):
         if request.user.role == User.ROLE_READER:
-            return render(request, 'dashboard/author/intro.html')
+            from apps.users.models import author_policy
+            return render(request, 'dashboard/author/intro.html', {'policy': author_policy()})
         return view(request, *args, **kwargs)
 
     return wrapper
@@ -47,11 +48,22 @@ def _story(request, pk):
 @login_required
 @require_POST
 def become_author(request):
+    """Create the author account once they agree to the Author Policy."""
+    if request.POST.get('agree') != 'on':
+        messages.error(request, 'Tick "I agree" to the Author Policy to create your author account.')
+        return redirect('dashboard:author_stories')
     if request.user.role == User.ROLE_READER:
         request.user.role = User.ROLE_AUTHOR
-        request.user.save(update_fields=['role'])
+        request.user.author_policy_agreed_at = timezone.now()
+        request.user.save(update_fields=['role', 'author_policy_agreed_at'])
     messages.success(request, 'Welcome, author ✍️ Tap + to start your first story.')
     return redirect('dashboard:author_stories')
+
+
+def policy(request):
+    """The Author Policy, readable by anyone."""
+    from apps.users.models import author_policy
+    return render(request, 'dashboard/author/policy.html', {'policy': author_policy()})
 
 
 # ── Stories ──────────────────────────────────────────────────────────────────
@@ -63,15 +75,19 @@ def stories(request):
     cards = []
     for s in qs:
         pub = [c for c in s.chapters.all() if c.status == Chapter.STATUS_PUBLISHED]
+        app = next(iter(s.applications.all()), None)
         cards.append({
             'story': s,
             'chapters': len(pub),
             'not_live': s.is_signed and not s.is_short and len(pub) < min_live,
-            'can_apply': s.is_info_complete and sum(c.word_count for c in pub) >= settings.BONOVELA['CONTRACT_MIN_WORDS'],
+            'can_apply': (s.is_info_complete and sum(c.word_count for c in pub) >= settings.BONOVELA['CONTRACT_MIN_WORDS']
+                          and not s.contract_cooldown_until),
             'min_live': min_live,
             'words': sum(c.word_count for c in pub),
             'comments': len(s.reviews.all()),
-            'application': next(iter(s.applications.all()), None),
+            'application': app,
+            'app_view': app.author_view() if app else None,
+            'reapply_at': s.contract_cooldown_until,
         })
     return render(request, 'dashboard/author/stories.html', {'cards': cards})
 
@@ -482,8 +498,8 @@ def withdraw(request):
         except WithdrawalError as e:
             form.add_error('amount', str(e))
         else:
-            messages.success(request, f'Withdrawal of ${p.requested_cents / 100:,.2f} placed. It is processed on the '
-                                      '11th of next month.')
+            messages.success(request, f'Withdrawal of ${p.requested_cents / 100:,.2f} placed. It is scheduled for '
+                                      'payment on the 28th.')
             return redirect('dashboard:author_withdrawals')
     return render(request, 'dashboard/author/withdraw.html', {'form': form, 'rules': rules, 'method': method})
 

@@ -1,0 +1,7 @@
+<div class="policy">{% for b in policy.grouped %}
+  {% if b.type == 'ul' %}<ul>{% for i in b.items %}<li>{{ i }}</li>{% endfor %}</ul>
+  {% elif b.type == 'h1' %}<h2>{{ b.text }}</h2>
+  {% elif b.type == 'h2' %}<h3>{{ b.text }}</h3>
+  {% elif b.type == 'h3' %}<h4>{{ b.text }}</h4>
+  {% else %}<p>{{ b.text }}</p>{% endif %}{% endfor %}
+</div>

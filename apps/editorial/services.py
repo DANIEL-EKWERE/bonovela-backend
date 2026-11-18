@@ -50,9 +50,11 @@ def se_decide(app, editor, decision: str, feedback: str = ''):
         _mark_rejected(app, editor, feedback)
         _notify(app.story, 'Your book needs a few changes', feedback or 'Please revise and apply again.')
     elif decision == 'reject':
+        # No reason written: the author gets the standard rejection message.
         app.status = App.STATUS_REJECTED
+        app.feedback = feedback or App.AUTO_REJECTION
         _mark_rejected(app, editor, feedback)
-        _notify(app.story, 'Application update', feedback or "Your book wasn't selected for signing this time.")
+        _notify(app.story, 'Application update', app.feedback)
     else:
         raise ValidationError('decision must be approve, revise or reject')
     app.save()
@@ -67,8 +69,11 @@ def ce_send_contract(app, editor, contract_type: str = 'non_exclusive', signing_
     app.signing_bonus_cents = max(0, signing_bonus_cents)
     app.status = App.STATUS_CONTRACT_SENT
     app.save()
-    _notify(app.story, 'Your contract is ready ✍️',
-            f'Open Author Center to review and sign your {app.get_contract_type_display().lower()} contract.')
+    _notify(app.story, 'Congratulations! Your contract has been approved ✍️',
+            f'We sent your {app.get_contract_type_display().lower()} contract to your email. You can also review '
+            'and sign it in Author Center.')
+    from .emails import send_contract_approved
+    transaction.on_commit(lambda: send_contract_approved(app))
 
 
 @transaction.atomic

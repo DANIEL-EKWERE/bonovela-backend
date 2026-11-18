@@ -174,6 +174,19 @@ CORS_ALLOW_ALL_ORIGINS = config('CORS_ALLOW_ALL', default=False, cast=bool)
 CORS_ALLOWED_ORIGINS = config('CORS_ALLOWED_ORIGINS', default='', cast=Csv())
 
 # ── Business rules ───────────────────────────────────────────────────────────
+# Email (contract notices). Set EMAIL_HOST and friends on the server; until
+# then messages are written to the log instead of being sent.
+EMAIL_HOST = config('EMAIL_HOST', default='')
+EMAIL_PORT = config('EMAIL_PORT', default=587, cast=int)
+EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='')
+EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
+EMAIL_USE_TLS = config('EMAIL_USE_TLS', default=True, cast=bool)
+EMAIL_BACKEND = ('django.core.mail.backends.smtp.EmailBackend' if EMAIL_HOST
+                 else 'django.core.mail.backends.console.EmailBackend')
+DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='Bonovela <no-reply@bonovela.com>')
+# Public address of this site, for links and images in emails.
+SITE_URL = config('SITE_URL', default=f'https://{RENDER_HOST}' if RENDER_HOST else 'http://localhost:8000')
+
 BONOVELA = {
     'FREE_CHAPTERS': 10,  # novels: chapters 1–10 free
     'CHAPTER_PRICE': 15,  # coins per locked novel chapter

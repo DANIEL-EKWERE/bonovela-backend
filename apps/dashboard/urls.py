@@ -15,6 +15,7 @@ urlpatterns = [
 
     # Author Center
     path('author/become/', author.become_author, name='become_author'),
+    path('author/policy/', author.policy, name='author_policy'),
     path('author/', author.stories, name='author_stories'),
     path('author/stories/new/', author.story_info, name='author_story_new'),
     path('author/stories/<int:pk>/info/', author.story_info, name='author_story_info'),

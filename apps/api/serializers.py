@@ -270,14 +270,15 @@ class AuthorStorySerializer(serializers.ModelSerializer):
     chapter_count = serializers.SerializerMethodField()
     word_count = serializers.SerializerMethodField()
     application_status = serializers.SerializerMethodField()
+    application = serializers.SerializerMethodField()
 
     class Meta:
         model = Story
         fields = [
             'id', 'title', 'synopsis', 'cover', 'cover_index', 'language', 'audience', 'content_rating',
             'novel_type', 'genre', 'tags', 'status', 'is_short', 'is_signed', 'is_info_complete',
-            'can_apply_for_contract', 'chapter_count', 'word_count', 'application_status', 'views', 'created_at',
-            'updated_at',
+            'can_apply_for_contract', 'chapter_count', 'word_count', 'application_status', 'application', 'views',
+            'created_at', 'updated_at',
         ]
         read_only_fields = ['is_signed', 'views', 'created_at', 'updated_at']
 
@@ -312,6 +313,14 @@ class AuthorStorySerializer(serializers.ModelSerializer):
     def get_application_status(self, obj):
         app = obj.applications.first()
         return app.status if app else None
+
+    def get_application(self, obj):
+        """The story card's application panel: kind, label, title, message,
+        reapply_at (after a rejection)."""
+        app = obj.applications.first()
+        if not app:
+            return None
+        return {**app.author_view(), 'reapply_at': obj.contract_cooldown_until}
 
 
 class AuthorChapterSerializer(serializers.ModelSerializer):

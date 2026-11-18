@@ -1,4 +1,5 @@
 import uuid
+from datetime import timedelta
 
 from django.conf import settings
 from django.core.files.storage import FileSystemStorage
@@ -116,6 +117,44 @@ class ContractApplication(models.Model):
     @property
     def is_open(self):
         return self.status in self.OPEN_STATUSES
+
+    # Shown to the author when an editor rejects without writing a reason.
+    AUTO_REJECTION = (
+        'Unfortunately, your book has not been approved at this time.\n\n'
+        'We are looking for stories with compelling pacing, exciting plot twists, captivating cliffhangers, '
+        'fascinating characters, meaningful conflicts, and originality.\n\n'
+        'Please revise your manuscript and feel free to reapply for a contract once the necessary improvements '
+        'have been made.\n\n'
+        'Thank you for your interest in Bonovela!'
+    )
+    REAPPLY_AFTER = timedelta(hours=24)
+    UNDER_REVIEW = ('Your book is under review. If you did not receive the feedback in 30 business days, '
+                    'please email support@bonovela.com.')
+
+    @property
+    def reapply_at(self):
+        """After a rejection, the author can apply again 24 hours later."""
+        if self.status == self.STATUS_REJECTED:
+            return (self.rejected_at or self.updated_at) + self.REAPPLY_AFTER
+        return None
+
+    def author_view(self):
+        """How the application reads on the author's story card:
+        {'label', 'title', 'message', 'kind'} (kind: applied | revision |
+        contract_sent | signed | rejected)."""
+        if self.status in (self.STATUS_PENDING, self.STATUS_SE_APPROVED):
+            return {'kind': 'applied', 'label': 'Applied', 'title': 'Applied:', 'message': self.UNDER_REVIEW}
+        if self.status == self.STATUS_REVISION:
+            return {'kind': 'revision', 'label': 'Needs revision', 'title': 'Revision requested:',
+                    'message': self.feedback or 'Please revise your book and apply again.'}
+        if self.status == self.STATUS_CONTRACT_SENT:
+            return {'kind': 'contract_sent', 'label': 'Contract Approved', 'title': 'Contract Sent to Your email',
+                    'message': 'Congratulations, your contract has been approved! Review and sign it to publish '
+                               'your book on Bonovela.'}
+        if self.status == self.STATUS_SIGNED:
+            return {'kind': 'signed', 'label': 'Signed', 'title': 'Signed', 'message': ''}
+        return {'kind': 'rejected', 'label': 'Rejected', 'title': 'Application Closed:',
+                'message': self.feedback or self.AUTO_REJECTION}
 
 
 class EditorialNote(models.Model):

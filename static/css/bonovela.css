@@ -326,3 +326,19 @@ input[type=radio]:checked + .cover { outline: 3px solid var(--primary); outline-
 .flag-banner.red { background: #FDECEC; border-color: #F5B5B2; }
 .flag-banner.red > i { color: var(--error); }
 @media (max-width: 520px) { .flag-banner { flex-wrap: wrap; } .flag-banner .btn { width: 100%; } }
+
+/* Author Policy */
+.policy h2 { font-size: 20px; margin: 4px 0 10px; }
+.policy h3 { font-size: 16px; margin: 18px 0 6px; color: var(--primary); letter-spacing: .02em; }
+.policy h4 { font-size: 14px; margin: 10px 0 4px; }
+.policy p { margin: 0 0 8px; line-height: 1.55; font-size: 14px; }
+.policy ul { margin: 0 0 10px; padding-left: 20px; font-size: 14px; line-height: 1.5; }
+
+/* Contract application on the story card */
+.app-panel { margin-top: 12px; padding: 12px 14px; border-radius: 12px; background: var(--surface); font-size: 14px; }
+.app-panel p { margin: 4px 0 8px; color: var(--text-2); line-height: 1.5; }
+.app-panel.bad { background: #FFF1F1; }
+.app-panel.bad b, .app-panel.bad p { color: #C0392B; }
+.app-panel.ok { background: #EAF8EF; }
+.app-panel.ok b { color: #1E8449; }
+.btn.blue { background: #4F6CF7; border-color: #4F6CF7; }

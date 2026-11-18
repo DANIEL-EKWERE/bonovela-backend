@@ -19,6 +19,7 @@ urlpatterns = [
     path('auth/me/marketing/', v.marketing_profile),
     path('auth/onboarding/', v.onboarding),
     path('auth/become-author/', v.become_author),
+    path('author-policy/', v.author_policy_view),
     # Catalogue
     path('taxonomy/', v.taxonomy),
     path('books/', v.BookListView.as_view()),

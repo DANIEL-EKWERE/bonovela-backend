@@ -23,6 +23,6 @@
     <div class="list-item"><span class="grow hint">Payment reference</span><b>{{ current.reference }}</b></div>{% endif %}
     <div class="list-item"><span class="grow hint">Paid to</span><b style="text-align:right">{{ current.method|default:'—' }}</b></div>
   </div>
-  <p class="hint" style="margin-top:10px">{% if current.status == 'paid' %}This payment was sent successfully.{% elif current.status == 'approved' %}Approved — the transfer is being processed.{% elif current.status == 'failed' %}The transfer didn't go through. The amount is back in your available balance; check your payment info.{% else %}Waiting to be processed on the 11th.{% endif %}</p>
+  <p class="hint" style="margin-top:10px">{% if current.status == 'paid' %}This payment was sent successfully.{% elif current.status == 'approved' %}Approved — the transfer is being processed.{% elif current.status == 'failed' %}The transfer didn't go through. The amount is back in your available balance; check your payment info.{% else %}Scheduled for payment on the 28th.{% endif %}</p>
 </div></div>{% endif %}
 {% endblock %}

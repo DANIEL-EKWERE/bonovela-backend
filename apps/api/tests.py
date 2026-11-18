@@ -320,3 +320,12 @@ class DramaAPITests(TestCase):
         APIClient().post(f'/api/banners/{banners[0]["id"]}/click/')
         from apps.marketing.models import Banner
         self.assertEqual(Banner.objects.get(pk=banners[0]['id']).clicks, 1)
+
+    def test_become_author_needs_policy_agreement(self):
+        from apps.users.models import User
+        c = self.login('reader@bonovela.app')
+        self.assertGreater(len(c.get('/api/author-policy/').data['blocks']), 50)
+        self.assertEqual(c.post('/api/auth/become-author/', {}, format='json').data['code'], 'policy')
+        self.assertEqual(User.objects.get(email='reader@bonovela.app').role, User.ROLE_READER)
+        c.post('/api/auth/become-author/', {'agree': True}, format='json')
+        self.assertEqual(User.objects.get(email='reader@bonovela.app').role, User.ROLE_AUTHOR)

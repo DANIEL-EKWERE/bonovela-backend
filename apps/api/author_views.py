@@ -131,6 +131,9 @@ def application(request, pk):
         return Response(s.ApplicationSerializer(app).data if app else None)
     if story.applications.filter(status__in=ContractApplication.OPEN_STATUSES + (ContractApplication.STATUS_SIGNED,)).exists():
         return Response({'detail': 'This story already has an open application.'}, status=400)
+    if story.contract_cooldown_until:
+        return Response({'detail': 'You can apply again 24 hours after the decision.', 'code': 'cooldown',
+                         'reapply_at': story.contract_cooldown_until}, status=400)
     if not story.can_apply_for_contract:
         need = settings.BONOVELA['CONTRACT_MIN_WORDS']
         return Response({'detail': f'Complete your book information and publish at least {need:,} words first.'},

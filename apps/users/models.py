@@ -56,6 +56,8 @@ class User(AbstractUser):
     # Editor who brought this author to Bonovela.
     recruited_by = models.ForeignKey('self', on_delete=models.SET_NULL, null=True, blank=True, related_name='recruits')
     kyc_verified = models.BooleanField(default=False, help_text='Identity checked for contract payments')
+    author_policy_agreed_at = models.DateTimeField(null=True, blank=True,
+                                                   help_text='When they agreed to the Author Policy')
     # Senior Editors work on one desk; authors choose an editor from the desk
     # matching their book when they apply for a contract.
     DESK_NOVELS, DESK_SHORTS = 'novels', 'shorts'
@@ -138,3 +140,22 @@ class IPLog(models.Model):
 
     def __str__(self):
         return f'{self.user} · {self.ip}'
+
+
+def author_policy():
+    """The Bonovela Author Policy (Content Integrity, Quality Control &
+    Zero-Tolerance): {'title', 'blocks': [{'type': h1|h2|h3|p|li, 'text'}]}."""
+    import json
+    from pathlib import Path
+    data = json.loads((Path(__file__).parent / 'data' / 'author_policy.json').read_text(encoding='utf-8'))
+    # For pages: consecutive list items grouped into one 'ul' block.
+    grouped = []
+    for b in data['blocks']:
+        if b['type'] == 'li':
+            if not grouped or grouped[-1]['type'] != 'ul':
+                grouped.append({'type': 'ul', 'items': []})
+            grouped[-1]['items'].append(b['text'])
+        else:
+            grouped.append(b)
+    data['grouped'] = grouped
+    return data

@@ -17,10 +17,10 @@
   {% elif rules.available < rules.minimum %}<div class="notice warn" style="margin-top:12px">You can withdraw once your available balance reaches {{ rules.minimum|money }}.</div>{% endif %}
   <div class="card" style="margin-top:12px">{% include 'dashboard/author/_payout_fields.html' with f=form %}</div>
   
-  <div class="notice warn" style="margin-top:8px;border:1px solid #F1D9A6"><b>Withdrawal Processing Time:</b> Withdrawals are processed on the 11th of each month, covering the requests from the previous month (e.g. on 11 November, the withdrawals placed from 11 October to 10 November are processed and paid).</div>
+  <div class="notice warn" style="margin-top:8px;border:1px solid #F1D9A6"><b>Monthly Author Payments</b><p style="margin:6px 0 0">Author earnings are calculated monthly based on eligible revenue generated during the previous calendar month. Approved earnings are scheduled for withdrawal on the 28th of every month.</p><p style="margin:6px 0 0">Payments are subject to financial reconciliation, account verification and third-party platform settlement. If Google Play or another payment provider delays the release of funds, affected earnings will remain recorded in your account until settlement is completed.</p><p style="margin:6px 0 0">Such delays do not mean your earnings have been cancelled or forfeited. Bonovela will process eligible outstanding payments once the funds are received and cleared.</p></div>
   <div class="grid cols-2" style="margin-top:14px;gap:10px">
     <button type="button" class="btn" id="withdrawSubmit" {% if not rules.can_withdraw %}disabled{% endif %}>SUBMIT</button>
-    <a class="btn" href="{% url 'dashboard:author_income' %}?payment=1" style="background:#FF8A1F;border-color:#FF8A1F">Manage Payment Accounts</a>
+    <a class="btn" href="{% url 'dashboard:author_income' %}?payment=1" style="background:#FF8A1F;border-color:#FF8A1F">Modify Info</a>
   </div>
 </form>
 {% include 'dashboard/author/_payout_check.html' with form_id='withdrawForm' submit_id='withdrawSubmit' final_label='Place withdrawal' %}

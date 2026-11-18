@@ -110,10 +110,22 @@ def onboarding(request):
 @api_view(['POST'])
 @permission_classes([permissions.IsAuthenticated])
 def become_author(request):
+    """POST {agree: true}: they agreed to the Author Policy."""
+    if request.data.get('agree') not in (True, 'true', 'True', 'on', '1'):
+        return Response({'detail': 'Agree to the Author Policy to create your author account.',
+                         'code': 'policy'}, status=400)
     if request.user.role == User.ROLE_READER:
         request.user.role = User.ROLE_AUTHOR
-        request.user.save(update_fields=['role'])
+        request.user.author_policy_agreed_at = timezone.now()
+        request.user.save(update_fields=['role', 'author_policy_agreed_at'])
     return Response(s.UserSerializer(request.user).data)
+
+
+@api_view(['GET'])
+@permission_classes([permissions.AllowAny])
+def author_policy_view(request):
+    from apps.users.models import author_policy
+    return Response(author_policy())
 
 
 # ── Catalogue ────────────────────────────────────────────────────────────────

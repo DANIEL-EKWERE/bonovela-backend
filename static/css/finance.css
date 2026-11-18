@@ -164,3 +164,5 @@ body.fin { margin: 0; background: var(--f-bg); color: var(--f-fg); font: 15px/1.
 .f-btn.no { background: var(--f-danger); }
 .f-sheet.side { justify-content: flex-end; padding: 0; }
 .f-sheet.side .p { height: 100vh; max-height: none; width: min(480px, 100%); border-radius: 0; }
+a.f-stat { display: block; transition: transform .12s, box-shadow .12s; }
+a.f-stat:hover { transform: translateY(-2px); box-shadow: 0 10px 28px -14px rgba(110, 23, 44, .35); }

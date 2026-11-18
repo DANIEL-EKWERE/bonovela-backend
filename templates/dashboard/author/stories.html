@@ -40,9 +40,9 @@
         <h3 class="truncate">{{ s.display_title }}</h3>
         <div class="row wrap" style="gap:6px;margin:6px 0 10px">
           <span class="chip pink">{{ s.get_status_display }}</span>
-          {% if s.is_signed %}<span class="chip green">Signed</span>{% else %}<span class="chip grey">Unsigned</span>{% endif %}
+          {% if s.is_signed %}<span class="chip green">Signed</span>{% elif c.app_view.kind == 'rejected' %}<span class="chip red">Rejected</span>{% elif c.app_view.kind == 'contract_sent' %}<span class="chip green">Contract Approved</span>{% else %}<span class="chip grey">Unsigned</span>{% endif %}
           {% if c.not_live %}<span class="chip gold">Not live yet · {{ c.chapters }}/{{ c.min_live }} chapters</span>{% endif %}
-          {% if c.application and c.application.is_open %}<span class="chip gold">{{ c.application.get_status_display }}</span>{% endif %}
+          {% if c.app_view.kind == 'applied' or c.app_view.kind == 'revision' %}<span class="chip gold">{{ c.app_view.label }}</span>{% endif %}
         </div>
         <div class="row wrap small muted" style="gap:16px">
           <span><i class="ph ph-eye"></i> {{ s.views|compact }}</span>
@@ -54,14 +54,31 @@
     </a>
     <div class="divider"></div>
     {% if s.is_info_complete %}
+      {% with v=c.app_view %}
       <div class="row between">
-        {% if not s.is_signed and c.can_apply %}<a class="small pink" href="{% url 'dashboard:author_signing' s.pk %}">Apply for Contract ›</a>{% else %}<span></span>{% endif %}
+        {% if not s.is_signed and c.can_apply and v.kind != 'rejected' and v.kind != 'applied' and v.kind != 'contract_sent' %}<a class="small pink" href="{% url 'dashboard:author_signing' s.pk %}">Apply for Contract ›</a>{% else %}<span></span>{% endif %}
         <a class="btn sm" href="{% url 'dashboard:author_chapter_new' s.pk %}">Add new chapter</a>
       </div>
+      {% endwith %}
     {% else %}
       <p class="small muted" style="margin-bottom:10px">Please complete your book information before you publish it.</p>
       <div style="text-align:right"><a class="btn sm" href="{% url 'dashboard:author_story_info' s.pk %}?step=1">Complete the info</a></div>
     {% endif %}
+    {% with v=c.app_view %}
+      {% if v and not s.is_signed %}
+      {% if v.kind == 'rejected' %}
+      <div class="app-panel bad">
+        <b>{{ v.title }}</b>
+        <p>{{ v.message|linebreaksbr }}</p>
+        <div style="text-align:right">{% if c.can_apply %}<a class="btn sm blue" href="{% url 'dashboard:author_signing' s.pk %}">Apply for contract</a>{% elif c.reapply_at %}<span class="hint">You can apply again {{ c.reapply_at|timeuntil }} from now.</span>{% endif %}</div>
+      </div>
+      {% elif v.kind == 'contract_sent' %}
+      <div class="app-panel ok"><b>{{ v.title }}</b><p>{{ v.message }}</p><div style="text-align:right"><a class="btn sm" href="{% url 'dashboard:author_signing' s.pk %}">Review &amp; sign</a></div></div>
+      {% else %}
+      <div class="app-panel"><b>{{ v.title }}</b><p>{{ v.message }}</p></div>
+      {% endif %}
+    {% endif %}
+    {% endwith %}
   </div>
 {% endwith %}{% endfor %}
 </div>

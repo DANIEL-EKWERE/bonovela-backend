@@ -178,8 +178,16 @@ class Story(models.Model):
         return sum(c.word_count for c in self.published_chapters())
 
     @property
+    def contract_cooldown_until(self):
+        """After a rejection the author waits 24 hours before applying again."""
+        app = self.applications.first()
+        until = app.reapply_at if app else None
+        return until if until and until > timezone.now() else None
+
+    @property
     def can_apply_for_contract(self):
-        return self.is_info_complete and self.total_words >= settings.BONOVELA['CONTRACT_MIN_WORDS']
+        return (self.is_info_complete and self.total_words >= settings.BONOVELA['CONTRACT_MIN_WORDS']
+                and not self.contract_cooldown_until)
 
 
 class Chapter(models.Model):
@@ -226,6 +234,9 @@ class Chapter(models.Model):
         return f'{self.story} · {self.label}'
 
     def save(self, *args, **kwargs):
+        # Every chapter gets the same clean layout (spacing only, never words).
+        from .formatting import format_chapter
+        self.content = format_chapter(self.content)
         self.word_count = word_count(self.content)
         super().save(*args, **kwargs)
 
