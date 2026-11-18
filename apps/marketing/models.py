@@ -53,6 +53,9 @@ class Banner(models.Model):
         ('open', 'When the app opens'), ('chapter', 'After finishing a chapter'), ('book', 'After finishing a book'),
     ], help_text='Pop-ups only')
     is_draft = models.BooleanField(default=False)
+    # Banner builder: background, book cover, text and button, positioned in
+    # percent of the banner so it looks the same on every screen.
+    design = models.JSONField(default=dict, blank=True)
     impressions = models.PositiveIntegerField(default=0)
     clicks = models.PositiveIntegerField(default=0)
     book_opens = models.PositiveIntegerField(default=0, help_text='Clicks that opened the advertised book')

@@ -190,7 +190,8 @@ class BannerForm(forms.ModelForm):
     class Meta:
         model = Banner
         fields = ['title', 'subtitle', 'image', 'color_index', 'placement', 'target', 'story', 'drama', 'url',
-                  'audience', 'label', 'condition', 'order', 'starts_at', 'ends_at', 'is_active', 'is_draft']
+                  'audience', 'label', 'condition', 'order', 'starts_at', 'ends_at', 'is_active', 'is_draft', 'design']
+        widgets = {'design': forms.HiddenInput()}
 
     def __init__(self, *args, placements=None, **kwargs):
         super().__init__(*args, **kwargs)
@@ -212,8 +213,20 @@ class BannerForm(forms.ModelForm):
             self.add_error(need, 'Every book promotion needs a valid Book ID.' if need == 'story' else 'Required for this target.')
         if data.get('ends_at') and data.get('starts_at') and data['ends_at'] <= data['starts_at']:
             self.add_error('ends_at', 'Must be after the start.')
-        if data.get('placement') == 'splash' and not data.get('image') and not self.instance.image:
-            self.add_error('image', 'An opening screen needs a full-screen cover image.')
+        design = data.get('design') or {}
+        if not isinstance(design, dict):
+            self.add_error(None, 'The banner design could not be read. Please try again.')
+            design = {}
+        data['design'] = design
+        if design:
+            # Every designed promotion opens its exact book.
+            if target != 'story':
+                self.add_error('story', 'A designed promotion must open a book: choose "Book" and the Book ID.')
+            bg = design.get('bg') or {}
+            if bg.get('type') == 'image' and not data.get('image') and not self.instance.image:
+                self.add_error('image', 'Upload the background image, or choose colours.')
+        elif data.get('placement') == 'splash' and not data.get('image') and not self.instance.image:
+            self.add_error('image', 'An opening screen needs a full-screen cover image (or design one).')
         return data
 
 

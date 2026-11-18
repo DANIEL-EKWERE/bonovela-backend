@@ -64,13 +64,14 @@ class Contest(models.Model):
 
 class StoryQuerySet(models.QuerySet):
     def visible_in_app(self):
-        """Signed, live stories. Unsigned books only show on the web, and
-        novels need MIN_LIVE_CHAPTERS published chapters (shorts don't)."""
+        """Signed stories the Chief Editor has published to the app (App
+        Publishing Control). Novels also need MIN_LIVE_CHAPTERS published
+        chapters (shorts don't)."""
         long_enough = (
             Chapter.objects.filter(status=Chapter.STATUS_PUBLISHED).values('story')
             .annotate(n=models.Count('pk')).filter(n__gte=settings.BONOVELA['MIN_LIVE_CHAPTERS']).values('story')
         )
-        return (self.filter(is_signed=True, is_removed=False).exclude(status=Story.STATUS_DRAFT)
+        return (self.filter(is_signed=True, in_app=True, is_removed=False).exclude(status=Story.STATUS_DRAFT)
                 .filter(models.Q(is_short=True) | models.Q(pk__in=long_enough)))
 
 
@@ -110,6 +111,14 @@ class Story(models.Model):
 
     # Editorial state
     is_signed = models.BooleanField(default=False)
+    # App Publishing Control: the Chief Editor puts signed books in the app.
+    in_app = models.BooleanField(default=False, db_index=True)
+    in_app_at = models.DateTimeField(null=True, blank=True)
+    in_app_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                                  related_name='+')
+    # Pay-to-Read: chapters from this number on cost coins (set when an
+    # editor approves the author's application). Empty = every chapter free.
+    paid_from_chapter = models.PositiveSmallIntegerField(null=True, blank=True)
     signed_at = models.DateTimeField(null=True, blank=True)
     is_removed = models.BooleanField(default=False)
     # Senior Editor responsible for this book.
@@ -176,6 +185,15 @@ class Story(models.Model):
     @property
     def total_words(self):
         return sum(c.word_count for c in self.published_chapters())
+
+    @property
+    def can_apply_pay_to_read(self):
+        """Signed novels with enough published words and no Pay-to-Read yet."""
+        if self.is_short or not self.is_signed or self.paid_from_chapter:
+            return False
+        if self.total_words < settings.BONOVELA['PAY_TO_READ_MIN_WORDS']:
+            return False
+        return not self.pay_to_read_applications.filter(status='pending').exists()
 
     @property
     def contract_cooldown_until(self):
@@ -250,9 +268,11 @@ class Chapter(models.Model):
 
     @property
     def is_free(self):
-        rules = settings.BONOVELA
-        limit = rules['FREE_SHORT_CHAPTERS'] if self.story.is_short else rules['FREE_CHAPTERS']
-        return self.number <= limit
+        story = self.story
+        if story.is_short:  # short stories: first chapters free, the rest with coins or Plus
+            return self.number <= settings.BONOVELA['FREE_SHORT_CHAPTERS']
+        # Novels are free until Pay-to-Read is approved; then locked from that chapter on.
+        return story.paid_from_chapter is None or self.number < story.paid_from_chapter
 
     @property
     def price(self):

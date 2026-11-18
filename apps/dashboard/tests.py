@@ -519,7 +519,7 @@ class ResubmissionFlagTests(TestCase):
         self.assertContains(self.client.get('/editorial/submissions/?tab=flagged'), 'Bride of the Lantern Delta')
         self.assertContains(self.client.get('/editorial/'), 'Flagged submissions')
         r = self.client.get(f'/editorial/submissions/{app.pk}/')
-        for text in ('Previously rejected', "another Senior Editor", 'See more info', 'The Lantern Bride',
+        for text in ('Previously rejected', "'s team", 'SE: ', 'See more info', 'The Lantern Bride',
                      'Bisi (SE)', 'lift whole scenes', 'Shared IP address (102.89.34.17)', 'Opening chapters'):
             self.assertContains(r, text)
         self.assertContains(self.client.get(f'/editorial/books/{app.story_id}/'), 'See more info')
@@ -1140,12 +1140,17 @@ class NewDashboardTests(TestCase):
         author = User.objects.get(email='author@bonovela.app')
         Payout.objects.filter(author=author).delete()
         AuthorEarning.objects.filter(author=author).delete()
-        AuthorEarning.objects.create(author=author, type='profit_share', amount_cents=9000)
+        from apps.wallet import income
+        from apps.wallet.models import IncomeRelease
+        IncomeRelease.objects.filter(author=author).delete()
+        last_month = (timezone.localdate().replace(day=1) - timedelta(days=1)).replace(day=1)
+        AuthorEarning.objects.create(author=author, type='profit_share', amount_cents=30000, period=last_month)
+        income.release(author, 9000)  # Finance makes $90 available
         self.as_role('author')
         self.assertContains(self.client.get('/author/income/withdraw/'), 'You can withdraw once')
         self.client.post('/author/income/withdraw/', {**self.BANK, 'amount': '90', 'confirmed': 'True'})
         self.assertFalse(Payout.objects.filter(author=author).exists())  # under the $100 minimum
-        AuthorEarning.objects.create(author=author, type='one_time', amount_cents=21000)  # $300 available
+        income.release(author, 21000)  # $300 available, carry over $0
         self.client.post('/author/income/withdraw/', {**self.BANK, 'amount': '200'})  # not confirmed in the dialog
         self.assertFalse(Payout.objects.filter(author=author).exists())
         self.client.post('/author/income/withdraw/', {**self.BANK, 'amount': '400', 'confirmed': 'True'})  # > balance
@@ -1155,7 +1160,9 @@ class NewDashboardTests(TestCase):
         self.assertRedirects(r, '/author/income/withdrawals/')
         w = Payout.objects.get(author=author)
         self.assertEqual((w.category, w.requested_cents, w.status), ('withdrawal', 20000, 'pending'))
-        self.assertEqual(author.payout_method.nickname, 'Reina')
+        # Changing saved payment details waits for the Chief Editor.
+        from apps.wallet.models import PayoutMethodChange
+        self.assertEqual(PayoutMethodChange.objects.get(author=author, status='pending').data['nickname'], 'Reina')
         # One withdrawal a month.
         self.client.post('/author/income/withdraw/', {**self.BANK, 'amount': '100', 'confirmed': 'True'})
         self.assertEqual(Payout.objects.filter(author=author).count(), 1)
@@ -1223,9 +1230,10 @@ class NewDashboardTests(TestCase):
         self.assertTrue(AuditEntry.objects.filter(reference=req.code, action__contains='confidential').exists())
         # Rejected money is back in the balance; the author never sees the rejection.
         from apps.wallet.services import available_to_withdraw
-        earned = sum(e.amount_cents for e in AuthorEarning.objects.filter(author=author))
+        from apps.wallet.models import IncomeRelease
+        released = sum(r.amount_cents for r in IncomeRelease.objects.filter(author=author))
         held = sum(p.amount_cents for p in Payout.objects.filter(author=author, status__in=Payout.COMMITTED))
-        self.assertEqual(available_to_withdraw(author), earned - held)
+        self.assertEqual(available_to_withdraw(author), max(0, released - held))
         self.assertNotIn(req.pk, Payout.objects.filter(status__in=Payout.COMMITTED).values_list('pk', flat=True))
         self.as_role('author')
         self.assertNotContains(self.client.get('/author/income/withdrawals/'), req.code)
@@ -1284,4 +1292,238 @@ class NewDashboardTests(TestCase):
         ch = Chapter.objects.create(story=story, number=999, content=messy)
         self.assertEqual(ch.content, 'First line\n\nshe said it was raining. Then he left.\n\n"Wait," she called.\n\n"No."')
         self.assertEqual(ch.content.split(), messy.split())
+
+    def test_author_income_update_flow(self):
+        """Finance approves earnings; month-end leftovers become Carry over;
+        Finance releases part of it; the author withdraws it."""
+        from apps.wallet import income
+        from apps.wallet.models import AuthorEarning, IncomeRelease, Payout, PayoutMethod
+        from apps.wallet import services as wallet
+        story = Story.objects.filter(is_removed=False).first()
+        author = story.author
+        AuthorEarning.objects.filter(author=author).delete()
+        Payout.objects.filter(author=author).delete()
+        IncomeRelease.objects.filter(author=author).delete()
+        Story.objects.filter(pk=story.pk).update(is_signed=True, status=Story.STATUS_COMPLETED)
+        story.refresh_from_db()
+        # Reader spending creates one pending Profit Share line per book per month.
+        reader = User.objects.get(email='reader@bonovela.app')
+        wallet.credit_coins(reader, 500, 'test')
+        wallet._credit_author(story, 100, 'Unlock')
+        wallet._credit_author(story, 100, 'Unlock')
+        line = AuthorEarning.objects.get(author=author, type='profit_share')
+        self.assertEqual(line.status, 'pending')
+        self.assertEqual(line.amount_cents, 2 * line.amount_cents // 2)
+        self.client.force_login(author)
+        self.assertNotContains(self.client.get('/author/income/profit_share/'), story.display_title)
+        # Finance: pages, approve, reject needs a reason.
+        self.as_role('finance')
+        for tab in ('profit', 'completion', 'onetime', 'rewards', 'available'):
+            self.get_ok(f'/finance/income/?tab={tab}')
+        self.assertContains(self.client.get('/finance/income/?tab=completion'), 'UPDATE COMPLETION BONUS')
+        self.client.post('/finance/income/?tab=profit', {'action': 'reject', 'id': line.pk})
+        line.refresh_from_db()
+        self.assertEqual(line.status, 'pending')
+        self.client.post('/finance/income/?tab=profit', {'action': 'approve', 'id': line.pk})
+        line.refresh_from_db()
+        self.assertEqual(line.status, 'approved')
+        # Completion Bonus: fixed $40, once per book.
+        self.client.post('/finance/income/?tab=completion', {'action': 'completion', 'story': story.pk})
+        self.client.post('/finance/income/?tab=completion', {'action': 'completion', 'story': story.pk})
+        bonuses = AuthorEarning.objects.filter(story=story, type='completion')
+        self.assertEqual([b.amount_cents for b in bonuses], [4000])
+        # One-time payment needs a reason; amount is free.
+        self.client.post('/finance/income/?tab=onetime', {'action': 'onetime', 'author': f'AUT-{author.pk}', 'amount': '25'})
+        self.assertFalse(AuthorEarning.objects.filter(author=author, type='one_time').exists())
+        self.client.post('/finance/income/?tab=onetime', {'action': 'onetime', 'author': f'AUT-{author.pk}',
+                                                          'amount': '25.50', 'reason': 'Contest prize'})
+        self.assertEqual(AuthorEarning.objects.get(author=author, type='one_time').amount_cents, 2550)
+        # The author sees this month's sections and the books behind them.
+        self.client.force_login(author)
+        page = self.client.get('/author/income/')
+        self.assertContains(page, '$40.00')
+        detail = self.client.get('/author/income/profit_share/')
+        self.assertContains(detail, story.display_title)
+        self.assertContains(detail, story.book_code)
+        self.assertContains(detail, 'Long Story' if not story.is_short else 'Short Story')
+        # Next month everything unwithdrawn is Carry over. The client's example: $109 → release $100.
+        AuthorEarning.objects.filter(author=author).delete()
+        last = (timezone.localdate().replace(day=1) - timedelta(days=1)).replace(day=1)
+        AuthorEarning.objects.create(author=author, type='profit_share', amount_cents=10900, period=last)
+        self.assertEqual(income.balances(author)['carry_over'], 10900)
+        self.as_role('finance')
+        self.client.post('/finance/income/?tab=available', {'action': 'release', 'author': f'AUT-{author.pk}', 'amount': '200'})
+        self.assertEqual(income.balances(author)['available'], 0)  # more than Carry over: refused
+        self.client.post('/finance/income/?tab=available', {'action': 'release', 'author': f'AUT-{author.pk}', 'amount': '100'})
+        b = income.balances(author)
+        self.assertEqual((b['carry_over'], b['available']), (900, 10000))
+        self.assertContains(self.client.get(f'/finance/income/?tab=available&q=AUT-{author.pk}'), '$9.00')
+        # Withdrawing the full $100: Available $0, Pending withdrawal $100.
+        PayoutMethod.objects.update_or_create(author=author, defaults={'method': 'paypal', 'account_name': 'A',
+                                                                       'account_detail': 'a@x.com'})
+        w = wallet.place_withdrawal(author, 10000, author.payout_method)
+        b = income.balances(author)
+        self.assertEqual((b['available'], b['pending_withdrawal']), (0, 10000))
+        # Rejected by Finance: the $100 is available again, the record stays.
+        Payout.objects.filter(pk=w.pk).update(status='rejected')
+        b = income.balances(author)
+        self.assertEqual((b['available'], b['pending_withdrawal']), (10000, 0))
+        self.assertTrue(Payout.objects.filter(pk=w.pk).exists())
+
+    def test_pay_to_read_application_and_editor_choice(self):
+        from django.test import override_settings
+        from apps.catalog import feeds
+        from apps.editorial.models import PayToReadApplication
+        from django.db.models import Count, Q
+        story = (Story.objects.filter(is_short=False, is_removed=False)
+                 .annotate(n=Count('chapters', filter=Q(chapters__status='published'))).order_by('-n').first())
+        self.assertGreaterEqual(story.n, 3)
+        Story.objects.filter(pk=story.pk).update(is_signed=True, editor=User.objects.get(email='se@bonovela.app'))
+        story.refresh_from_db()
+        chapters = list(story.published_chapters().order_by('number'))
+        # Free until approved, whatever the chapter number.
+        self.assertTrue(all(c.is_free for c in chapters))
+        self.client.force_login(story.author)
+        with override_settings(BONOVELA={**settings.BONOVELA, 'PAY_TO_READ_MIN_WORDS': 10 ** 7}):
+            self.client.post(f'/author/stories/{story.pk}/pay-to-read/', {'chapter': 2})
+            self.assertFalse(PayToReadApplication.objects.exists())  # not 30,000 words yet
+        with override_settings(BONOVELA={**settings.BONOVELA, 'PAY_TO_READ_MIN_WORDS': 1, 'MIN_LIVE_CHAPTERS': 1}):
+            self.assertContains(self.client.get('/author/'), 'Apply for Pay-to-Read')
+            r = self.client.post(f'/author/stories/{story.pk}/pay-to-read/', {'chapter': 3, 'message': 'Please'},
+                                 follow=True)
+            app = PayToReadApplication.objects.filter(story=story).first()
+            self.assertIsNotNone(app, [str(m) for m in r.context['messages']])
+            self.assertEqual((app.status, app.requested_from), ('pending', 3))
+            self.assertContains(self.client.get('/author/'), 'Pending Review')
+            free_books = [b['books'] for b in feeds.discover_feed('Free')]
+            # The editor picks chapter 2 instead.
+            self.as_role('se')
+            self.assertContains(self.client.get('/editorial/pay-to-read/'), story.display_title)
+            self.client.post('/editorial/pay-to-read/', {'application': app.pk, 'action': 'approve', 'chapter': 2})
+        app.refresh_from_db()
+        story.refresh_from_db()
+        self.assertEqual((app.status, app.approved_from, story.paid_from_chapter), ('approved', 2, 2))
+        c1, c2 = chapters[0], chapters[1]
+        c1.refresh_from_db(), c2.refresh_from_db()
+        self.assertTrue(c1.is_free)
+        self.assertFalse(c2.is_free)
+        self.assertTrue(story.author.inbox.filter(title__startswith='Pay-to-Read approved', body__contains='chapter 2').exists())
+        # It leaves the Free Reading Section.
+        with override_settings(BONOVELA={**settings.BONOVELA, 'MIN_LIVE_CHAPTERS': 1}):
+            ids = {b.id for sec in feeds.discover_feed('Free') for b in sec['books']}
+        self.assertNotIn(story.pk, ids)
+
+    def test_chief_editor_workspace(self):
+        from apps.editorial.models import AuthorAppeal, ContractApplication, ContractTemplate
+        from apps.wallet.models import PayoutMethod, PayoutMethodChange
+        from apps.wallet.services import save_payout_method
+        pages = ['/editorial/contracts/', '/editorial/contracts/?tab=sent', '/editorial/contracts/?tab=template',
+                 '/editorial/publishing/', '/editorial/publishing/?tab=live', '/editorial/payment-changes/',
+                 '/editorial/duplicate-accounts/', '/editorial/ip-monitoring/?q=1', '/editorial/complaints/',
+                 '/editorial/complaints/?tab=appeals', '/editorial/discovery-intelligence/', '/editorial/restore/']
+        self.as_role('se')
+        for url in pages:
+            self.assertEqual(self.client.get(url).status_code, 403, url)  # Chief Editor only
+        self.as_role('ce')
+        self.get_ok(*pages)
+        # Contract template: CE edits it (new version); authors see it when signing.
+        self.client.post('/editorial/contracts/?tab=template', {'action': 'template',
+                                                               'body': 'NEW TERMS for {book_title} by {author_name}. ' * 3})
+        self.assertEqual(ContractTemplate.current().version, 2)
+        # CE sends a contract straight from review (helping an editor).
+        story = Story.objects.filter(is_signed=False).first()
+        story.applications.all().delete()
+        app = ContractApplication.objects.create(story=story)
+        self.client.post('/editorial/contracts/', {'action': 'send', 'application': app.pk, 'contract_type': 'non_exclusive'})
+        app.refresh_from_db()
+        self.assertEqual(app.status, 'contract_sent')
+        self.client.force_login(story.author)
+        self.assertContains(self.client.get(f'/author/stories/{story.pk}/signing/'), f'NEW TERMS for {story.display_title}')
+        self.client.post(f'/author/stories/{story.pk}/signing/', {'action': 'sign', 'agree': '1'})
+        story.refresh_from_db()
+        self.assertTrue(story.is_signed)
+        self.assertFalse(story.in_app)  # signed books wait for the CE
+        self.assertFalse(Story.objects.visible_in_app().filter(pk=story.pk).exists())
+        # App Publishing Control.
+        self.as_role('ce')
+        self.assertContains(self.client.get(f'/editorial/publishing/?book={story.pk}'), story.display_title)
+        self.client.post('/editorial/publishing/', {'story': story.pk, 'action': 'publish'})
+        story.refresh_from_db()
+        self.assertTrue(story.in_app)
+        # Payment details: first save is direct; a change waits for the CE.
+        author = story.author
+        PayoutMethod.objects.filter(author=author).delete()
+        details = {'method': 'paypal', 'account_name': 'Ada', 'account_detail': 'ada@x.com'}
+        self.assertEqual(save_payout_method(author, details), 'saved')
+        self.assertEqual(save_payout_method(author, {**details, 'account_detail': 'new@x.com'}), 'pending')
+        self.assertEqual(PayoutMethod.objects.get(author=author).account_detail, 'ada@x.com')
+        change = PayoutMethodChange.objects.get(author=author, status='pending')
+        self.assertContains(self.client.get(f'/editorial/payment-changes/?id={change.pk}'), 'new@x.com')
+        self.client.post('/editorial/payment-changes/', {'change': change.pk, 'action': 'approve'})
+        self.assertEqual(PayoutMethod.objects.get(author=author).account_detail, 'new@x.com')
+        # Appeals: the author appeals, the CE decides.
+        self.client.force_login(author)
+        self.client.post('/author/appeal/', {'subject': 'Rejection', 'message': 'Please look at my book again, thanks.'})
+        appeal = AuthorAppeal.objects.get(author=author)
+        self.as_role('ce')
+        self.client.post('/editorial/complaints/?tab=appeals', {'appeal': appeal.pk, 'action': 'uphold', 'response': 'OK'})
+        appeal.refresh_from_db()
+        self.assertEqual(appeal.status, 'upheld')
+        # Restore Centre brings a removed book back.
+        Story.objects.filter(pk=story.pk).update(is_removed=True)
+        self.client.post('/editorial/restore/', {'kind': 'book', 'id': story.pk})
+        story.refresh_from_db()
+        self.assertFalse(story.is_removed)
+
+    def test_banner_builder_design_opens_its_book(self):
+        import json
+        from apps.marketing.models import Banner
+        self.as_role('marketing')
+        story = Story.objects.visible_in_app().first()
+        self.assertContains(self.client.get('/marketing/promotions/new/?kind=popups'), 'Banner builder')
+        design = {'bg': {'type': 'gradient', 'c1': '#7A1F33', 'c2': '#2B1E20', 'overlay': 10},
+                  'cover': {'show': True, 'w': 46, 'x': 50, 'y': 34},
+                  'headline': {'color': '#FFFFFF', 'size': 22, 'weight': 700, 'font': 'serif', 'align': 'center', 'x': 50, 'y': 66},
+                  'body': {'color': '#EEEEEE', 'size': 13, 'weight': 400, 'font': 'sans', 'align': 'center', 'x': 50, 'y': 76},
+                  'button': {'text': 'Read Now', 'bg': '#B8242F', 'color': '#FFFFFF', 'style': 'pill', 'size': 15, 'x': 50, 'y': 88}}
+        base = {'title': 'Moon Goddess granted me the King', 'subtitle': 'My Royal Mate', 'color_index': 0,
+                'placement': 'popup', 'audience': 'all', 'condition': 'open', 'order': 0,
+                'starts_at': '2026-01-01T10:00', 'is_active': 'on', 'design': json.dumps(design)}
+        # A designed promotion must open a book.
+        self.client.post('/marketing/promotions/new/?kind=popups', {**base, 'target': 'url', 'url': 'https://x.com'})
+        self.assertFalse(Banner.objects.filter(title=base['title']).exists())
+        self.client.post('/marketing/promotions/new/?kind=popups', {**base, 'target': 'story', 'story': story.pk})
+        b = Banner.objects.get(title=base['title'])
+        self.assertEqual(b.design['button']['text'], 'Read Now')
+        row = next(r for r in APIClient().get('/api/banners/?placement=popup').json() if r['id'] == b.pk)
+        self.assertEqual((row['design']['headline']['font'], row['story_id'], row['target']), ('serif', story.pk, 'story'))
+        self.assertIn('cover_url', row)
+        # A plain banner (builder off) still saves with no design.
+        self.client.post(f'/marketing/promotions/{b.pk}/', {**base, 'design': '', 'target': 'story', 'story': story.pk})
+        b.refresh_from_db()
+        self.assertEqual(b.design, {})
+
+    def test_banner_builder_design(self):
+        import json
+        from rest_framework.test import APIClient as Api
+        from apps.marketing.models import Banner
+        self.as_role('marketing')
+        story = Story.objects.visible_in_app().first()
+        self.assertContains(self.client.get('/marketing/promotions/new/?kind=popups'), 'Banner builder')
+        design = {'bg': {'type': 'gradient', 'c1': '#7A1F33', 'c2': '#2B1E20', 'overlay': 10},
+                  'cover': {'show': True, 'w': 46, 'x': 50, 'y': 34},
+                  'headline': {'color': '#FFFFFF', 'size': 22, 'x': 50, 'y': 66},
+                  'button': {'text': 'Read Now', 'bg': '#B8242F', 'x': 50, 'y': 88}}
+        base = {'title': 'Moon Goddess granted me the King', 'color_index': 0, 'placement': 'popup', 'audience': 'all',
+                'condition': 'open', 'order': 0, 'starts_at': '2026-01-01T10:00', 'is_active': 'on',
+                'design': json.dumps(design)}
+        # A designed promotion must open a book.
+        self.client.post('/marketing/promotions/new/?kind=popups', {**base, 'target': 'store'})
+        self.assertFalse(Banner.objects.filter(title=base['title']).exists())
+        self.client.post('/marketing/promotions/new/?kind=popups', {**base, 'target': 'story', 'story': story.pk})
+        b = Banner.objects.get(title=base['title'])
+        self.assertEqual(b.design['button']['text'], 'Read Now')
+        row = next(r for r in Api().get('/api/banners/?placement=popup').json() if r['id'] == b.pk)
+        self.assertEqual((row['design']['cover']['w'], row['story_id']), (46, story.pk))
+        self.assertIn('cover_url', row)
 

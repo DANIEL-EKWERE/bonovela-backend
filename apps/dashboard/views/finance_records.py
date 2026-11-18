@@ -224,7 +224,7 @@ def _payment_totals(user):
     p = Payout.objects.filter(author=user)
     s = ledger._sum
     return {
-        'calculated': s(AuthorEarning.objects.filter(author=user), 'amount_cents'),
+        'calculated': s(AuthorEarning.objects.filter(author=user).exclude(status='rejected'), 'amount_cents'),
         'approved': s(p.filter(status__in=[Payout.STATUS_APPROVED, Payout.STATUS_PAID]), 'amount_cents'),
         'pending': s(p.filter(status__in=Payout.OPEN), 'requested_cents'),
         'rejected': p.filter(status=Payout.STATUS_REJECTED).count(),

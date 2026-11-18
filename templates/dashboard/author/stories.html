@@ -70,7 +70,7 @@
       <div class="app-panel bad">
         <b>{{ v.title }}</b>
         <p>{{ v.message|linebreaksbr }}</p>
-        <div style="text-align:right">{% if c.can_apply %}<a class="btn sm blue" href="{% url 'dashboard:author_signing' s.pk %}">Apply for contract</a>{% elif c.reapply_at %}<span class="hint">You can apply again {{ c.reapply_at|timeuntil }} from now.</span>{% endif %}</div>
+        <div class="row between"><a class="small pink" href="{% url 'dashboard:author_appeal' %}?story={{ s.pk }}">Appeal this decision</a>{% if c.can_apply %}<a class="btn sm blue" href="{% url 'dashboard:author_signing' s.pk %}">Apply for contract</a>{% elif c.reapply_at %}<span class="hint">You can apply again {{ c.reapply_at|timeuntil }} from now.</span>{% endif %}</div>
       </div>
       {% elif v.kind == 'contract_sent' %}
       <div class="app-panel ok"><b>{{ v.title }}</b><p>{{ v.message }}</p><div style="text-align:right"><a class="btn sm" href="{% url 'dashboard:author_signing' s.pk %}">Review &amp; sign</a></div></div>
@@ -79,6 +79,7 @@
       {% endif %}
     {% endif %}
     {% endwith %}
+    {% if s.is_signed and not s.is_short %}{% if s.paid_from_chapter %}<div class="app-panel ok"><b>Approved – Pay-to-Read</b><p>Chapters from {{ s.paid_from_chapter }} onward are locked.</p></div>{% elif c.ptr_pending %}<div class="app-panel"><b>Pay-to-Read: Pending Review</b><p>Your editor is reviewing your application.</p></div>{% elif s.can_apply_pay_to_read %}<div class="app-panel"><b>Pay-to-Read Application</b><p>Your book has reached 30,000 words. You can now apply to monetize it.</p><div style="text-align:right"><a class="btn sm" href="{% url 'dashboard:author_pay_to_read' s.pk %}">Apply for Pay-to-Read</a></div></div>{% endif %}{% endif %}
   </div>
 {% endwith %}{% endfor %}
 </div>

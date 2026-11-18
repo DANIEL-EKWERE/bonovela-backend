@@ -250,15 +250,41 @@ class AuthorEarning(models.Model):
     # Subscription still count in the totals but have no card.
     INCOME_CARDS = ['profit_share', 'completion', 'one_time', 'reward_share', 'carry_over']
 
+    # Book earnings (profit share, reward share) arrive as Pending; Finance
+    # approves or rejects them in Author Income Update. Only approved
+    # earnings reach the author's Income page.
+    STATUS_PENDING, STATUS_APPROVED, STATUS_REJECTED = 'pending', 'approved', 'rejected'
+    STATUS_CHOICES = [(STATUS_PENDING, 'Pending'), (STATUS_APPROVED, 'Approved'), (STATUS_REJECTED, 'Rejected')]
+    # The monthly allocations (they reset each month; leftovers go to Carry over).
+    MONTHLY_TYPES = ('profit_share', 'completion', 'one_time', 'reward_share', 'others', 'subscription_share',
+                     'signing_bonus', 'attendance')
+
     author = models.ForeignKey(User, on_delete=models.CASCADE, related_name='earnings')
     story = models.ForeignKey('catalog.Story', on_delete=models.SET_NULL, null=True, blank=True)
     type = models.CharField(max_length=20, choices=TYPE_CHOICES)
     amount_cents = models.IntegerField()
     note = models.CharField(max_length=160, blank=True)
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=STATUS_APPROVED, db_index=True)
+    period = models.DateField(null=True, blank=True, help_text='Earning month (first day)')
+    decided_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    decided_at = models.DateTimeField(null=True, blank=True)
+    decision_note = models.CharField(max_length=200, blank=True, help_text='Reason for a rejection or payment')
     created_at = models.DateTimeField(default=timezone.now)
 
     class Meta:
         ordering = ['-created_at']
+
+    def save(self, *args, **kwargs):
+        if not self.period:
+            self.period = timezone.localdate(self.created_at).replace(day=1) if timezone.is_aware(self.created_at) \
+                else self.created_at.date().replace(day=1)
+        super().save(*args, **kwargs)
+
+    @property
+    def story_length(self):
+        if not self.story_id:
+            return ''
+        return 'Short Story' if self.story.is_short else 'Long Story'
 
 
 class Payout(models.Model):
@@ -319,6 +345,20 @@ class Payout(models.Model):
         return self.amount_cents if self.status in (self.STATUS_APPROVED, self.STATUS_PAID) else None
 
 
+class IncomeRelease(models.Model):
+    """Finance moves part of an author's Carry Over into Available to
+    Withdraw. Releases are never edited; the balances are recalculated."""
+
+    author = models.ForeignKey(User, on_delete=models.CASCADE, related_name='income_releases')
+    amount_cents = models.PositiveIntegerField()
+    note = models.CharField(max_length=200, blank=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='+')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+
 class PayoutEvent(models.Model):
     """The history of a payment request (never edited)."""
 
@@ -356,6 +396,27 @@ class PayoutMethod(models.Model):
     nickname = models.CharField(max_length=60, blank=True, help_text='For reference only. Not sent to the recipient.')
     email = models.EmailField(blank=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+
+class PayoutMethodChange(models.Model):
+    """An author changed their payment details (Modify Info). The new
+    details wait for the Chief Editor; payments keep going to the current
+    account until they're approved."""
+
+    STATUS_PENDING, STATUS_APPROVED, STATUS_REJECTED = 'pending', 'approved', 'rejected'
+    STATUS_CHOICES = [(STATUS_PENDING, 'Pending'), (STATUS_APPROVED, 'Approved'), (STATUS_REJECTED, 'Rejected')]
+
+    author = models.ForeignKey(User, on_delete=models.CASCADE, related_name='payout_changes')
+    data = models.JSONField(help_text='The new payment details')
+    previous = models.JSONField(default=dict, blank=True, help_text='The details at the time')
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=STATUS_PENDING, db_index=True)
+    note = models.CharField(max_length=200, blank=True)
+    decided_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    decided_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
 
 
 class RedeemCode(models.Model):

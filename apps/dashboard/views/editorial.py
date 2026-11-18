@@ -434,3 +434,32 @@ def promotions(request):
         'live': Promotion.objects.filter(ends_at__gt=now).select_related('story', 'created_by').order_by('ends_at'),
         'signed': signed,
     })
+
+
+@editor_area
+def pay_to_read(request):
+    """Pay-to-Read applications from the editor's books (CE: all books).
+    The editor approves the author's chosen first paid chapter, picks a
+    different one, or rejects."""
+    from apps.editorial.models import PayToReadApplication
+    books = team.scope_books(request.user)
+    qs = PayToReadApplication.objects.filter(story__in=books).select_related('story', 'story__author', 'decided_by')
+    if request.method == 'POST':
+        app = get_object_or_404(qs, pk=request.POST.get('application'))
+        approve = request.POST.get('action') == 'approve'
+        chapter = request.POST.get('chapter', '')
+        run(request, services.decide_pay_to_read, request.user, app, approve,
+            int(chapter) if chapter.isdigit() else None, request.POST.get('note', '').strip(),
+            ok='Approved — chapters are now locked and the author has been notified.' if approve
+            else 'Rejected — the author has been notified.')
+        return redirect(f"{request.path}?tab={request.GET.get('tab', 'pending')}")
+    tab = request.GET.get('tab', 'pending')
+    shown = qs.filter(status=tab) if tab in dict(PayToReadApplication.STATUS_CHOICES) else qs
+    rows = []
+    for a in shown[:100]:
+        chapters = list(a.story.published_chapters().order_by('number').values_list('number', 'title', 'word_count'))
+        rows.append({'a': a, 'chapters': chapters})
+    return render(request, 'dashboard/editorial/pay_to_read.html', {
+        'rows': rows, 'tab': tab, 'statuses': PayToReadApplication.STATUS_CHOICES,
+        'counts': {k: qs.filter(status=k).count() for k, _ in PayToReadApplication.STATUS_CHOICES},
+    })

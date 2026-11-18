@@ -1,0 +1,85 @@
+{% extends 'dashboard/finance/layout.html' %}{% load bv %}
+{% block title %}Author Income Update{% endblock %}
+{% block content %}
+<div class="f-head"><div><div class="f-eyebrow">Payments</div><h1>Author Income Update</h1><p>Review and approve authors' earnings. Approved amounts appear on the author's Income page straight away; nothing is ever deleted.</p></div></div>
+<div class="f-tabs">{% for key, label, kind in tabs %}<a class="{% if key == tab %}on{% endif %}" href="?tab={{ key }}">{{ label }}{% if kind == 'profit_share' and pending.profit_share %} ({{ pending.profit_share }}){% elif kind == 'reward_share' and pending.reward_share %} ({{ pending.reward_share }}){% endif %}</a>{% endfor %}</div>
+
+{% if tab == 'profit' or tab == 'rewards' %}
+<div class="f-card">
+  <form class="h" method="get" style="flex-wrap:wrap"><input type="hidden" name="tab" value="{{ tab }}">
+    <div><h2>{% if tab == 'profit' %}Profit Share Centre{% else %}Rewards Share{% endif %}</h2><div style="font-size:12.5px;color:var(--f-muted)">{% if tab == 'profit' %}Each book's share of chapter unlocks, per month.{% else %}Each book's share of reader gifts, per month.{% endif %} Total shown: {{ total|money }}</div></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <input type="search" name="q" value="{{ q }}" placeholder="AUT- or BV- ID" style="width:180px">
+      <select name="status" onchange="this.form.submit()" style="width:auto">{% for k, l in statuses %}<option value="{{ k }}" {% if k == status %}selected{% endif %}>{{ l }}</option>{% endfor %}<option value="all" {% if status == 'all' %}selected{% endif %}>All</option></select>
+    </div></form>
+  {% if status == 'pending' and can_act and page.paginator.count %}<form method="post" class="f-row">{% csrf_token %}<input type="hidden" name="action" value="approve_all"><div class="f-grow m">Approve every pending line in this list at once.</div><button class="f-btn sm ok" onclick="return confirm('Approve all {{ page.paginator.count }} pending lines?')">Approve all ({{ page.paginator.count }})</button></form>{% endif %}
+  <div class="f-scroll"><table class="f-table">
+    <tr><th>Author</th><th>Book</th><th>Story length</th><th>Earning period</th><th class="num">Amount</th><th>Status</th><th></th></tr>
+    {% for e in page %}<tr>
+      <td><a href="{% url 'dashboard:finance_author' e.author|aut %}"><b>{{ e.author.display_name }}</b></a><div style="font-size:12px;color:var(--f-muted)">{{ e.author|aut }}</div></td>
+      <td>{% if e.story %}{{ e.story.display_title }}<div style="font-size:12px;color:var(--f-muted);font-family:ui-monospace,monospace">{{ e.story.book_code }}</div>{% else %}—{% endif %}</td>
+      <td>{{ e.story_length|default:'—' }}</td><td>{{ e.period|date:'F Y' }}</td><td class="num"><b>{{ e.amount_cents|money }}</b></td>
+      <td>{% include 'dashboard/finance/_tx_status.html' with st=e.status label=e.get_status_display %}{% if e.decision_note %}<div style="font-size:11.5px;color:var(--f-muted)">{{ e.decision_note }}</div>{% endif %}</td>
+      <td style="white-space:nowrap">{% if e.status == 'pending' and can_act %}<form method="post" style="display:flex;gap:6px;align-items:center">{% csrf_token %}<input type="hidden" name="id" value="{{ e.pk }}"><input type="hidden" name="note">
+        <button class="f-btn sm ok" name="action" value="approve">Approve</button>
+        <button class="f-btn sm danger" name="action" value="reject" onclick="const r = prompt('Reason for rejecting this earning?'); if (!r) return false; this.form.note.value = r;">Reject</button></form>{% elif e.decided_by %}<span style="font-size:12px;color:var(--f-muted)">{{ e.decided_by.display_name }} · {{ e.decided_at|date:'d M' }}</span>{% endif %}</td>
+    </tr>{% empty %}<tr><td colspan="7" class="f-empty">Nothing here.</td></tr>{% endfor %}
+  </table></div>
+  {% include 'dashboard/finance/_pager.html' with query='tab='|add:tab|add:'&status='|add:status|add:'&q='|add:q %}
+</div>
+
+{% elif tab == 'completion' %}
+<div class="f-card" style="margin-bottom:16px">
+  <form class="h" method="get"><input type="hidden" name="tab" value="completion"><div><h2>Completion Bonus</h2><div style="font-size:12.5px;color:var(--f-muted)">Signed books marked Completed that haven't had their bonus. The amount is fixed at {{ bonus|money }}.</div></div>
+    <input type="search" name="q" value="{{ q }}" placeholder="BV- ID, title or email" style="width:220px"></form>
+  <div class="f-scroll"><table class="f-table">
+    <tr><th>Author ID</th><th>Author</th><th>Book</th><th>Book ID</th><th>Story length</th><th></th></tr>
+    {% for s in eligible %}<tr><td style="font-family:ui-monospace,monospace">{{ s.author|aut }}</td><td>{{ s.author.display_name }}</td><td>{{ s.display_title }}</td><td style="font-family:ui-monospace,monospace">{{ s.book_code }}</td><td>{% if s.is_short %}Short Story{% else %}Long Story{% endif %}</td>
+      <td>{% if can_act %}<form method="post">{% csrf_token %}<input type="hidden" name="action" value="completion"><input type="hidden" name="story" value="{{ s.pk }}"><button class="f-btn sm ok" onclick="return confirm('Add the $40 Completion Bonus for {{ s.display_title|escapejs }}?')">UPDATE COMPLETION BONUS — $40</button></form>{% endif %}</td></tr>
+    {% empty %}<tr><td colspan="6" class="f-empty">No completed books are waiting for a bonus.</td></tr>{% endfor %}
+  </table></div></div>
+<div class="f-card"><div class="h"><h2>Bonuses awarded</h2></div><div class="f-scroll"><table class="f-table">
+  <tr><th>Author</th><th>Book</th><th>Story length</th><th class="num">Amount</th><th>Date</th></tr>
+  {% for e in awarded %}<tr><td>{{ e.author.display_name }} <span style="font-size:12px;color:var(--f-muted)">{{ e.author|aut }}</span></td><td>{{ e.story.display_title|default:'—' }} <span style="font-size:12px;color:var(--f-muted)">{{ e.story.book_code }}</span></td><td>{{ e.story_length }}</td><td class="num">{{ e.amount_cents|money }}</td><td>{{ e.created_at|date:'d M Y' }}</td></tr>{% empty %}<tr><td colspan="5" class="f-empty">None yet.</td></tr>{% endfor %}
+</table></div></div>
+
+{% elif tab == 'onetime' %}
+<div class="f-grid" style="grid-template-columns:minmax(0,1fr) minmax(0,2fr);align-items:start">
+  <div class="f-card"><div class="h"><h2>New One-Time Payment</h2></div><div class="b">
+    {% if can_act %}<form method="post">{% csrf_token %}<input type="hidden" name="action" value="onetime">
+      <label class="f-field"><span>Author ID</span><input type="text" name="author" placeholder="AUT-12" required></label>
+      <label class="f-field"><span>Amount ($)</span><input type="number" name="amount" step="0.01" min="0.01" required></label>
+      <label class="f-field"><span>Reason for the payment</span><input type="text" name="reason" required maxlength="200"></label>
+      <label class="f-field"><span>Book ID (optional)</span><input type="text" name="book" placeholder="BV-1042"></label>
+      <button class="f-btn" onclick="return confirm('Approve this payment? It appears on the author\'s Income page straight away.')">Approve payment</button>
+    </form>{% else %}<p class="m">Your role can view only.</p>{% endif %}</div></div>
+  <div class="f-card"><div class="h"><h2>One-Time Payments</h2></div><div class="f-scroll"><table class="f-table">
+    <tr><th>Author</th><th>Reason</th><th>Book</th><th class="num">Amount</th><th>Approved</th></tr>
+    {% for e in history %}<tr><td>{{ e.author.display_name }} <div style="font-size:12px;color:var(--f-muted)">{{ e.author|aut }}</div></td><td>{{ e.decision_note|default:e.note }}</td><td>{% if e.story %}{{ e.story.display_title }} <div style="font-size:12px;color:var(--f-muted)">{{ e.story.book_code }} · {{ e.story_length }}</div>{% else %}—{% endif %}</td><td class="num">{{ e.amount_cents|money }}</td><td>{{ e.decided_by.display_name|default:'—' }}<div style="font-size:12px;color:var(--f-muted)">{{ e.created_at|date:'d M Y' }}</div></td></tr>{% empty %}<tr><td colspan="5" class="f-empty">None yet.</td></tr>{% endfor %}
+  </table></div></div>
+</div>
+
+{% else %}
+<div class="f-card" style="margin-bottom:16px"><div class="h"><div><h2>Make earnings available to withdraw</h2><div style="font-size:12.5px;color:var(--f-muted)">Search an author, enter the amount. It moves from Carry over to Available to Withdraw; the rest stays in Carry over.</div></div>
+  <form method="get" style="display:flex;gap:8px"><input type="hidden" name="tab" value="available"><input type="search" name="q" value="{{ q }}" placeholder="AUT-12 or email" style="width:200px"><button class="f-btn sm ghost">Find</button></form></div>
+  {% if author %}<div class="b">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px"><div><b style="font-size:17px">{{ author.display_name }}</b> <span style="color:var(--f-muted)">{{ author|aut }} · {{ author.email }}</span></div></div>
+    <div class="f-stats" style="margin-bottom:14px">
+      <div class="f-stat"><div class="l">Carry over</div><div class="v">{{ b.carry_over|money }}</div></div>
+      <div class="f-stat gold"><div class="l">Available to withdraw</div><div class="v">{{ b.available|money }}</div></div>
+      <div class="f-stat"><div class="l">Pending withdrawal</div><div class="v">{{ b.pending_withdrawal|money }}</div></div>
+      <div class="f-stat"><div class="l">This month (approved)</div><div class="v">{{ b.this_month|money }}</div><div class="d">Moves to Carry over next month</div></div>
+    </div>
+    {% if can_act %}<form method="post" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">{% csrf_token %}<input type="hidden" name="action" value="release"><input type="hidden" name="author" value="{{ author|aut }}">
+      <label class="f-field" style="margin:0"><span>Amount to make available ($)</span><input type="number" name="amount" step="0.01" min="0.01" max="{{ b.carry_over|dollars }}" required style="width:200px"></label>
+      <label class="f-field" style="margin:0;flex:1;min-width:200px"><span>Note (optional)</span><input type="text" name="note"></label>
+      <button class="f-btn" {% if not b.carry_over %}disabled{% endif %}>Update</button></form>{% endif %}
+    {% if releases %}<h3 style="font-size:15px;margin:18px 0 6px">Releases</h3>{% for r in releases %}<div class="f-row" style="padding:8px 0"><div class="f-grow">{{ r.amount_cents|money }} made available{% if r.note %} · {{ r.note }}{% endif %}</div><span class="m">{{ r.created_by.display_name|default:'System' }} · {{ r.created_at|date:'d M Y' }}</span></div>{% endfor %}{% endif %}
+  </div>{% elif q %}<div class="f-empty">No author with that ID.</div>{% endif %}
+</div>
+<div class="f-card"><div class="h"><h2>Authors with money waiting</h2></div><div class="f-scroll"><table class="f-table">
+  <tr><th>Author</th><th class="num">Carry over</th><th class="num">Available</th><th class="num">Pending withdrawal</th><th></th></tr>
+  {% for r in rows %}<tr><td><b>{{ r.u.display_name }}</b> <span style="font-size:12px;color:var(--f-muted)">{{ r.u|aut }}</span></td><td class="num">{{ r.carry_over|money }}</td><td class="num">{{ r.available|money }}</td><td class="num">{{ r.pending_withdrawal|money }}</td><td><a class="f-btn sm ghost" href="?tab=available&q={{ r.u|aut }}">Open</a></td></tr>{% empty %}<tr><td colspan="5" class="f-empty">No balances yet.</td></tr>{% endfor %}
+</table></div></div>
+{% endif %}
+{% endblock %}

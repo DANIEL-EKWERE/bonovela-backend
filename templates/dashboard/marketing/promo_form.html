@@ -31,20 +31,152 @@
         <div class="f-field"><span>Status</span><label class="m-check">{{ form.is_active }} Active</label><label class="m-check">{{ form.is_draft }} Save as draft (not shown)</label></div></div>
     </div></div>
   </div>
-  <div class="f-card" style="position:sticky;top:72px"><div class="h"><h2>Preview</h2></div><div class="b">
-    <div class="m-phone" style="{% if kind == 'opening' %}padding:0;overflow:hidden;position:relative{% endif %}">
-      {% if kind == 'opening' %}{% if banner.image %}<img src="{{ banner.image.url }}" style="width:100%;height:400px;object-fit:cover;display:block" alt="">{% else %}<div style="height:400px;background:linear-gradient(160deg,#7A1F33,#2B1E20)"></div>{% endif %}<span style="position:absolute;top:10px;right:10px;background:rgba(0,0,0,.5);color:#fff;border-radius:999px;padding:2px 10px;font-size:12px">Skip 2</span><span style="position:absolute;bottom:16px;left:50%;transform:translateX(-50%);background:#fff;border-radius:999px;padding:6px 18px;font-weight:600;font-size:13px">VIEW MORE</span>
-      {% else %}<div style="background:rgba(0,0,0,{% if kind == 'popups' %}.45{% else %}0{% endif %});border-radius:12px;padding:{% if kind == 'popups' %}30px 10px{% else %}0{% endif %}">
-        <div style="background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 2px 10px rgba(0,0,0,.12)">{% if banner.image %}<img src="{{ banner.image.url }}" style="width:100%;display:block;max-height:{% if kind == 'popups' %}260px{% else %}90px{% endif %};object-fit:cover" alt="">{% else %}<div style="height:{% if kind == 'popups' %}200px{% else %}80px{% endif %};background:linear-gradient(135deg,#7A1F33,#C9607A)"></div>{% endif %}
-          <div style="padding:10px"><div id="pvTitle" style="font-weight:700;font-size:14px">{{ form.title.value|default:'Headline' }}</div><div id="pvSub" style="font-size:12px;color:var(--f-muted)">{{ form.subtitle.value|default:'' }}</div>{% if kind == 'popups' %}<div style="margin-top:8px;text-align:center;background:var(--f-primary);color:#fff;border-radius:999px;padding:6px;font-size:13px;font-weight:600">View More</div>{% endif %}</div></div></div>
-      {% endif %}
+  <div class="f-card" style="position:sticky;top:72px;align-self:start"><div class="h"><h2>Banner builder</h2>
+      <label class="m-check" style="margin:0"><input type="checkbox" id="useDesign"> Design it here</label></div><div class="b">
+    {{ form.design }}
+    <div id="plainPreview">
+      <div class="m-phone" style="{% if kind == 'opening' %}padding:0;overflow:hidden;position:relative{% endif %}">
+        {% if kind == 'opening' %}{% if banner.image %}<img src="{{ banner.image.url }}" style="width:100%;height:400px;object-fit:cover;display:block" alt="">{% else %}<div style="height:400px;background:linear-gradient(160deg,#7A1F33,#2B1E20)"></div>{% endif %}
+        {% else %}<div style="background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 2px 10px rgba(0,0,0,.12)">{% if banner.image %}<img src="{{ banner.image.url }}" style="width:100%;display:block;max-height:260px;object-fit:cover" alt="">{% else %}<div style="height:140px;background:linear-gradient(135deg,#7A1F33,#C9607A)"></div>{% endif %}
+          <div style="padding:10px"><div id="pvTitle" style="font-weight:700;font-size:14px">{{ form.title.value|default:'Headline' }}</div><div id="pvSub" style="font-size:12px;color:var(--f-muted)">{{ form.subtitle.value|default:'' }}</div></div></div>{% endif %}
+      </div>
+      <p style="font-size:12px;color:var(--f-muted);text-align:center">Tick "Design it here" to build the banner: background, book cover, text and button.</p>
     </div>
-    <p style="font-size:12px;color:var(--f-muted);text-align:center">{% if kind == 'opening' %}Readers can skip after 2 seconds.{% elif kind == 'popups' %}Shown once per device.{% else %}Shown in the {{ form.placement.value|default:'selected' }} carousel.{% endif %}</p>
+    <div id="builder" hidden>
+      <div class="f-tabs" id="screens" style="margin-bottom:10px"><a data-w="320">Small phone</a><a data-w="375" class="on">Phone</a><a data-w="428">Large phone</a><a data-w="600">Tablet / web</a></div>
+      <div style="display:flex;justify-content:center;background:#2B1E20;border-radius:14px;padding:14px 8px;overflow:auto">
+        <div id="stage" style="position:relative;overflow:hidden;border-radius:12px;flex:none;touch-action:none;user-select:none;cursor:default">
+          <div id="bgLayer" style="position:absolute;inset:0;background-size:cover;background-position:center"></div>
+          <div id="shade" style="position:absolute;inset:0;background:#000"></div>
+          <img id="coverEl" data-drag="cover" alt="" style="position:absolute;transform:translate(-50%,-50%);border-radius:6px;box-shadow:0 6px 20px rgba(0,0,0,.4);cursor:move;object-fit:cover;aspect-ratio:3/4;background:#ddd">
+          <div id="headEl" data-drag="headline" style="position:absolute;transform:translate(-50%,-50%);width:86%;cursor:move;line-height:1.2"></div>
+          <div id="bodyEl" data-drag="body" style="position:absolute;transform:translate(-50%,-50%);width:86%;cursor:move;line-height:1.35"></div>
+          <div id="btnEl" data-drag="button" style="position:absolute;transform:translate(-50%,-50%);cursor:move;white-space:nowrap;font-weight:600;padding:.55em 1.6em"></div>
+        </div>
+      </div>
+      <p style="font-size:12px;color:var(--f-muted);text-align:center;margin:6px 0 12px">Drag the cover, text and button to place them. Tapping anywhere on the banner opens the selected book.</p>
+      <details open class="bd"><summary>Background</summary>
+        <div class="m-two"><label class="f-field"><span>Type</span><select data-k="bg.type"><option value="gradient">Colour gradient</option><option value="color">Single colour</option><option value="image">Uploaded image (Artwork)</option></select></label>
+          <label class="f-field"><span>Darken</span><input type="range" min="0" max="70" data-k="bg.overlay"></label></div>
+        <div class="m-two"><label class="f-field"><span>Colour 1</span><input type="color" data-k="bg.c1"></label><label class="f-field"><span>Colour 2</span><input type="color" data-k="bg.c2"></label></div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px" id="presets"></div>
+      </details>
+      <details class="bd"><summary>Book cover</summary>
+        <label class="m-check"><input type="checkbox" data-k="cover.show"> Show the book's cover</label>
+        <label class="f-field"><span>Size</span><input type="range" min="15" max="80" data-k="cover.w"></label>
+      </details>
+      <details class="bd"><summary>Headline</summary>{% include 'dashboard/marketing/_text_controls.html' with k='headline' %}</details>
+      <details class="bd"><summary>Description</summary>{% include 'dashboard/marketing/_text_controls.html' with k='body' %}</details>
+      <details class="bd"><summary>Button</summary>
+        <div class="m-two"><label class="f-field"><span>Text</span><select data-k="button.text"><option>View More</option><option>Read Now</option><option>Start Reading</option><option>Discover Story</option></select></label>
+          <label class="f-field"><span>Style</span><select data-k="button.style"><option value="pill">Pill</option><option value="rounded">Rounded</option><option value="outline">Outline</option></select></label></div>
+        <div class="m-two"><label class="f-field"><span>Button colour</span><input type="color" data-k="button.bg"></label><label class="f-field"><span>Text colour</span><input type="color" data-k="button.color"></label></div>
+        <label class="f-field"><span>Size</span><input type="range" min="10" max="26" data-k="button.size"></label>
+      </details>
+      <p id="bookLink" style="font-size:12px;color:var(--f-muted);margin-top:10px"></p>
+    </div>
+    <p style="font-size:12px;color:var(--f-muted);text-align:center">{% if kind == 'opening' %}Full screen; readers can skip after 2 seconds.{% elif kind == 'popups' %}Pop-up, shown once per device.{% else %}Carousel banner.{% endif %}</p>
     <div style="display:flex;gap:8px;justify-content:flex-end"><a class="f-btn ghost" href="{% url 'dashboard:marketing_'|add:kind %}">Cancel</a><button class="f-btn">Save</button></div>
   </div></div>
 </div>
 </form>
 {% endblock %}
-{% block scripts %}<script>
-  for (const [src, dst] of [['id_title', 'pvTitle'], ['id_subtitle', 'pvSub']]) document.getElementById(src)?.addEventListener('input', (e) => { const el = document.getElementById(dst); if (el) el.textContent = e.target.value; });
+{% block scripts %}
+<style>
+  .bd { border-top: 1px solid var(--f-border); padding: 10px 0; }
+  .bd summary { cursor: pointer; font-weight: 600; margin-bottom: 8px; }
+  .swatch { width: 30px; height: 22px; border-radius: 6px; border: 1px solid var(--f-border); cursor: pointer; }
+</style>
+<script>
+(() => {
+  const kind = '{{ kind }}';
+  const covers = {{ covers_json|safe }};
+  const linkBase = '{{ book_link_base }}';
+  const RATIO = kind === 'opening' ? 16 / 9 : kind === 'popups' ? 4 / 3 : 0.4;  // height ÷ width
+  const field = document.getElementById('id_design');
+  const title = document.getElementById('id_title'), sub = document.getElementById('id_subtitle');
+  const story = document.getElementById('id_story'), target = document.getElementById('id_target');
+  const defaults = {
+    bg: {type: 'gradient', c1: '#7A1F33', c2: '#2B1E20', overlay: 15},
+    cover: {show: true, w: kind === 'banners' || kind === 'discovery' ? 22 : 46, x: kind === 'banners' || kind === 'discovery' ? 16 : 50, y: kind === 'banners' || kind === 'discovery' ? 50 : 34},
+    headline: {color: '#FFFFFF', size: 22, weight: 700, font: 'sans', align: 'center', x: kind === 'banners' || kind === 'discovery' ? 62 : 50, y: kind === 'banners' || kind === 'discovery' ? 34 : 66},
+    body: {color: '#F3E6E9', size: 13, weight: 400, font: 'sans', align: 'center', x: kind === 'banners' || kind === 'discovery' ? 62 : 50, y: kind === 'banners' || kind === 'discovery' ? 58 : 76},
+    button: {text: 'View More', bg: '#B8242F', color: '#FFFFFF', style: 'pill', size: 15, x: kind === 'banners' || kind === 'discovery' ? 62 : 50, y: kind === 'banners' || kind === 'discovery' ? 80 : 88},
+  };
+  let saved = {};
+  try { saved = JSON.parse(field.value || '{}') || {}; } catch (e) { saved = {}; }
+  const d = JSON.parse(JSON.stringify(defaults));
+  for (const k of Object.keys(saved)) d[k] = Object.assign(d[k] || {}, saved[k]);
+  const use = document.getElementById('useDesign');
+  use.checked = Object.keys(saved).length > 0;
+  const stage = document.getElementById('stage');
+  let width = 375;
+  const fonts = {sans: 'Manrope, Arial, sans-serif', serif: 'Fraunces, Georgia, serif', script: '"Brush Script MT", "Segoe Script", cursive'};
+  const get = (path) => path.split('.').reduce((o, k) => o[k], d);
+  const set = (path, v) => { const ks = path.split('.'); ks.slice(0, -1).reduce((o, k) => o[k], d)[ks.at(-1)] = v; };
+
+  function render() {
+    const scale = width / 360;
+    stage.style.width = width + 'px';
+    stage.style.height = Math.round(width * RATIO) + 'px';
+    const bg = document.getElementById('bgLayer');
+    const img = document.querySelector('#plainPreview img');
+    if (d.bg.type === 'image') bg.style.background = img ? `center / cover url(${img.src})` : '#555';
+    else if (d.bg.type === 'color') bg.style.background = d.bg.c1;
+    else bg.style.background = `linear-gradient(135deg, ${d.bg.c1}, ${d.bg.c2})`;
+    document.getElementById('shade').style.opacity = (d.bg.overlay || 0) / 100;
+    const info = covers[story?.value] || null;
+    const cover = document.getElementById('coverEl');
+    cover.hidden = !d.cover.show;
+    cover.src = info && info.cover ? info.cover : '';
+    Object.assign(cover.style, {width: d.cover.w + '%', left: d.cover.x + '%', top: d.cover.y + '%'});
+    for (const [id, key, text] of [['headEl', 'headline', title.value || 'Your headline'], ['bodyEl', 'body', sub.value || '']]) {
+      const el = document.getElementById(id), t = d[key];
+      el.textContent = text;
+      el.hidden = !text;
+      Object.assign(el.style, {left: t.x + '%', top: t.y + '%', color: t.color, fontSize: t.size * scale + 'px', fontWeight: t.weight,
+        fontFamily: fonts[t.font] || fonts.sans, textAlign: t.align, textShadow: '0 1px 4px rgba(0,0,0,.45)'});
+    }
+    const b = d.button, btn = document.getElementById('btnEl');
+    btn.textContent = b.text + ' ›';
+    Object.assign(btn.style, {left: b.x + '%', top: b.y + '%', fontSize: b.size * scale + 'px', color: b.color,
+      background: b.style === 'outline' ? 'transparent' : b.bg, border: `2px solid ${b.bg}`,
+      borderRadius: b.style === 'rounded' ? '10px' : '999px'});
+    field.value = use.checked ? JSON.stringify(d) : '';
+    document.getElementById('builder').hidden = !use.checked;
+    document.getElementById('plainPreview').hidden = use.checked;
+    const link = document.getElementById('bookLink');
+    link.innerHTML = info ? `Opens <b>${info.title}</b> (${info.code}). Book link: <code>${linkBase}${info.code}/</code>` :
+      '<span style="color:var(--f-danger)">Choose the book this promotion opens (Destination → Book).</span>';
+  }
+
+  document.querySelectorAll('[data-k]').forEach((el) => {
+    const k = el.dataset.k, v = get(k);
+    if (el.type === 'checkbox') el.checked = !!v; else el.value = v;
+    el.addEventListener('input', () => { set(k, el.type === 'checkbox' ? el.checked : (el.type === 'range' ? +el.value : el.value)); render(); });
+  });
+  const presets = [['#7A1F33', '#2B1E20'], ['#FF3D8B', '#FF9A3C'], ['#1B1F3B', '#6C3483'], ['#0F2027', '#2C5364'], ['#3E1E04', '#C68B2C'], ['#111111', '#444444']];
+  for (const [a, b] of presets) {
+    const s = document.createElement('span');
+    s.className = 'swatch'; s.style.background = `linear-gradient(135deg, ${a}, ${b})`;
+    s.onclick = () => { d.bg.type = 'gradient'; d.bg.c1 = a; d.bg.c2 = b;
+      document.querySelector('[data-k="bg.type"]').value = 'gradient'; document.querySelector('[data-k="bg.c1"]').value = a;
+      document.querySelector('[data-k="bg.c2"]').value = b; render(); };
+    document.getElementById('presets').append(s);
+  }
+  document.querySelectorAll('#screens a').forEach((a) => a.addEventListener('click', (e) => {
+    e.preventDefault(); document.querySelectorAll('#screens a').forEach((x) => x.classList.remove('on')); a.classList.add('on');
+    width = +a.dataset.w; render(); }));
+  // Drag to position (stored in % so every screen size matches).
+  let drag = null;
+  stage.addEventListener('pointerdown', (e) => { const el = e.target.closest('[data-drag]'); if (!el) return; drag = el.dataset.drag; stage.setPointerCapture(e.pointerId); e.preventDefault(); });
+  stage.addEventListener('pointermove', (e) => { if (!drag) return; const r = stage.getBoundingClientRect();
+    d[drag].x = Math.max(0, Math.min(100, Math.round((e.clientX - r.left) * 100 / r.width)));
+    d[drag].y = Math.max(0, Math.min(100, Math.round((e.clientY - r.top) * 100 / r.height))); render(); });
+  stage.addEventListener('pointerup', () => { drag = null; });
+  use.addEventListener('change', () => { if (use.checked && target) target.value = 'story'; render(); });
+  for (const el of [title, sub, story]) el?.addEventListener('input', render);
+  story?.addEventListener('change', render);
+  render();
+})();
 </script>{% endblock %}

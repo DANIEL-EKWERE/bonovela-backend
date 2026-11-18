@@ -115,16 +115,33 @@ def spend(user, amount: int, *, title: str, kind: str, story=None, chapter=None)
 
 
 def available_to_withdraw(user) -> int:
-    """Earnings (USD cents) not yet paid out, approved or requested.
-    Rejected and failed requests go back into the balance."""
-    from django.db.models import Sum
+    """What Finance has released from Carry over, less withdrawals placed,
+    approved or paid (rejected and failed ones go back)."""
+    from .income import balances
+    return balances(user)['available']
 
-    from .models import AuthorEarning, Payout
 
-    earned = AuthorEarning.objects.filter(author=user).aggregate(t=Sum('amount_cents'))['t'] or 0
-    out = Payout.objects.filter(author=user, status__in=Payout.COMMITTED).aggregate(
-        t=Sum('amount_cents'))['t'] or 0
-    return max(0, earned - out)
+PAYOUT_FIELDS = ['method', 'country', 'currency', 'bank_name', 'swift_code', 'account_detail', 'account_name',
+                 'intermediary_swift', 'nickname', 'email', 'address', 'city', 'state', 'postal_code']
+
+
+def save_payout_method(author, data):
+    """First payment details are saved straight away. Later changes (Modify
+    Info) wait for the Chief Editor's approval; payments keep going to the
+    current account meanwhile. Returns 'saved', 'pending' or 'unchanged'."""
+    from .models import PayoutMethod, PayoutMethodChange
+    data = {k: (data.get(k) or '') for k in PAYOUT_FIELDS}
+    current = PayoutMethod.objects.filter(author=author).first()
+    if not current:
+        PayoutMethod.objects.create(author=author, **data)
+        return 'saved'
+    previous = {k: getattr(current, k) or '' for k in PAYOUT_FIELDS}
+    if previous == data:
+        return 'unchanged'
+    PayoutMethodChange.objects.filter(author=author, status=PayoutMethodChange.STATUS_PENDING).update(
+        status=PayoutMethodChange.STATUS_REJECTED, note='Replaced by a newer change')
+    PayoutMethodChange.objects.create(author=author, data=data, previous=previous)
+    return 'pending'
 
 
 class WithdrawalError(Exception):
@@ -200,14 +217,17 @@ def can_read(user, chapter) -> bool:
     return ChapterUnlock.objects.filter(user=user, chapter=chapter).exists()
 
 
-def _credit_author(story, coins: int, note: str):
-    """Signed authors earn a share of coins spent on their book (1 coin ≈ 1¢).
-    The share is Finance Settings › Author share."""
+def _credit_author(story, coins: int, note: str, kind: str = 'profit_share'):
+    """Signed authors earn a share of coins spent on their book (1 coin ≈ 1¢):
+    Profit Share from chapter unlocks, Reward Share from gifts. The share is
+    Finance Settings › Author share. It waits for Finance's approval."""
     if story.is_signed and coins:
         from apps.finance.models import FinanceSettings
+
+        from .income import credit_book
         share = int(coins * FinanceSettings.current().author_share_pct / 100)
         if share:
-            AuthorEarning.objects.create(author=story.author, story=story, type='profit_share', amount_cents=share, note=note)
+            credit_book(story, share, kind)
 
 
 @transaction.atomic
@@ -232,7 +252,7 @@ def send_gift(user, story, item) -> Gift:
     coins, bonus = spend(user, item.price, title=f'{item.name} for {story.display_title}', kind=Transaction.KIND_GIFT, story=story)
     gift = Gift.objects.create(sender=user, story=story, item=item, price=item.price, votes=item.votes)
     Vote.objects.create(user=user, story=story, count=item.votes, from_gift=gift)
-    _credit_author(story, coins + bonus, f'Gift · {item.name}')
+    _credit_author(story, coins + bonus, f'Gift · {item.name}', kind='reward_share')
     return gift
 
 

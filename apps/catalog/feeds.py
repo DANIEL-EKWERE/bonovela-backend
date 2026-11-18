@@ -128,6 +128,10 @@ def discover_feed(tab: str):
             section('Picks for You', 'rated_list', novels.order_by('?')[:5]),
         ]
 
+    if tab == 'Free':
+        # The Free Reading Section: books with no Pay-to-Read chapters. Approved
+        # Pay-to-Read books leave it and stay in the normal sections.
+        novels = novels.filter(paid_from_chapter__isnull=True)
     cats = shelf_sections(ShelfCategory.objects.filter(kind=ShelfCategory.KIND_NOVEL, name=tab), novels)
     if cats:
         return next(iter(cats.values()))

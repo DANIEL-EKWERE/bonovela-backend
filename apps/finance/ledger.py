@@ -51,8 +51,8 @@ def money(qs, fs=None):
 
 
 def _earnings(staff, start=None, end=None):
-    qs = AuthorEarning.objects.filter(author__role__in=STAFF_ROLES) if staff else \
-        AuthorEarning.objects.exclude(author__role__in=STAFF_ROLES)
+    earnings = AuthorEarning.objects.exclude(status=AuthorEarning.STATUS_REJECTED)
+    qs = earnings.filter(author__role__in=STAFF_ROLES) if staff else earnings.exclude(author__role__in=STAFF_ROLES)
     if start:
         qs = qs.filter(created_at__date__gte=start)
     if end:

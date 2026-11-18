@@ -13,7 +13,7 @@ from apps.users.models import User
 from apps.wallet.models import AuthorEarning
 
 from .models import ContractApplication as App
-from .models import Promotion, PromotionRequest, Shelf, ShelfBook, ShelfCategory
+from .models import PayToReadApplication, Promotion, PromotionRequest, Shelf, ShelfBook, ShelfCategory
 
 
 def _require(editor, *roles):
@@ -62,8 +62,12 @@ def se_decide(app, editor, decision: str, feedback: str = ''):
 
 @transaction.atomic
 def ce_send_contract(app, editor, contract_type: str = 'non_exclusive', signing_bonus_cents: int = 0):
+    """The Chief Editor sends the contract: after the SE's approval, or
+    straight from review when helping a busy editor."""
     _require(editor, User.ROLE_CE)
-    _require_status(app, App.STATUS_SE_APPROVED)
+    _require_status(app, App.STATUS_SE_APPROVED, App.STATUS_PENDING)
+    if app.status == App.STATUS_PENDING and not app.se_id:
+        app.se = editor
     app.ce = editor
     app.contract_type = contract_type
     app.signing_bonus_cents = max(0, signing_bonus_cents)
@@ -89,10 +93,109 @@ def sign(app):
     if app.signing_bonus_cents:
         AuthorEarning.objects.create(author=story.author, story=story, type='signing_bonus',
                                      amount_cents=app.signing_bonus_cents, note='Contract signed')
-    live = story.is_short or story.published_chapters().count() >= settings.BONOVELA['MIN_LIVE_CHAPTERS']
-    _notify(story, 'Welcome aboard 💗', f'"{story.display_title}" is now signed and '
-            + ('visible to readers in the app.' if live else
-               f'will go live in the app once it has {settings.BONOVELA["MIN_LIVE_CHAPTERS"]} published chapters.'))
+    _notify(story, 'Welcome aboard 💗', f'"{story.display_title}" is now signed. The Chief Editor will publish it '
+            'to the app; it then appears in the Free Reading Section.')
+
+
+# ── App Publishing Control ───────────────────────────────────────────────────
+def publish_in_app(editor, story, publish: bool = True):
+    """Chief Editor puts a signed book in the app (or takes it out)."""
+    _require(editor, User.ROLE_CE)
+    if publish and not story.is_signed:
+        raise ValidationError('Only signed books can be published to the app.')
+    story.in_app = publish
+    story.in_app_at, story.in_app_by = (timezone.now(), editor) if publish else (story.in_app_at, story.in_app_by)
+    story.save(update_fields=['in_app', 'in_app_at', 'in_app_by', 'updated_at'])
+    if publish:
+        live = story.is_short or story.published_chapters().count() >= settings.BONOVELA['MIN_LIVE_CHAPTERS']
+        _notify(story, 'Your book is in the app 🎉', f'"{story.display_title}" is published in the Bonovela app'
+                + ('.' if live else f' and appears once it has {settings.BONOVELA["MIN_LIVE_CHAPTERS"]} published '
+                   'chapters.'))
+    return story
+
+
+def update_contract_template(editor, body: str):
+    """Only the Chief Editor and admins change the contract template."""
+    from .models import ContractTemplate
+    _require(editor, User.ROLE_CE)
+    body = (body or '').strip()
+    if len(body) < 50:
+        raise ValidationError('The contract text is too short.')
+    current = ContractTemplate.current()
+    if body == current.body:
+        return current
+    return ContractTemplate.objects.create(body=body, version=current.version + 1, updated_by=editor)
+
+
+# ── Payment detail changes ───────────────────────────────────────────────────
+def decide_payout_change(editor, change, approve: bool, note: str = ''):
+    """Chief Editor approves (the new details replace the old) or rejects."""
+    from apps.wallet.models import PayoutMethod, PayoutMethodChange
+    _require(editor, User.ROLE_CE)
+    if change.status != PayoutMethodChange.STATUS_PENDING:
+        raise ValidationError('Already decided.')
+    change.status = PayoutMethodChange.STATUS_APPROVED if approve else PayoutMethodChange.STATUS_REJECTED
+    change.decided_by, change.decided_at, change.note = editor, timezone.now(), note[:200]
+    change.save()
+    if approve:
+        method, _ = PayoutMethod.objects.get_or_create(author=change.author, defaults={
+            'method': change.data.get('method', 'bank'), 'account_name': '', 'account_detail': ''})
+        for k, v in change.data.items():
+            if hasattr(method, k):
+                setattr(method, k, v)
+        method.save()
+        InboxMessage.objects.create(user=change.author, title='Payment details updated',
+                                    body='Your new payment details were approved and will be used for your next '
+                                         'payment.')
+    else:
+        InboxMessage.objects.create(user=change.author, title='Payment details not changed',
+                                    body=note or 'Your request to change your payment details was not approved. '
+                                                 'Your payments still go to your current account.')
+    return change
+
+
+# ── Pay-to-Read ──────────────────────────────────────────────────────────────
+@transaction.atomic
+def apply_pay_to_read(story, from_chapter: int, message: str = '') -> PayToReadApplication:
+    """Author: ask for chapters [from_chapter] onward to be paid."""
+    if not story.can_apply_pay_to_read:
+        need = settings.BONOVELA['PAY_TO_READ_MIN_WORDS']
+        raise ValidationError(f'Pay-to-Read opens for signed books with {need:,} published words, once per book.')
+    last = story.published_chapters().order_by('-number').values_list('number', flat=True).first() or 0
+    if not 2 <= from_chapter <= last:
+        raise ValidationError(f'Choose a chapter between 2 and {last}.')
+    return PayToReadApplication.objects.create(story=story, requested_from=from_chapter, message=message[:2000])
+
+
+@transaction.atomic
+def decide_pay_to_read(editor, app, approve: bool, from_chapter: int | None = None, note: str = ''):
+    """Editor approves (keeping or changing the first paid chapter) or rejects.
+    Approved: chapters from that one on are locked, the book leaves the Free
+    section, and the author is told which chapters were approved."""
+    _require(editor, User.ROLE_SE, User.ROLE_CE)
+    if app.status != PayToReadApplication.STATUS_PENDING:
+        raise ValidationError('Already decided.')
+    story = app.story
+    app.decided_by, app.decided_at, app.note = editor, timezone.now(), note[:2000]
+    if approve:
+        chapter = from_chapter or app.requested_from
+        last = story.published_chapters().order_by('-number').values_list('number', flat=True).first() or 0
+        if not 2 <= chapter <= last:
+            raise ValidationError(f'Choose a chapter between 2 and {last}.')
+        app.status, app.approved_from = PayToReadApplication.STATUS_APPROVED, chapter
+        story.paid_from_chapter = chapter
+        story.save(update_fields=['paid_from_chapter', 'updated_at'])
+        changed = '' if chapter == app.requested_from else \
+            f' Your editor chose chapter {chapter} instead of chapter {app.requested_from}.'
+        _notify(story, 'Pay-to-Read approved 💰',
+                f'"{story.display_title}" is now Pay-to-Read. Chapters 1–{chapter - 1} stay free; chapter {chapter} '
+                f'and every future chapter are locked.{changed}' + (f'\n\nEditor\'s note: {note}' if note else ''))
+    else:
+        app.status = PayToReadApplication.STATUS_REJECTED
+        _notify(story, 'Pay-to-Read application update',
+                note or "Your book wasn't approved for Pay-to-Read this time. Keep improving it and apply again.")
+    app.save()
+    return app
 
 
 # ── Promotions ───────────────────────────────────────────────────────────────

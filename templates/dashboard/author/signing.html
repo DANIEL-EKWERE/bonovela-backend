@@ -1,4 +1,4 @@
-{% extends 'dashboard/base.html' %}{% load bv %}
+{% extends 'dashboard/base.html' %}{% load bv static %}
 {% block title %}Signing{% endblock %}
 {% block back %}<a class="back" href="{% url 'dashboard:author_chapters' story.pk %}"><i class="ph ph-caret-left"></i></a>{% endblock %}
 {% block heading %}Signing · {{ story.display_title }}{% endblock %}
@@ -14,18 +14,15 @@
 </div>
 
 {% if story.is_signed %}
-  <div class="notice ok" style="margin-top:12px">This book is signed and visible to readers in the app. You earn a share of every unlocked chapter and gift.</div>
+  <div class="notice ok" style="margin-top:12px">This book is signed. {% if story.in_app %}It is published in the app.{% else %}The Chief Editor will publish it to the app.{% endif %} You earn a share of every unlocked chapter and gift.</div>
 
 {% elif app and app.status == 'contract_sent' %}
   <form class="card" method="post">{% csrf_token %}
     <h2>Your contract</h2>
     <p class="muted small" style="margin:6px 0 14px">{{ app.get_contract_type_display }} contract{% if app.signing_bonus_cents %} · signing bonus {{ app.signing_bonus_cents|money }}{% endif %}</p>
-    <div style="background:var(--surface);border-radius:10px;padding:14px;max-height:280px;overflow:auto" class="small">
-      <p><b>1. Rights.</b> You grant Bonovela the {% if app.contract_type == 'exclusive' %}exclusive{% else %}non-exclusive{% endif %} right to publish "{{ story.display_title }}" in the Bonovela apps and website.</p><br>
-      <p><b>2. Earnings.</b> You receive a profit share of coins spent unlocking your chapters and gifts sent to your book, paid monthly once your balance reaches the payout threshold.</p><br>
-      <p><b>3. Updates.</b> Ongoing books should update regularly.</p><br>
-      <p><b>4. Content.</b> The work is original and follows the Bonovela content guidelines.</p><br>
-      <p class="hint">Placeholder terms — replace with the reviewed contract before launch.</p>
+    <div style="background:var(--surface);border-radius:10px;padding:14px;max-height:360px;overflow:auto" class="small">
+      <div style="text-align:center;margin-bottom:10px"><img src="{% static 'img/bonovela-logo.jpg' %}" alt="Bonovela" style="max-width:220px;width:65%"></div>
+      <div style="white-space:pre-line;line-height:1.6">{{ contract_text }}</div>
     </div>
     <label class="check-row" style="margin-top:12px"><input type="checkbox" name="agree" value="1">I have read and accept the contract terms.</label>
     <button class="btn block lg" name="action" value="sign" style="margin-top:8px">Sign contract</button>

@@ -1,0 +1,10 @@
+{% extends 'dashboard/base.html' %}{% load bv %}
+{% block title %}Duplicate Accounts{% endblock %}
+{% block heading %}Duplicate Accounts{% endblock %}
+{% block content %}
+<div class="notice" style="margin-bottom:12px">Author accounts that share an IP address or the same legal name on a contract application. These are signals to check, not proof — families and offices can share a connection.</div>
+<div class="stack">{% for g in groups %}<div class="card"><b>{{ g.reason }}</b>{% if g.last_seen %}<span class="hint" style="display:inline"> · last seen {{ g.last_seen|date:"M d, Y" }}</span>{% endif %}
+  <div class="stack" style="margin-top:8px">{% for u in g.users %}<a class="row" href="{% url 'dashboard:editorial_author' u.pk %}" style="gap:8px"><i class="ph ph-user"></i><span class="grow">{{ u.display_name }} · {{ u.email }}</span><span class="hint">AUT-{{ u.pk }} · joined {{ u.date_joined|date:"M d, Y" }}</span>{% if u.is_suspended %}<span class="chip red">Suspended</span>{% endif %}</a>{% endfor %}</div>
+  {% if g.books %}<p class="hint" style="margin-top:6px">Books: {{ g.books|join:", " }}</p>{% endif %}</div>
+{% empty %}<div class="card muted" style="text-align:center;padding:30px">No duplicate accounts found.</div>{% endfor %}</div>
+{% endblock %}

@@ -22,15 +22,21 @@
 
 <div class="grid fill" style="--min:240px;margin-top:12px">
   {% for c in cards %}
-    <div class="income-card" style="background:linear-gradient(135deg, #FFC23D, #FF8A1F)">
+    {% if c.carry %}<div class="income-card" style="background:linear-gradient(135deg, #FFC23D, #FF8A1F)">
       <span>{{ c.label }}</span>
       <span class="amount">{{ c.cents|money }}</span>
+      <span style="font-size:12.5px;position:relative;z-index:1">Unwithdrawn earnings from earlier months</span>
     </div>
+    {% else %}<a class="income-card" href="{% url 'dashboard:author_income_detail' c.key %}?month={{ month|date:'Y-m' }}" style="background:linear-gradient(135deg, #FFC23D, #FF8A1F)">
+      <span>{{ c.label }}</span>
+      <span class="amount">{{ c.cents|money }}</span>
+      <span style="font-size:12.5px;position:relative;z-index:1">{{ c.works }} work{{ c.works|pluralize }} ›</span>
+    </a>{% endif %}
   {% endfor %}
   <a class="income-card" href="{% url 'dashboard:author_withdraw' %}" style="background:linear-gradient(135deg, #FFC23D, #FF8A1F)">
     <span>Available to withdraw</span>
     <span class="amount">{{ rules.available|money }}</span>
-    <span style="font-size:13px;position:relative;z-index:1">{% if rules.can_withdraw %}<b>Withdraw now ›</b>{% elif rules.placed_this_month %}This month's withdrawal is placed{% else %}Withdraw from {{ rules.minimum|money }}{% endif %}</span>
+    <span style="font-size:13px;position:relative;z-index:1">{% if bal.pending_withdrawal %}Pending withdrawal: <b>{{ bal.pending_withdrawal|money }}</b><br>{% endif %}{% if rules.can_withdraw %}<b>Withdraw now ›</b>{% elif rules.placed_this_month %}This month's withdrawal is placed{% else %}Withdraw from {{ rules.minimum|money }}{% endif %}</span>
   </a>
   <a class="income-card" href="{% url 'dashboard:author_withdrawals' %}" style="background:linear-gradient(135deg, #FFC23D, #FF8A1F)">
     <span>Withdrawal history</span>
@@ -42,7 +48,7 @@
 {% if recent %}
 <div class="section-title"><h2>This month</h2></div>
 <div class="card flush">
-  {% for e in recent %}<div class="list-item"><div class="grow"><b>{{ e.get_type_display }}</b><div class="hint">{{ e.story|default:'' }} {{ e.note }}</div></div><span>{{ e.amount_cents|money }}</span></div>{% endfor %}
+  {% for e in recent %}<div class="list-item"><div class="grow"><b>{{ e.get_type_display }}</b><div class="hint">{% if e.story %}{{ e.story.display_title }} · {{ e.story.book_code }} · {{ e.story_length }}{% else %}{{ e.decision_note|default:e.note }}{% endif %}</div></div><span>{{ e.amount_cents|money }}</span></div>{% endfor %}
 </div>
 {% endif %}
 

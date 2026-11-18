@@ -1,0 +1,12 @@
+{% extends 'dashboard/base.html' %}{% load bv %}
+{% block title %}Restore Centre{% endblock %}
+{% block heading %}Restore Centre{% endblock %}
+{% block content %}
+<div class="notice" style="margin-bottom:12px">Nothing is deleted for good: removed books, removed or trashed chapters and suspended authors can be restored here.</div>
+<div class="section-title"><h2>Removed books</h2><span class="badge">{{ books|length }}</span></div>
+<div class="card flush">{% for b in books %}<div class="list-item">{% cover b 36 %}<div class="grow"><b>{{ b.display_title }}</b><div class="hint">{{ b.book_code }} · {{ b.author.display_name }} · {{ b.updated_at|date:"M d, Y" }}</div></div><form method="post">{% csrf_token %}<input type="hidden" name="kind" value="book"><input type="hidden" name="id" value="{{ b.pk }}"><button class="btn sm">Restore</button></form></div>{% empty %}<div class="muted" style="padding:16px;text-align:center">None.</div>{% endfor %}</div>
+<div class="section-title"><h2>Removed &amp; trashed chapters</h2><span class="badge">{{ chapters|length }}</span></div>
+<div class="card flush">{% for c in chapters %}<div class="list-item"><div class="grow"><b>{{ c.story.display_title }} · Chapter {{ c.number }}</b><div class="hint">{{ c.get_status_display }} · {{ c.word_count }} words · {{ c.updated_at|date:"M d, Y" }}</div></div><form method="post">{% csrf_token %}<input type="hidden" name="kind" value="chapter"><input type="hidden" name="id" value="{{ c.pk }}"><button class="btn sm ghost">Restore</button></form></div>{% empty %}<div class="muted" style="padding:16px;text-align:center">None.</div>{% endfor %}</div>
+<div class="section-title"><h2>Suspended authors</h2><span class="badge">{{ authors|length }}</span></div>
+<div class="card flush">{% for u in authors %}<div class="list-item"><div class="grow"><b>{{ u.display_name }}</b><div class="hint">AUT-{{ u.pk }} · {{ u.email }}</div></div><form method="post">{% csrf_token %}<input type="hidden" name="kind" value="author"><input type="hidden" name="id" value="{{ u.pk }}"><button class="btn sm ghost" onclick="return confirm('Reactivate this author?')">Reactivate</button></form></div>{% empty %}<div class="muted" style="padding:16px;text-align:center">None.</div>{% endfor %}</div>
+{% endblock %}

@@ -1,0 +1,10 @@
+{% extends 'dashboard/base.html' %}
+{% block title %}IP Monitoring{% endblock %}
+{% block heading %}IP Monitoring{% endblock %}
+{% block content %}
+<form method="get" class="row" style="margin-bottom:12px;gap:8px"><input type="search" name="q" value="{{ q }}" placeholder="IP address, email or pen name"><button class="btn sm">Search</button></form>
+<div class="table-wrap card flush"><table class="table small">
+  <tr><th>IP address</th><th>Account</th><th>Role</th><th>Events</th><th>Visits</th><th>First seen</th><th>Last seen</th></tr>
+  {% for l in logs %}<tr><td style="font-family:ui-monospace,monospace">{{ l.ip }}{% if l.ip in shared %} <span class="chip red">Shared</span>{% endif %}</td><td>{{ l.user.display_name }}<div class="hint">{{ l.user.email }}</div></td><td>{{ l.user.get_role_display }}</td><td>{{ l.get_first_event_display }} → {{ l.get_last_event_display }}</td><td>{{ l.hits }}</td><td>{{ l.first_seen|date:"M d, Y" }}</td><td>{{ l.last_seen|date:"M d, Y H:i" }}</td></tr>{% empty %}<tr><td colspan="7" class="muted" style="text-align:center;padding:20px">No IP records.</td></tr>{% endfor %}
+</table></div>
+{% endblock %}

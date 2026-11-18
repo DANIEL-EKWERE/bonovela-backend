@@ -14,7 +14,7 @@ from apps.catalog.models import Chapter, Contest, Story
 from apps.editorial.models import ContractApplication
 from apps.engagement.models import Review, ReviewReply
 from apps.wallet.models import AuthorEarning
-from apps.wallet.services import author_status, withdrawal_rules
+from apps.wallet.services import PAYOUT_FIELDS, author_status, save_payout_method, withdrawal_rules
 
 from . import serializers as s
 
@@ -213,28 +213,95 @@ def reply(request, review_id):
     return Response(s.ReviewReplySerializer(r).data, status=201)
 
 
+@api_view(['GET', 'POST'])
+@permission_classes(Author)
+def pay_to_read(request, pk):
+    """GET: Pay-to-Read status and chapters. POST {from_chapter, message}:
+    apply (signed books with 30,000 published words)."""
+    from django.core.exceptions import ValidationError
+
+    from apps.editorial import services as editorial
+    story = _own_story(request, pk)
+    if request.method == 'POST':
+        try:
+            editorial.apply_pay_to_read(story, int(request.data.get('from_chapter') or 0),
+                                        str(request.data.get('message') or ''))
+        except (ValueError, TypeError):
+            return Response({'detail': 'Choose the first chapter to lock.'}, status=400)
+        except ValidationError as e:
+            return Response({'detail': e.messages[0]}, status=400)
+    app = story.pay_to_read_applications.first()
+    return Response({
+        'can_apply': story.can_apply_pay_to_read, 'paid_from_chapter': story.paid_from_chapter,
+        'min_words': settings.BONOVELA['PAY_TO_READ_MIN_WORDS'], 'words': story.total_words,
+        'chapters': list(story.published_chapters().order_by('number').values_list('number', flat=True)),
+        'application': {'status': app.status, 'label': app.get_status_display(), 'requested_from': app.requested_from,
+                        'approved_from': app.approved_from, 'note': app.note} if app else None,
+    }, status=201 if request.method == 'POST' else 200)
+
+
 @api_view(['GET'])
 @permission_classes(Author)
 def income(request):
-    """?month=YYYY-MM — totals per income type in USD cents."""
-    month = request.query_params.get('month') or timezone.localdate().strftime('%Y-%m')
-    year, mon = (int(x) for x in month.split('-'))
-    qs = AuthorEarning.objects.filter(author=request.user)
-    in_month = qs.filter(created_at__year=year, created_at__month=mon)
+    """?month=YYYY-MM — this month's approved earnings per section (USD
+    cents), plus Carry over, Available to withdraw and Pending withdrawal."""
+    from datetime import date
+
+    from apps.wallet.income import balances
+    try:
+        year, mon = (int(x) for x in (request.query_params.get('month') or '').split('-'))
+        month = date(year, mon, 1)
+    except ValueError:
+        month = timezone.localdate().replace(day=1)
+    approved = AuthorEarning.objects.filter(author=request.user, status=AuthorEarning.STATUS_APPROVED)
     by_type = {key: 0 for key, _ in AuthorEarning.TYPE_CHOICES}
-    for e in in_month:
+    works = {key: set() for key, _ in AuthorEarning.TYPE_CHOICES}
+    for e in approved.filter(period=month):
         by_type[e.type] += e.amount_cents
+        works[e.type].add(e.story_id or f'x{e.pk}')
     labels = dict(AuthorEarning.TYPE_CHOICES)
+    bal = balances(request.user)
     rules = withdrawal_rules(request.user)
     return Response({
-        'month': month,
-        'total_cents': sum(e.amount_cents for e in qs),
-        'month_cents': sum(by_type.values()),
-        'available_cents': rules['available'],
+        'month': month.strftime('%Y-%m'),
+        'total_cents': bal['total'],
+        'month_cents': sum(by_type[k] for k in AuthorEarning.MONTHLY_TYPES),
+        'available_cents': bal['available'],
+        'carry_over_cents': bal['carry_over'],
+        'pending_withdrawal_cents': bal['pending_withdrawal'],
         'withdraw': _rules_json(rules),
         # The Income cards, in order (then Available to withdraw and Withdrawal history).
-        'types': [{'type': k, 'label': labels[k], 'amount_cents': by_type[k]} for k in AuthorEarning.INCOME_CARDS],
+        'types': [{'type': k, 'label': labels[k],
+                   'amount_cents': bal['carry_over'] if k == 'carry_over' else by_type[k],
+                   'works': len(works[k])} for k in AuthorEarning.INCOME_CARDS],
     })
+
+
+@api_view(['GET'])
+@permission_classes(Author)
+def income_detail(request, kind):
+    """The books behind one Income section in a month (Profit Share…)."""
+    from datetime import date
+    try:
+        year, mon = (int(x) for x in (request.query_params.get('month') or '').split('-'))
+        month = date(year, mon, 1)
+    except ValueError:
+        month = timezone.localdate().replace(day=1)
+    rows = (AuthorEarning.objects.filter(author=request.user, type=kind, period=month,
+                                         status=AuthorEarning.STATUS_APPROVED).select_related('story'))
+    books, others = {}, []
+    for e in rows:
+        if e.story_id:
+            b = books.setdefault(e.story_id, {
+                'story_id': e.story_id, 'title': e.story.display_title, 'book_id': e.story.book_code,
+                'story_length': e.story_length, 'cover': request.build_absolute_uri(e.story.cover.url)
+                if e.story.cover else '', 'cover_index': e.story.cover_index, 'amount_cents': 0})
+            b['amount_cents'] += e.amount_cents
+        else:
+            others.append({'reason': e.decision_note or e.note, 'amount_cents': e.amount_cents})
+    return Response({'type': kind, 'label': dict(AuthorEarning.TYPE_CHOICES).get(kind, kind),
+                     'month': month.strftime('%Y-%m'), 'total_cents': sum(e.amount_cents for e in rows),
+                     'books': list(books.values()), 'others': others})
 
 
 def _rules_json(rules):
@@ -267,9 +334,8 @@ def withdrawals(request):
                           instance=current)
         if not form.is_valid():
             return Response({'detail': 'Please check the highlighted fields.', 'errors': form.errors}, status=400)
-        method = form.save(commit=False)
-        method.author = request.user
-        method.save()
+        save_payout_method(request.user, form.cleaned_data)
+        method = PayoutMethod.objects.filter(author=request.user).first()
         try:
             cents = int(request.data.get('amount_cents') or 0)
             p = place_withdrawal(request.user, cents, method)
@@ -284,8 +350,6 @@ def withdrawals(request):
 
 
 
-PAYOUT_FIELDS = ['method', 'country', 'currency', 'bank_name', 'swift_code', 'account_detail', 'account_name',
-                 'intermediary_swift', 'nickname', 'email', 'address', 'city', 'state', 'postal_code']
 
 
 @api_view(['GET', 'PUT'])
@@ -303,10 +367,12 @@ def payout_method(request):
                           instance=current)
         if not form.is_valid():
             return Response({'detail': 'Please check the highlighted fields.', 'errors': form.errors}, status=400)
-        current = form.save(commit=False)
-        current.author = request.user
-        current.save()
-    return Response({k: getattr(current, k) for k in PAYOUT_FIELDS} if current else None)
+        result = save_payout_method(request.user, form.cleaned_data)
+        current = PayoutMethod.objects.filter(author=request.user).first()
+        return Response({**{k: getattr(current, k) for k in PAYOUT_FIELDS}, 'pending_change': result == 'pending'})
+    from apps.wallet.models import PayoutMethodChange
+    pending = PayoutMethodChange.objects.filter(author=request.user, status=PayoutMethodChange.STATUS_PENDING).exists()
+    return Response({**{k: getattr(current, k) for k in PAYOUT_FIELDS}, 'pending_change': pending} if current else None)
 
 @api_view(['GET'])
 @permission_classes(Author)

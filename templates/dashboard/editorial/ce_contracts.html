@@ -1,0 +1,35 @@
+{% extends 'dashboard/base.html' %}{% load bv static %}
+{% block title %}Contract Management{% endblock %}
+{% block heading %}Contract Management{% endblock %}
+{% block content %}
+<div class="tabs" style="overflow-x:auto;margin-bottom:12px">{% for k, l, n in tabs %}<a class="{% if k == tab %}active{% endif %} nowrap" href="?tab={{ k }}">{{ l }} ({{ n }})</a>{% endfor %}<a class="{% if tab == 'template' %}active{% endif %} nowrap" href="?tab=template">Contract template</a></div>
+
+{% if tab == 'template' %}
+<div class="card">
+  <div style="text-align:center;margin-bottom:12px"><img src="{% static 'img/bonovela-logo.jpg' %}" alt="Bonovela" style="max-width:260px;width:70%"></div>
+  <p class="hint">Only the Chief Editor and admins can change the contract. Each save is a new version; contracts already sent keep their wording. Placeholders: <code>{book_title}</code> <code>{author_name}</code> <code>{pen_name}</code> <code>{contract_type}</code> <code>{date}</code></p>
+  <form method="post">{% csrf_token %}<input type="hidden" name="action" value="template">
+    <textarea name="body" rows="18" style="width:100%;font-family:inherit;line-height:1.5">{{ template.body }}</textarea>
+    <div class="row between" style="margin-top:10px"><span class="hint">Version {{ template.version }}{% if template.updated_by %} · {{ template.updated_by.display_name }}, {{ template.created_at|date:"M d, Y" }}{% endif %}</span><button class="btn">Save new version</button></div>
+  </form>
+</div>
+<div class="section-title"><h2>Preview</h2></div>
+<div class="card"><div style="text-align:center;margin-bottom:10px"><img src="{% static 'img/bonovela-logo.jpg' %}" alt="" style="max-width:200px;width:60%"></div><div class="small" style="white-space:pre-line;line-height:1.6">{{ preview }}</div></div>
+{% if versions|length > 1 %}<div class="section-title"><h2>Versions</h2></div><div class="card flush">{% for v in versions %}<div class="list-item"><b>Version {{ v.version }}</b><span class="grow hint">{{ v.updated_by.display_name|default:'Default' }} · {{ v.created_at|date:"M d, Y H:i" }}</span></div>{% endfor %}</div>{% endif %}
+
+{% else %}
+{% if tab == 'send' %}<div class="notice" style="margin-bottom:12px">Books the Senior Editors approved — and books still in review, if you want to help a busy editor. Sending emails the author and sets the status to <b>Contract sent · awaiting author signature</b>.</div>{% endif %}
+<div class="card flush">
+  {% for a in rows %}<div class="list-item" style="align-items:flex-start;gap:12px">
+    {% cover a.story 48 %}
+    <div class="grow"><b>{{ a.story.display_title }}</b> <span class="hint" style="display:inline">{{ a.story.book_code }}</span>
+      <div class="hint">by {{ a.story.author.display_name }} · SE {{ a.se.display_name|default:'—' }}{% if a.ce %} · sent by {{ a.ce.display_name }}{% endif %} · {{ a.updated_at|date:"M d, Y" }}</div>
+      <span class="chip {% if a.status == 'signed' %}green{% elif a.status == 'contract_sent' %}gold{% else %}grey{% endif %}">{% if a.status == 'contract_sent' %}Contract sent · awaiting author signature{% else %}{{ a.get_status_display }}{% endif %}</span>
+      {% if a.status == 'pending' %}<span class="chip grey">Still with the SE</span>{% endif %}</div>
+    {% if tab == 'send' %}<form method="post" class="row" style="gap:6px">{% csrf_token %}<input type="hidden" name="action" value="send"><input type="hidden" name="application" value="{{ a.pk }}">
+      <select name="contract_type" style="width:auto">{% for k, l in contract_types %}<option value="{{ k }}" {% if k == a.contract_type %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+      <button class="btn sm" onclick="return confirm('Send the contract to {{ a.story.author.display_name|escapejs }}?')">Send contract</button></form>{% endif %}
+  </div>{% empty %}<div class="muted" style="padding:24px;text-align:center">Nothing here.</div>{% endfor %}
+</div>
+{% endif %}
+{% endblock %}

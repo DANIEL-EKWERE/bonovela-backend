@@ -1,0 +1,20 @@
+{% extends 'dashboard/base.html' %}{% load bv %}
+{% block title %}{{ label }}{% endblock %}
+{% block back %}<a class="back" href="{% url 'dashboard:author_income' %}?month={{ month|date:'Y-m' }}"><i class="ph ph-caret-left"></i></a>{% endblock %}
+{% block heading %}{{ label }}{% endblock %}
+{% block content_class %}narrow{% endblock %}
+{% block content %}
+<div class="row between" style="margin-bottom:6px"><h2 style="font-weight:500">{{ month|date:'Y-m' }}</h2><b style="font-size:20px">{{ total|money }}</b></div>
+<p class="hint" style="margin-bottom:12px">Latest update {% now "M d, Y" %} · approved {{ label }} for this month</p>
+<div class="card flush">
+  {% for b in books %}<div class="list-item" style="align-items:flex-start;gap:14px">
+    {% cover b.story 72 %}
+    <div class="grow"><b style="font-size:16px">{{ b.story.display_title }}</b>
+      <div class="hint" style="margin-top:4px">Book ID {{ b.story.book_code }} · {{ b.length }}</div>
+      <div class="hint" style="margin-top:10px">{{ label }}</div><div style="font-size:18px">{{ b.cents|money }}</div>
+      <div class="hint">Earning period: {{ month|date:'F Y' }}</div></div>
+  </div>{% endfor %}
+  {% for e in others %}<div class="list-item"><div class="grow"><b>{{ e.decision_note|default:e.note|default:label }}</b><div class="hint">Earning period: {{ month|date:'F Y' }}</div></div><span>{{ e.amount_cents|money }}</span></div>{% endfor %}
+  {% if not books and not others %}<div class="empty" style="padding:30px;text-align:center"><p class="hint">No {{ label }} for this month yet.</p></div>{% endif %}
+</div>
+{% endblock %}

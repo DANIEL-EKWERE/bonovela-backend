@@ -1,0 +1,32 @@
+{% extends 'dashboard/base.html' %}{% load bv %}
+{% block title %}Pay-to-Read{% endblock %}
+{% block heading %}Pay-to-Read{% endblock %}
+{% block content %}
+<div class="notice" style="margin-bottom:12px">Authors can apply once a signed book reaches 30,000 words. Choose the first paid chapter that meets Bonovela's quality and retention standards — keep the author's choice or pick another. From that chapter on, every chapter (including future ones) is locked; earlier chapters stay free and the book leaves the Free section.</div>
+<div class="tabs" style="margin-bottom:12px">{% for k, l in statuses %}<a class="{% if k == tab %}active{% endif %} nowrap" href="?tab={{ k }}">{{ l }} ({{ counts|get_item:k }})</a>{% endfor %}<a class="{% if tab == 'all' %}active{% endif %} nowrap" href="?tab=all">All</a></div>
+<div class="stack">
+{% for r in rows %}{% with a=r.a %}
+  <div class="card">
+    <div class="row top">
+      {% cover a.story 64 %}
+      <div class="grow">
+        <h3>{{ a.story.display_title }} <span class="hint" style="display:inline">{{ a.story.book_code }}</span></h3>
+        <div class="hint">by {{ a.story.author.display_name }} · {{ a.story.total_words|compact }} words · {{ r.chapters|length }} chapters · applied {{ a.created_at|date:"M d, Y" }}</div>
+        <p class="small" style="margin:6px 0">Author's choice: <b>lock from chapter {{ a.requested_from }}</b> (chapters 1–{{ a.requested_from|add:-1 }} free){% if a.message %} — “{{ a.message }}”{% endif %}</p>
+        <span class="chip {% if a.status == 'approved' %}green{% elif a.status == 'rejected' %}red{% else %}gold{% endif %}">{{ a.get_status_display }}{% if a.approved_from %} · from chapter {{ a.approved_from }}{% endif %}</span>
+        {% if a.decided_by %}<span class="hint" style="display:inline"> · {{ a.decided_by.display_name }}, {{ a.decided_at|date:"M d" }}</span>{% endif %}
+        {% if a.note %}<p class="small muted" style="margin-top:4px">Note: {{ a.note }}</p>{% endif %}
+      </div>
+    </div>
+    {% if a.status == 'pending' %}
+    <form method="post" style="margin-top:12px">{% csrf_token %}<input type="hidden" name="application" value="{{ a.pk }}">
+      <label class="field"><span class="label">First paid chapter</span>
+        <select name="chapter">{% for n, title, words in r.chapters %}{% if n >= 2 %}<option value="{{ n }}" {% if n == a.requested_from %}selected{% endif %}>Chapter {{ n }}{% if title %} · {{ title|truncatechars:40 }}{% endif %} ({{ words }} words){% if n == a.requested_from %} — author's choice{% endif %}</option>{% endif %}{% endfor %}</select></label>
+      <label class="field"><span class="label">Note to the author (optional)</span><input type="text" name="note" maxlength="300"></label>
+      <div class="row" style="justify-content:flex-end;gap:8px"><button class="btn sm ghost" name="action" value="reject" onclick="return confirm('Reject this Pay-to-Read application?')">Reject</button><button class="btn sm" name="action" value="approve" onclick="return confirm('Lock the chosen chapter and every chapter after it?')">Approve</button></div>
+    </form>
+    {% endif %}
+  </div>
+{% endwith %}{% empty %}<div class="card muted" style="text-align:center;padding:30px">No applications here.</div>{% endfor %}
+</div>
+{% endblock %}

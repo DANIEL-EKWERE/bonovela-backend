@@ -1,0 +1,17 @@
+{% extends 'dashboard/base.html' %}
+{% block title %}Complaints & Appeals{% endblock %}
+{% block heading %}Complaints &amp; Appeals{% endblock %}
+{% block content %}
+<div class="tabs" style="margin-bottom:12px"><a class="{% if tab == 'complaints' %}active{% endif %}" href="?tab=complaints">Reader complaints ({{ open_reports }} open)</a><a class="{% if tab == 'appeals' %}active{% endif %}" href="?tab=appeals">Author appeals ({{ open_appeals }} open)</a></div>
+{% if tab == 'appeals' %}
+<div class="stack">{% for a in appeals %}<div class="card"><div class="row between"><b>{{ a.subject }}</b><span class="chip {% if a.status == 'upheld' %}green{% elif a.status == 'dismissed' %}grey{% else %}gold{% endif %}">{{ a.get_status_display }}</span></div>
+  <div class="hint">{{ a.author.display_name }} · AUT-{{ a.author.pk }}{% if a.story %} · {{ a.story.display_title }}{% endif %} · {{ a.created_at|date:"M d, Y" }}</div>
+  <p class="small" style="margin:8px 0;white-space:pre-line">{{ a.message }}</p>
+  {% if a.status == 'open' %}<form method="post">{% csrf_token %}<input type="hidden" name="appeal" value="{{ a.pk }}"><label class="field"><span class="label">Response to the author</span><textarea name="response" rows="2"></textarea></label><div class="row" style="justify-content:flex-end;gap:8px"><button class="btn sm ghost" name="action" value="dismiss">Dismiss</button><button class="btn sm" name="action" value="uphold">Uphold</button></div></form>
+  {% else %}<p class="hint">{{ a.decided_by.display_name }} · {{ a.decided_at|date:"M d, Y" }}{% if a.response %} — {{ a.response }}{% endif %}</p>{% endif %}</div>
+{% empty %}<div class="card muted" style="text-align:center;padding:30px">No appeals.</div>{% endfor %}</div>
+{% else %}
+<div class="card flush">{% for r in reports %}<div class="list-item" style="align-items:flex-start"><div class="grow"><b>{% if r.story %}{{ r.story.display_title }}{% elif r.reported_user %}{{ r.reported_user.display_name }}{% else %}Report{% endif %}</b><div class="hint">from {{ r.reporter.display_name }} · {{ r.created_at|date:"M d, Y" }}</div><p class="small" style="margin-top:4px">{{ r.reason }}</p></div>
+  {% if r.is_resolved %}<span class="chip green">Resolved</span>{% else %}<form method="post">{% csrf_token %}<input type="hidden" name="action" value="resolve"><input type="hidden" name="report" value="{{ r.pk }}"><button class="btn sm ghost">Mark resolved</button></form>{% endif %}</div>{% empty %}<div class="muted" style="padding:24px;text-align:center">No complaints.</div>{% endfor %}</div>
+{% endif %}
+{% endblock %}

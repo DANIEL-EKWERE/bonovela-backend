@@ -1,0 +1,31 @@
+{% extends 'dashboard/base.html' %}{% load bv %}
+{% block title %}Pay-to-Read{% endblock %}
+{% block back %}<a class="back" href="{% url 'dashboard:author_stories' %}"><i class="ph ph-caret-left"></i></a>{% endblock %}
+{% block heading %}Pay-to-Read Application{% endblock %}
+{% block content_class %}narrow{% endblock %}
+{% block content %}
+<div class="card row top">{% cover story 64 %}<div class="grow"><h3>{{ story.display_title }}</h3><p class="small muted">{{ story.total_words|compact }} published words · {{ chapters|length }} chapters{% if story.paid_from_chapter %} · <b>Pay-to-Read from chapter {{ story.paid_from_chapter }}</b>{% endif %}</p></div></div>
+
+{% if story.paid_from_chapter %}
+  <div class="notice ok" style="margin-top:12px">Approved – Pay-to-Read. Chapters 1–{{ story.paid_from_chapter|add:-1 }} are free; chapter {{ story.paid_from_chapter }} and every future chapter are locked. Your book has moved from the Free Reading Section to the normal sections.</div>
+{% elif story.can_apply_pay_to_read %}
+  <form class="card" method="post" style="margin-top:12px">{% csrf_token %}
+    <h2>Monetize your book</h2>
+    <p class="small muted" style="margin:6px 0 12px">Choose the first chapter you'd like readers to unlock with coins. Your editor reviews your book and may choose a different chapter that meets Bonovela's quality and retention standards. Chapters before it stay free.</p>
+    <label class="field"><span class="label">Lock from chapter</span>
+      <select name="chapter">{% for n, title in chapters %}{% if n >= 2 %}<option value="{{ n }}">Chapter {{ n }}{% if title %} · {{ title|truncatechars:40 }}{% endif %}</option>{% endif %}{% endfor %}</select></label>
+    <label class="field"><span class="label">Message to your editor (optional)</span><textarea name="message" rows="3" maxlength="2000"></textarea></label>
+    <button class="btn block lg">Apply for Pay-to-Read</button>
+  </form>
+{% elif apps.0.status == 'pending' %}
+  <div class="notice warn" style="margin-top:12px"><b>Pending Review.</b> Your editor is reviewing your Pay-to-Read application.</div>
+{% else %}
+  <div class="notice" style="margin-top:12px">The Pay-to-Read Application opens once your signed book reaches {{ min_words|stringformat:'d' }} published words ({{ story.total_words }}/{{ min_words|stringformat:'d' }}). Reaching it doesn't lock anything by itself — you apply and your editor approves the chapters.</div>
+{% endif %}
+
+{% if apps %}<div class="section-title"><h2>Applications</h2></div>
+<div class="card flush">{% for a in apps %}<div class="list-item" style="align-items:flex-start"><div class="grow">
+  <b>{{ a.get_status_display }}</b>{% if a.approved_from %} · from chapter {{ a.approved_from }}{% endif %}
+  <div class="hint">Requested from chapter {{ a.requested_from }} · {{ a.created_at|date:"M d, Y" }}{% if a.decided_at %} · decided {{ a.decided_at|date:"M d, Y" }}{% endif %}</div>
+  {% if a.note %}<p class="small" style="margin-top:4px">{{ a.note }}</p>{% endif %}</div></div>{% endfor %}</div>{% endif %}
+{% endblock %}

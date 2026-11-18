@@ -457,3 +457,88 @@ class ShelfBook(models.Model):
     class Meta:
         ordering = ['order', 'pk']
         constraints = [models.UniqueConstraint(fields=['shelf', 'story'], name='unique_book_per_shelf')]
+
+
+class PayToReadApplication(models.Model):
+    """An author asks for chapters to be paid (from a chapter onward). The
+    assigned editor reviews it and approves the chapter that should be the
+    first paid one — the author's choice or a different one."""
+
+    STATUS_PENDING, STATUS_APPROVED, STATUS_REJECTED = 'pending', 'approved', 'rejected'
+    STATUS_CHOICES = [(STATUS_PENDING, 'Pending Review'), (STATUS_APPROVED, 'Approved – Pay-to-Read'),
+                      (STATUS_REJECTED, 'Rejected')]
+
+    story = models.ForeignKey('catalog.Story', on_delete=models.CASCADE, related_name='pay_to_read_applications')
+    requested_from = models.PositiveSmallIntegerField(help_text='First chapter the author wants locked')
+    approved_from = models.PositiveSmallIntegerField(null=True, blank=True, help_text='First chapter locked')
+    message = models.TextField(blank=True)
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=STATUS_PENDING, db_index=True)
+    decided_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    decided_at = models.DateTimeField(null=True, blank=True)
+    note = models.TextField(blank=True, help_text="Editor's note to the author")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+
+class ContractTemplate(models.Model):
+    """The publishing contract authors sign. Only the Chief Editor and
+    admins change it; every save is a new version (the old ones are kept).
+    Placeholders: {book_title} {author_name} {pen_name} {contract_type} {date}."""
+
+    body = models.TextField()
+    version = models.PositiveIntegerField(default=1)
+    updated_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    DEFAULT = (
+        'BONOVELA PUBLISHING CONTRACT\n\n'
+        'This agreement is made on {date} between Bonovela and {author_name} ("the Author", writing as {pen_name}) '
+        'for the work titled "{book_title}".\n\n'
+        '1. Rights. The Author grants Bonovela the {contract_type} right to publish the work in the Bonovela apps '
+        'and website.\n\n'
+        '2. Earnings. The Author receives a profit share of coins readers spend on the work and a reward share of '
+        'gifts, approved monthly by Bonovela Finance and paid on the 28th once withdrawn.\n\n'
+        '3. Updates. Ongoing works should be updated regularly.\n\n'
+        '4. Content. The work is original and follows the Bonovela Author Policy.\n\n'
+        '5. Pay-to-Read. Chapters become paid only after the Author applies and an editor approves them.'
+    )
+
+    class Meta:
+        ordering = ['-version']
+
+    @classmethod
+    def current(cls):
+        return cls.objects.first() or cls.objects.create(body=cls.DEFAULT)
+
+    def render(self, story, contract_type='Non-exclusive'):
+        from django.utils import timezone as tz
+        author = story.author
+        values = {'book_title': story.display_title, 'author_name': author.get_full_name() or author.display_name,
+                  'pen_name': author.pen_name or author.display_name, 'contract_type': contract_type.lower(),
+                  'date': tz.localdate().strftime('%d %B %Y')}
+        text = self.body
+        for k, v in values.items():
+            text = text.replace('{' + k + '}', v)
+        return text
+
+
+class AuthorAppeal(models.Model):
+    """An author appeals a decision (rejection, removal, suspension…)."""
+
+    STATUS_OPEN, STATUS_UPHELD, STATUS_DISMISSED = 'open', 'upheld', 'dismissed'
+    STATUS_CHOICES = [(STATUS_OPEN, 'Open'), (STATUS_UPHELD, 'Upheld'), (STATUS_DISMISSED, 'Dismissed')]
+
+    author = models.ForeignKey(User, on_delete=models.CASCADE, related_name='appeals')
+    story = models.ForeignKey('catalog.Story', on_delete=models.SET_NULL, null=True, blank=True)
+    subject = models.CharField(max_length=120)
+    message = models.TextField()
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=STATUS_OPEN, db_index=True)
+    response = models.TextField(blank=True)
+    decided_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    decided_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']

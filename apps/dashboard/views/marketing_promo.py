@@ -136,8 +136,11 @@ def banner_form(request, pk=None):
                        f'"{banner.title}"', 'Promotion', banner.code)
         messages.success(request, f'"{banner.title}" saved.')
         return redirect(f'dashboard:marketing_{kind}')
+    covers = {str(st.pk): {'cover': st.cover.url if st.cover else '', 'title': st.display_title, 'code': st.book_code}
+              for st in form.fields['story'].queryset}
     return render(request, 'dashboard/marketing/promo_form.html', {
         'banner': banner, 'form': form, 'palettes': range(8), 'kind': kind, 'kind_title': KINDS[kind][1],
+        'covers_json': json.dumps(covers), 'book_link_base': request.build_absolute_uri('/b/'),
     })
 
 

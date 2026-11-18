@@ -25,10 +25,20 @@ EDITORIAL_NAV = [
     ('dashboard:editorial_recruitment', 'user-plus', 'Recruitment', {}),
     ('dashboard:editorial_shelves', 'books', 'App Shelves', {'levels': 'se ce', 'hint': 'Curated shelves in the app and Short Stories', 'short': 'Shelves'}),
     ('dashboard:editorial_promotions', 'megaphone', 'Promotions', {'levels': 'se ce'}),
+    ('dashboard:editorial_pay_to_read', 'lock-key', 'Pay-to-Read', {'levels': 'se ce', 'hint': 'Applications to lock chapters'}),
     ('dashboard:editorial_commission', 'coins', 'Commission', {}),
     ('dashboard:editorial_escalations', 'warning-octagon', 'Escalations', {}),
     ('dashboard:editorial_messages', 'chat-centered-text', 'Messages', {}),
     ('dashboard:editorial_reports', 'clipboard-text', 'Reports', {}),
+    # Chief Editor workspace
+    ('dashboard:editorial_contracts', 'signature', 'Contract Management', {'levels': 'ce', 'section': 'Chief Editor'}),
+    ('dashboard:editorial_publishing', 'device-mobile', 'App Publishing Control', {'levels': 'ce'}),
+    ('dashboard:editorial_payment_changes', 'bank', 'Payment Detail Changes', {'levels': 'ce'}),
+    ('dashboard:editorial_duplicate_accounts', 'users-three', 'Duplicate Accounts', {'levels': 'ce'}),
+    ('dashboard:editorial_ip', 'globe', 'IP Monitoring', {'levels': 'ce'}),
+    ('dashboard:editorial_complaints', 'gavel', 'Complaints & Appeals', {'levels': 'ce'}),
+    ('dashboard:editorial_discovery', 'compass', 'Discovery Intelligence', {'levels': 'ce'}),
+    ('dashboard:editorial_restore', 'arrow-counter-clockwise', 'Restore Centre', {'levels': 'ce'}),
 ]
 
 # Drama Studio is closed for now (routes commented out in urls.py).
@@ -76,6 +86,7 @@ FINANCE_NAV = [
     ('dashboard:finance_gifts', 'gift', 'Reader Gifts'),
     ('dashboard:finance_approvals', 'stamp', 'Payment Approval Centre', {'section': 'Payments'}),
     ('dashboard:finance_withdrawals', 'hand-coins', 'Withdrawals'),
+    ('dashboard:finance_income', 'pencil-simple-line', 'Author Income Update'),
     ('dashboard:finance_treasury', 'bank', 'Bonovela Treasury', {'section': 'Treasury'}),
     ('dashboard:finance_search', 'magnifying-glass', 'Universal Search', {'section': 'Finance Operations'}),
     ('dashboard:finance_revenue', 'chart-pie-slice', 'Revenue Distribution'),

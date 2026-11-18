@@ -200,7 +200,8 @@ BONOVELA = {
     'CREATOR_SHARE': 0.5,  # drama creators' share of episode unlocks
     'SYNOPSIS_WORDS': (50, 300),
     'CHAPTER_WORDS': (600, 2000),  # a chapter must be in this range to publish
-    'CONTRACT_MIN_WORDS': 5000,  # published words before an author can apply for a contract
+    'CONTRACT_MIN_WORDS': 5000,
+    'PAY_TO_READ_MIN_WORDS': 30000,  # the Pay-to-Read Application opens at this many published words  # published words before an author can apply for a contract
     'MIN_LIVE_CHAPTERS': 20,  # signed novels go live in the app from this many published chapters
     'PAYOUT_MINIMUM_CENTS': 1000,  # Finance pays balances of $10 or more
     # Editorial commission: share of a book's coin revenue (1 coin ≈ 1¢).

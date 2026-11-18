@@ -1,0 +1,19 @@
+{% extends 'dashboard/base.html' %}{% load bv %}
+{% block title %}Payment Detail Changes{% endblock %}
+{% block heading %}Payment Detail Changes{% endblock %}
+{% block content %}
+{% if current %}
+<div class="card"><div class="row between"><div><h2>{{ current.author.display_name }}</h2><div class="hint">AUT-{{ current.author.pk }} · {{ current.author.email }} · requested {{ current.created_at|date:"M d, Y H:i" }}</div></div><span class="chip {% if current.status == 'approved' %}green{% elif current.status == 'rejected' %}red{% else %}gold{% endif %}">{{ current.get_status_display }}</span></div>
+  <table class="table small" style="margin-top:12px"><tr><th></th><th>Current</th><th>New</th></tr>
+  {% for r in current.rows %}<tr {% if r.changed %}style="background:#FFF7E0"{% endif %}><td class="hint">{{ r.label }}</td><td>{{ r.old|default:'—' }}</td><td>{% if r.changed %}<b>{{ r.new|default:'—' }}</b>{% else %}{{ r.new|default:'—' }}{% endif %}</td></tr>{% endfor %}</table>
+  {% if current.status == 'pending' %}<form method="post" style="margin-top:12px">{% csrf_token %}<input type="hidden" name="change" value="{{ current.pk }}"><label class="field"><span class="label">Note to the author (optional)</span><input type="text" name="note" maxlength="200"></label>
+    <div class="row" style="justify-content:flex-end;gap:8px"><button class="btn sm ghost" name="action" value="reject">Reject</button><button class="btn sm" name="action" value="approve" onclick="return confirm('Use these new payment details?')">Approve</button></div></form>
+  {% else %}<p class="hint" style="margin-top:10px">{{ current.decided_by.display_name|default:'' }} · {{ current.decided_at|date:"M d, Y" }}{% if current.note %} · {{ current.note }}{% endif %}</p>{% endif %}
+  <p style="margin-top:10px"><a class="pink" href="?tab={{ tab }}">‹ All changes</a></p>
+</div>
+{% else %}
+<div class="notice" style="margin-bottom:12px">When an author modifies their payment details, the change waits here. Payments keep going to their current account until you approve it.</div>
+<div class="tabs" style="margin-bottom:12px">{% for k, l in statuses %}<a class="{% if k == tab %}active{% endif %} nowrap" href="?tab={{ k }}">{{ l }} ({{ counts|get_item:k }})</a>{% endfor %}</div>
+<div class="card flush">{% for c in rows %}<a class="list-item" href="?tab={{ tab }}&id={{ c.pk }}"><div class="grow"><b>{{ c.author.display_name }}</b><div class="hint">AUT-{{ c.author.pk }} · {{ c.data.method|title }} · {{ c.created_at|date:"M d, Y" }}</div></div><span class="chip {% if c.status == 'approved' %}green{% elif c.status == 'rejected' %}red{% else %}gold{% endif %}">{{ c.get_status_display }}</span><i class="ph ph-caret-right"></i></a>{% empty %}<div class="muted" style="padding:24px;text-align:center">Nothing here.</div>{% endfor %}</div>
+{% endif %}
+{% endblock %}

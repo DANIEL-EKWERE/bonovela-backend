@@ -133,7 +133,12 @@ class BonovelaAPITests(TestCase):
         from apps.users.models import User
         author = User.objects.get(email='author@bonovela.app')
         Payout.objects.filter(author=author).delete()
-        AuthorEarning.objects.create(author=author, type='profit_share', amount_cents=30000)
+        from datetime import timedelta
+        from django.utils import timezone
+        from apps.wallet import income
+        last_month = (timezone.localdate().replace(day=1) - timedelta(days=1)).replace(day=1)
+        AuthorEarning.objects.create(author=author, type='profit_share', amount_cents=30000, period=last_month)
+        income.release(author, 30000)
         bank = {'method': 'bank', 'country': 'Nigeria', 'currency': 'USD', 'bank_name': 'FCMB',
                 'swift_code': 'FCMBNGLA', 'account_detail': '1047547276', 'account_name': 'Joy Mercy Osemeke',
                 'address': 'Agbara Branch', 'city': 'Lagos', 'state': 'Edo', 'postal_code': '100001'}
@@ -164,6 +169,7 @@ class BonovelaAPITests(TestCase):
     def test_locked_chapter_unlock_spends_bonus_first(self):
         c = self.login()
         story = Story.objects.filter(is_short=False).first()
+        Story.objects.filter(pk=story.pk).update(paid_from_chapter=11)  # approved Pay-to-Read from chapter 11
         locked = c.get(f'/api/books/{story.id}/chapters/11/').data
         self.assertTrue(locked['is_locked'])
         self.assertEqual(locked['content'], '')
@@ -178,6 +184,7 @@ class BonovelaAPITests(TestCase):
         c = self.login()
         Wallet.objects.filter(user__email='reader@bonovela.app').update(coins=0)
         story = Story.objects.filter(is_short=False).first()
+        Story.objects.filter(pk=story.pk).update(paid_from_chapter=11)
         c.post(f'/api/books/{story.id}/chapters/11/unlock/')  # uses remaining bonus 20 → 5
         r = c.post(f'/api/books/{story.id}/chapters/12/unlock/')
         self.assertEqual(r.status_code, 402)
@@ -242,6 +249,9 @@ class BonovelaAPITests(TestCase):
         editorial.ce_send_contract(app, User.objects.get(email='ce@bonovela.app'), signing_bonus_cents=5000)
         self.assertEqual(c.post(f'/api/author/stories/{sid}/sign/').status_code, 200)
 
+        # Signed books reach the app once the Chief Editor publishes them.
+        self.assertEqual(APIClient().get(f'/api/books/{sid}/').status_code, 404)
+        editorial.publish_in_app(User.objects.get(email='ce@bonovela.app'), Story.objects.get(pk=sid))
         self.assertEqual(APIClient().get(f'/api/books/{sid}/').status_code, 200)
         self.assertEqual(c.get('/api/author/income/').data['month_cents'], 5000)
 

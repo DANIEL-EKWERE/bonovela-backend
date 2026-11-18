@@ -128,7 +128,10 @@ def book_metrics(story):
     readers = ReadingProgress.objects.filter(story=story)
     started = readers.count()
     reached10 = readers.filter(chapter_number__gte=10).count()
-    free = settings.BONOVELA['FREE_SHORT_CHAPTERS' if story.is_short else 'FREE_CHAPTERS']
+    if story.is_short:
+        free = settings.BONOVELA['FREE_SHORT_CHAPTERS']
+    else:  # novels: free up to the first Pay-to-Read chapter (all free if none)
+        free = (story.paid_from_chapter - 1) if story.paid_from_chapter else 10 ** 6
     past_free = readers.filter(chapter_number__gt=free).count()
     payers = ChapterUnlock.objects.filter(chapter__story=story).values('user').distinct().count()
     recent = [c for c in chapters if c.published_at and c.published_at >= now - timedelta(days=30)]

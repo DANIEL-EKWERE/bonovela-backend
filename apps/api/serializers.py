@@ -271,6 +271,8 @@ class AuthorStorySerializer(serializers.ModelSerializer):
     word_count = serializers.SerializerMethodField()
     application_status = serializers.SerializerMethodField()
     application = serializers.SerializerMethodField()
+    can_apply_pay_to_read = serializers.BooleanField(read_only=True)
+    pay_to_read_status = serializers.SerializerMethodField()
 
     class Meta:
         model = Story
@@ -278,9 +280,9 @@ class AuthorStorySerializer(serializers.ModelSerializer):
             'id', 'title', 'synopsis', 'cover', 'cover_index', 'language', 'audience', 'content_rating',
             'novel_type', 'genre', 'tags', 'status', 'is_short', 'is_signed', 'is_info_complete',
             'can_apply_for_contract', 'chapter_count', 'word_count', 'application_status', 'application', 'views',
-            'created_at', 'updated_at',
+            'paid_from_chapter', 'can_apply_pay_to_read', 'pay_to_read_status', 'created_at', 'updated_at',
         ]
-        read_only_fields = ['is_signed', 'views', 'created_at', 'updated_at']
+        read_only_fields = ['is_signed', 'views', 'paid_from_chapter', 'created_at', 'updated_at']
 
     def validate_language(self, value):
         if value not in Story.LANGUAGES:
@@ -314,6 +316,10 @@ class AuthorStorySerializer(serializers.ModelSerializer):
         app = obj.applications.first()
         return app.status if app else None
 
+    def get_pay_to_read_status(self, obj):
+        app = obj.pay_to_read_applications.first()
+        return app.status if app else None
+
     def get_application(self, obj):
         """The story card's application panel: kind, label, title, message,
         reapply_at (after a rejection)."""
@@ -344,9 +350,17 @@ class AuthorChapterSerializer(serializers.ModelSerializer):
 
 class ApplicationSerializer(serializers.ModelSerializer):
     status_label = serializers.CharField(source='get_status_display', read_only=True)
+    contract_text = serializers.SerializerMethodField()
 
     class Meta:
         model = ContractApplication
         fields = ['id', 'story', 'status', 'status_label', 'message', 'contract_type', 'feedback', 'legal_name',
-                  'chosen_editor', 'created_at', 'updated_at']
+                  'chosen_editor', 'contract_text', 'created_at', 'updated_at']
         read_only_fields = ['story', 'status', 'contract_type', 'feedback', 'chosen_editor', 'created_at', 'updated_at']
+
+    def get_contract_text(self, obj):
+        """The contract to sign (Chief Editor's template), once it's sent."""
+        if obj.status not in (ContractApplication.STATUS_CONTRACT_SENT, ContractApplication.STATUS_SIGNED):
+            return ''
+        from apps.editorial.models import ContractTemplate
+        return ContractTemplate.current().render(obj.story, obj.get_contract_type_display())

@@ -20,7 +20,7 @@ from apps.editorial.models import ContractApplication
 from apps.engagement.models import Review, ReviewReply
 from apps.users.models import User
 from apps.wallet.models import AuthorEarning, Payout, PayoutMethod
-from apps.wallet.services import (WithdrawalError, author_status, place_withdrawal,
+from apps.wallet.services import (WithdrawalError, author_status, place_withdrawal, save_payout_method,
                                   withdrawal_rules)
 
 from ..forms import LANGUAGES, ChapterForm, PayoutForm, StoryBasicsForm, StoryDetailsForm, WithdrawalForm
@@ -88,6 +88,7 @@ def stories(request):
             'application': app,
             'app_view': app.author_view() if app else None,
             'reapply_at': s.contract_cooldown_until,
+            'ptr_pending': s.pay_to_read_applications.filter(status='pending').exists(),
         })
     return render(request, 'dashboard/author/stories.html', {'cards': cards})
 
@@ -339,11 +340,15 @@ def signing(request, pk):
                 messages.error(request, 'Tick the box to accept the contract terms.')
             else:
                 editorial.sign(app)
-                messages.success(request, f'"{story.display_title}" is signed and now visible in the app 🎉')
+                messages.success(request, f'"{story.display_title}" is signed 🎉 The Chief Editor will publish it to '
+                                          'the app.')
         return redirect('dashboard:author_signing', story.pk)
     completion = story.completion_applications.first()
+    from apps.editorial.models import ContractTemplate
+    app = story.applications.first()
     return render(request, 'dashboard/author/signing.html', {
-        'story': story, 'app': story.applications.first(), 'published': published,
+        'story': story, 'app': app, 'published': published,
+        'contract_text': ContractTemplate.current().render(story, app.get_contract_type_display() if app else ''),
         'completion': completion,
         'completion_open': completion and completion.status in ('pending', 'recommended'),
         'min_words': settings.BONOVELA['CONTRACT_MIN_WORDS'],
@@ -443,39 +448,74 @@ def comments(request):
 
 
 @author_area
-def income(request):
+def _month_arg(request):
     today = timezone.localdate()
     try:
         y, m = (int(x) for x in request.GET.get('month', today.strftime('%Y-%m')).split('-'))
-        month = date(y, m, 1)
+        return date(y, m, 1)
     except ValueError:
-        month = today.replace(day=1)
-    earnings = AuthorEarning.objects.filter(author=request.user)
-    in_month = earnings.filter(created_at__year=month.year, created_at__month=month.month)
+        return today.replace(day=1)
+
+
+def income(request):
+    """Income: this month's approved earnings per section, Carry over,
+    Available to withdraw (and what's pending) and Withdrawal history."""
+    from apps.wallet.income import balances
+    today = timezone.localdate()
+    month = _month_arg(request)
+    approved = AuthorEarning.objects.filter(author=request.user, status=AuthorEarning.STATUS_APPROVED)
+    in_month = approved.filter(period=month)
     totals = {k: 0 for k, _ in AuthorEarning.TYPE_CHOICES}
+    works = {k: set() for k, _ in AuthorEarning.TYPE_CHOICES}
     for e in in_month:
         totals[e.type] += e.amount_cents
+        works[e.type].add(e.story_id or f'x{e.pk}')
+    bal = balances(request.user)
     labels = dict(AuthorEarning.TYPE_CHOICES)
-    cards = [{'key': k, 'label': labels[k], 'cents': totals[k]} for k in AuthorEarning.INCOME_CARDS]
+    cards = [{'key': k, 'label': labels[k], 'cents': totals[k], 'works': len(works[k])}
+             for k in AuthorEarning.INCOME_CARDS if k != 'carry_over']
+    cards.append({'key': 'carry_over', 'label': labels['carry_over'], 'cents': bal['carry_over'], 'carry': True})
     rules = withdrawal_rules(request.user)
 
     payout = PayoutMethod.objects.filter(author=request.user).first()
     payout_form = PayoutForm(request.POST or None, instance=payout)
     if request.method == 'POST' and payout_form.is_valid():
-        obj = payout_form.save(commit=False)
-        obj.author = request.user
-        obj.save()
-        messages.success(request, 'Payment info saved.')
-        return redirect(request.get_full_path())
+        result = save_payout_method(request.user, payout_form.cleaned_data)
+        messages.success(request, {'saved': 'Payment info saved.', 'unchanged': 'Nothing changed.',
+                                   'pending': 'Your new payment details were sent for approval. Payments go to your '
+                                              'current account until they are approved.'}[result])
+        return redirect(request.path)
 
     prev_m = (month - timedelta(days=1)).strftime('%Y-%m')
     next_first = (month.replace(day=28) + timedelta(days=4)).replace(day=1)
     return render(request, 'dashboard/author/income.html', {
-        'month': month, 'cards': cards, 'month_total': sum(totals.values()),
-        'total': sum(e.amount_cents for e in earnings), 'payout': payout, 'payout_form': payout_form,
+        'month': month, 'cards': cards, 'month_total': sum(totals[k] for k in AuthorEarning.MONTHLY_TYPES),
+        'total': bal['total'], 'bal': bal, 'payout': payout, 'payout_form': payout_form,
         'prev_month': prev_m, 'next_month': next_first.strftime('%Y-%m') if next_first <= today.replace(day=1) else None,
-        'recent': in_month[:20], 'rules': rules,
+        'recent': in_month.select_related('story')[:20], 'rules': rules,
         'history_n': Payout.objects.filter(author=request.user).exclude(status=Payout.STATUS_REJECTED).count(),
+    })
+
+
+@author_area
+def income_detail(request, kind):
+    """Tap a section: every book that earned in the month, with its amount."""
+    labels = dict(AuthorEarning.TYPE_CHOICES)
+    if kind not in labels or kind == 'carry_over':
+        raise Http404
+    month = _month_arg(request)
+    rows = (AuthorEarning.objects.filter(author=request.user, type=kind, period=month,
+                                         status=AuthorEarning.STATUS_APPROVED).select_related('story'))
+    books, others = {}, []
+    for e in rows:
+        if e.story_id:
+            b = books.setdefault(e.story_id, {'story': e.story, 'cents': 0, 'length': e.story_length})
+            b['cents'] += e.amount_cents
+        else:
+            others.append(e)
+    return render(request, 'dashboard/author/income_detail.html', {
+        'kind': kind, 'label': labels[kind], 'month': month, 'books': list(books.values()), 'others': others,
+        'total': sum(e.amount_cents for e in rows),
     })
 
 
@@ -490,11 +530,13 @@ def withdraw(request):
         initial.update(email=request.user.email, account_name=request.user.get_full_name())
     form = WithdrawalForm(request.POST or None, instance=method or PayoutMethod(author=request.user), initial=initial)
     if request.method == 'POST' and form.is_valid():
-        saved = form.save(commit=False)
-        saved.author = request.user
-        saved.save()
+        result = save_payout_method(request.user, form.cleaned_data)
+        if result == 'pending':
+            messages.info(request, 'Your new payment details were sent for approval; this withdrawal goes to your '
+                                   'current account.')
         try:
-            p = place_withdrawal(request.user, int(form.cleaned_data['amount'] * 100), saved)
+            p = place_withdrawal(request.user, int(form.cleaned_data['amount'] * 100),
+                                 PayoutMethod.objects.filter(author=request.user).first())
         except WithdrawalError as e:
             form.add_error('amount', str(e))
         else:
@@ -512,3 +554,48 @@ def withdrawals(request):
         p.author_status = author_status(p)
     current = next((p for p in rows if str(p.pk) == request.GET.get('id')), None)
     return render(request, 'dashboard/author/withdrawals.html', {'rows': rows, 'current': current})
+
+
+@author_area
+def pay_to_read(request, pk):
+    """Pay-to-Read Application: choose the first chapter to lock; the
+    editor reviews it. Opens at 30,000 published words on a signed book."""
+    from apps.editorial.models import PayToReadApplication
+
+    story = _story(request, pk)
+    if request.method == 'POST':
+        chapter = request.POST.get('chapter', '')
+        try:
+            editorial.apply_pay_to_read(story, int(chapter) if chapter.isdigit() else 0,
+                                        request.POST.get('message', '').strip())
+            messages.success(request, 'Pay-to-Read application sent. Status: Pending Review.')
+        except ValidationError as e:
+            messages.error(request, e.messages[0])
+        return redirect('dashboard:author_pay_to_read', story.pk)
+    return render(request, 'dashboard/author/pay_to_read.html', {
+        'story': story, 'apps': PayToReadApplication.objects.filter(story=story).select_related('decided_by'),
+        'chapters': story.published_chapters().order_by('number').values_list('number', 'title'),
+        'min_words': settings.BONOVELA['PAY_TO_READ_MIN_WORDS'],
+    })
+
+
+@author_area
+def appeal(request):
+    """Appeal a decision (a rejected book, a removal…) to the Chief Editor."""
+    from apps.editorial.models import AuthorAppeal
+    stories = Story.objects.filter(author=request.user)
+    if request.method == 'POST':
+        subject = request.POST.get('subject', '').strip()
+        message = request.POST.get('message', '').strip()
+        if not subject or len(message) < 20:
+            messages.error(request, 'Add a subject and explain the decision you are appealing (20+ characters).')
+        else:
+            AuthorAppeal.objects.create(author=request.user, subject=subject[:120], message=message[:5000],
+                                        story=stories.filter(pk=request.POST.get('story') or 0).first())
+            messages.success(request, 'Appeal sent. The Chief Editor will review it.')
+            return redirect('dashboard:author_appeal')
+    return render(request, 'dashboard/author/appeal.html', {
+        'stories': stories, 'appeals': AuthorAppeal.objects.filter(author=request.user),
+        'story_id': request.GET.get('story', ''),
+    })
+

@@ -68,7 +68,7 @@ def _csv(name, header, rows):
 
 def _balances():
     """One row per payee with earnings: earned, paid, pending, balance."""
-    earned = dict(AuthorEarning.objects.values_list('author').annotate(t=Sum('amount_cents')))
+    earned = dict(AuthorEarning.objects.filter(status='approved').values_list('author').annotate(t=Sum('amount_cents')))
     paid = dict(Payout.objects.filter(status=Payout.STATUS_PAID).values_list('author').annotate(t=Sum('amount_cents')))
     pending = dict(Payout.objects.filter(status__in=Payout.OPEN + (Payout.STATUS_APPROVED,)).values_list('author')
                    .annotate(t=Sum('amount_cents')))
@@ -118,6 +118,10 @@ def payout_generate(request):
     today = timezone.localdate()
     made = 0
     for r in _balances():
+        # Authors withdraw from Available to Withdraw themselves (Author
+        # Income Update); this creates requests for staff and creators.
+        if r['user'].role in ('author', 'reader'):
+            continue
         if r['balance'] >= minimum and r['method']:
             m = r['method']
             staff = r['user'].role in ('se', 'ce', 'marketing', 'finance')
@@ -378,7 +382,7 @@ def revenue(request):
     span = {'created_at__date__gte': month, 'created_at__date__lt': end}
     gross = _cents(Transaction.objects.filter(kind__in=PAID_KINDS, status='succeeded', **span))
     fees = int(gross * fs.processing_fee_pct / 100)
-    earnings = AuthorEarning.objects.filter(type__in=AUTHOR_INCOME, **span)
+    earnings = AuthorEarning.objects.exclude(status='rejected').filter(type__in=AUTHOR_INCOME, **span)
     to_authors = _cents(earnings, 'amount_cents')
     net = gross - fees
     to_bonovela = net - to_authors
@@ -456,7 +460,7 @@ def search(request):
             roles = [r for r, t in ((User.ROLE_AUTHOR, 'Author'), (User.ROLE_READER, 'Reader')) if want(t)]
             for u in User.objects.filter(uq, role__in=roles)[:15]:
                 if u.role == User.ROLE_AUTHOR:
-                    earned = _cents(AuthorEarning.objects.filter(author=u), 'amount_cents')
+                    earned = _cents(AuthorEarning.objects.exclude(status='rejected').filter(author=u), 'amount_cents')
                     results.append({'type': 'Author', 'title': u.display_name, 'when': u.date_joined, 'cents': earned,
                                     'meta': f'AU-{u.pk} · {u.email} · {u.stories.count()} titles · lifetime earnings'})
                 else:
@@ -494,7 +498,7 @@ def _pl(start, end):
     span = {'created_at__date__gte': start, 'created_at__date__lt': end}
     revenue_ = _cents(Transaction.objects.filter(kind__in=PAID_KINDS, status='succeeded', **span))
     fees = int(revenue_ * FinanceSettings.current().processing_fee_pct / 100)
-    authors = _cents(AuthorEarning.objects.filter(**span), 'amount_cents')
+    authors = _cents(AuthorEarning.objects.exclude(status='rejected').filter(**span), 'amount_cents')
     expenses_ = _cents(Expense.objects.filter(date__gte=start, date__lt=end), 'amount_cents')
     return {'revenue': revenue_, 'fees': fees, 'authors': authors, 'expenses': expenses_,
             'profit': revenue_ - fees - authors - expenses_}
@@ -544,7 +548,7 @@ def reports(request):
         rows = []
         for u in User.objects.filter(earnings__created_at__date__gte=q_start,
                                      earnings__created_at__date__lt=q_end).distinct():
-            earned = _cents(AuthorEarning.objects.filter(author=u, created_at__date__gte=q_start,
+            earned = _cents(AuthorEarning.objects.exclude(status='rejected').filter(author=u, created_at__date__gte=q_start,
                                                          created_at__date__lt=q_end), 'amount_cents')
             paid = _cents(Payout.objects.filter(author=u, status=Payout.STATUS_PAID, paid_at__date__gte=q_start,
                                                 paid_at__date__lt=q_end), 'amount_cents')

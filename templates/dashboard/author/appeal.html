@@ -1,0 +1,14 @@
+{% extends 'dashboard/base.html' %}
+{% block title %}Appeal a decision{% endblock %}
+{% block heading %}Appeal a decision{% endblock %}
+{% block content_class %}narrow{% endblock %}
+{% block content %}
+<form class="card" method="post">{% csrf_token %}
+  <p class="small muted" style="margin-bottom:12px">If you believe an editorial decision about your book or account was wrong, explain why. Include your Book ID and any drafts or evidence that help.</p>
+  <label class="field"><span class="label">Book (optional)</span><select name="story"><option value="">—</option>{% for s in stories %}<option value="{{ s.pk }}" {% if s.pk|stringformat:'s' == story_id %}selected{% endif %}>{{ s.display_title }} · {{ s.book_code }}</option>{% endfor %}</select></label>
+  <label class="field"><span class="label">Subject</span><input type="text" name="subject" maxlength="120" required></label>
+  <label class="field"><span class="label">Your appeal</span><textarea name="message" rows="6" required></textarea></label>
+  <button class="btn block">Send appeal</button>
+</form>
+{% if appeals %}<div class="section-title"><h2>Your appeals</h2></div><div class="card flush">{% for a in appeals %}<div class="list-item" style="align-items:flex-start"><div class="grow"><b>{{ a.subject }}</b><div class="hint">{{ a.created_at|date:"M d, Y" }}{% if a.story %} · {{ a.story.display_title }}{% endif %}</div>{% if a.response %}<p class="small" style="margin-top:4px">{{ a.response }}</p>{% endif %}</div><span class="chip {% if a.status == 'upheld' %}green{% elif a.status == 'dismissed' %}grey{% else %}gold{% endif %}">{{ a.get_status_display }}</span></div>{% endfor %}</div>{% endif %}
+{% endblock %}

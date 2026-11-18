@@ -1,0 +1,17 @@
+{% extends 'dashboard/base.html' %}{% load bv %}
+{% block title %}Discovery Intelligence{% endblock %}
+{% block heading %}Discovery Intelligence{% endblock %}
+{% block content %}
+<div class="grid cols-3 stack-sm" style="margin-bottom:12px">
+  <div class="card"><div class="hint">Readers per promoted book (30 days)</div><div style="font-size:26px;font-weight:700">{{ s.promoted_readers }}</div></div>
+  <div class="card"><div class="hint">Readers per shelved book</div><div style="font-size:26px;font-weight:700">{{ s.shelved_readers }}</div></div>
+  <div class="card"><div class="hint">Readers per book with no exposure</div><div style="font-size:26px;font-weight:700">{{ s.other_readers }}</div></div>
+</div>
+{% if s.unexposed %}<div class="section-title"><h2>Doing well without promotion</h2></div><div class="notice" style="margin-bottom:8px">Books readers find on their own — good candidates for a shelf or promotion.</div>
+<div class="card flush">{% for r in s.unexposed %}<div class="list-item">{% cover r.b 36 %}<div class="grow"><b>{{ r.b.display_title }}</b><div class="hint">{{ r.b.book_code }} · {{ r.b.genre.name|default:'' }}</div></div><span class="hint">{{ r.readers }} readers · {{ r.coins }} coins</span></div>{% endfor %}</div>{% endif %}
+<div class="section-title"><h2>Top books (last 30 days)</h2></div>
+<div class="table-wrap card flush"><table class="table small"><tr><th>Book</th><th>Genre</th><th>Readers</th><th>Coins spent</th><th>Exposure</th></tr>
+  {% for r in rows %}<tr><td>{{ r.b.display_title }} <span class="hint">{{ r.b.book_code }}</span></td><td>{{ r.b.genre.name|default:'—' }}</td><td>{{ r.readers }}</td><td>{{ r.coins }}</td><td>{% if r.promoted %}<span class="chip pink">Promoted</span>{% endif %}{% if r.shelved %}<span class="chip gold">Shelf</span>{% endif %}</td></tr>{% empty %}<tr><td colspan="5" class="muted" style="text-align:center;padding:20px">No reading yet.</td></tr>{% endfor %}</table></div>
+<div class="section-title"><h2>By genre</h2></div>
+<div class="table-wrap card flush"><table class="table small"><tr><th>Genre</th><th>Books in the app</th><th>Readers</th><th>Coins spent</th></tr>{% for name, g in genres %}<tr><td>{{ name }}</td><td>{{ g.books }}</td><td>{{ g.readers }}</td><td>{{ g.coins }}</td></tr>{% endfor %}</table></div>
+{% endblock %}

@@ -2,7 +2,7 @@ from django.contrib.auth.views import LogoutView
 from django.urls import path
 
 # Drama Studio is closed for now: re-add `drama` here and uncomment its routes below.
-from .views import admin, author, auth, editorial, finance, finance_records as fin, marketing, marketing_promo as promo
+from .views import admin, author, auth, editorial, editorial_ce as ce, finance, finance_income, finance_records as fin, marketing, marketing_promo as promo
 from .views import editorial_people as people
 from .views import editorial_quality as quality
 
@@ -16,6 +16,7 @@ urlpatterns = [
     # Author Center
     path('author/become/', author.become_author, name='become_author'),
     path('author/policy/', author.policy, name='author_policy'),
+    path('author/appeal/', author.appeal, name='author_appeal'),
     path('author/', author.stories, name='author_stories'),
     path('author/stories/new/', author.story_info, name='author_story_new'),
     path('author/stories/<int:pk>/info/', author.story_info, name='author_story_info'),
@@ -27,6 +28,7 @@ urlpatterns = [
          name='author_chapter_action'),
     path('author/stories/<int:pk>/stats/', author.stats, name='author_stats'),
     path('author/stories/<int:pk>/signing/', author.signing, name='author_signing'),
+    path('author/stories/<int:pk>/pay-to-read/', author.pay_to_read, name='author_pay_to_read'),
     path('author/stories/<int:pk>/contract/', author.contract_application, name='author_contract'),
     path('author/discover/', author.discover, name='author_discover'),
     path('author/calendar/', author.update_calendar, name='author_calendar'),
@@ -34,6 +36,7 @@ urlpatterns = [
     path('author/income/', author.income, name='author_income'),
     path('author/income/withdraw/', author.withdraw, name='author_withdraw'),
     path('author/income/withdrawals/', author.withdrawals, name='author_withdrawals'),
+    path('author/income/<str:kind>/', author.income_detail, name='author_income_detail'),
 
     # Editorial (Editor / Senior Editor / Chief Editor)
     path('editorial/', editorial.home, name='editorial_home'),
@@ -59,6 +62,16 @@ urlpatterns = [
     path('editorial/escalations/', people.escalations, name='editorial_escalations'),
     path('editorial/messages/', people.team_messages, name='editorial_messages'),
     path('editorial/reports/', people.reports, name='editorial_reports'),
+    path('editorial/pay-to-read/', editorial.pay_to_read, name='editorial_pay_to_read'),
+    # Chief Editor workspace
+    path('editorial/contracts/', ce.contracts, name='editorial_contracts'),
+    path('editorial/publishing/', ce.publishing, name='editorial_publishing'),
+    path('editorial/payment-changes/', ce.payment_changes, name='editorial_payment_changes'),
+    path('editorial/duplicate-accounts/', ce.duplicate_accounts, name='editorial_duplicate_accounts'),
+    path('editorial/ip-monitoring/', ce.ip_monitoring, name='editorial_ip'),
+    path('editorial/complaints/', ce.complaints, name='editorial_complaints'),
+    path('editorial/discovery-intelligence/', ce.discovery_intelligence, name='editorial_discovery'),
+    path('editorial/restore/', ce.restore, name='editorial_restore'),
 
     # Drama Studio (drama creators) — closed for now.
     # path('drama-studio/', drama.dramas, name='drama_list'),
@@ -122,6 +135,7 @@ urlpatterns = [
     path('finance/approvals/', fin.approvals, name='finance_approvals'),
     path('finance/approvals/<int:pk>/', fin.request_action, name='finance_request_action'),
     path('finance/withdrawals/', fin.withdrawals, name='finance_withdrawals'),
+    path('finance/income/', finance_income.income_update, name='finance_income'),
     path('finance/balances/', finance.balances, name='finance_balances'),
     path('finance/payouts/', finance.payouts, name='finance_payouts'),
     path('finance/payouts/generate/', finance.payout_generate, name='finance_payout_generate'),

@@ -148,7 +148,10 @@ def _banner(request, b):
         # Book promotions without artwork show the book's cover.
         'id': b.id, 'title': b.title, 'subtitle': b.subtitle,
         'image_url': _abs(request, b.image) or (_abs(request, b.story.cover) if b.story_id else ''),
-        'label': b.label, 'cover_only': not b.image,
+        'label': b.label, 'cover_only': not b.image and not b.design,
+        # Banner builder design (empty for plain image banners); the app draws it.
+        'design': b.design or {},
+        'cover_url': _abs(request, b.story.cover) if b.story_id else '',
         'color_index': b.color_index, 'target': b.target, 'story_id': b.story_id, 'drama_id': b.drama_id,
         'url': b.url,
     }

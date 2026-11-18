@@ -196,6 +196,7 @@ class Command(BaseCommand):
                     status=Story.STATUS_COMPLETED if completed else Story.STATUS_ONGOING,
                     is_short=short,
                     is_signed=True,
+                    in_app=True,
                     signed_at=now,
                     views=b.get('views', 10000),
                 ),
