@@ -447,7 +447,6 @@ def comments(request):
     })
 
 
-@author_area
 def _month_arg(request):
     today = timezone.localdate()
     try:
@@ -457,6 +456,7 @@ def _month_arg(request):
         return today.replace(day=1)
 
 
+@author_area
 def income(request):
     """Income: this month's approved earnings per section, Carry over,
     Available to withdraw (and what's pending) and Withdrawal history."""

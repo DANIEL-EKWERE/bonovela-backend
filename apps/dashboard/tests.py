@@ -1527,3 +1527,12 @@ class NewDashboardTests(TestCase):
         self.assertEqual((row['design']['cover']['w'], row['story_id']), (46, story.pk))
         self.assertIn('cover_url', row)
 
+    def test_signed_out_visitors_are_sent_to_login(self):
+        self.client.logout()
+        for url in ('/author/', '/author/income/', '/author/income/profit_share/', '/author/income/withdraw/',
+                    '/author/income/withdrawals/', '/author/appeal/', '/finance/', '/finance/income/',
+                    '/marketing/', '/editorial/', '/editorial/contracts/'):
+            r = self.client.get(url)
+            self.assertEqual(r.status_code, 302, url)
+            self.assertIn('/login/', r.url, url)
+
