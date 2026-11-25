@@ -4,9 +4,12 @@ When an author applies for a contract, every earlier application that was
 rejected (or sent back for revision) is checked against the new one:
 
     same book       the same story applying again
-    same author     the same account, with a different book
-    shared IP       a different account that used the same IP address
     similar text    the opening chapters or title match another rejected book
+
+A different book is only flagged when its title or opening chapters match;
+"same author account" and "shared IP" are then shown as supporting details
+(a new, different book from the same author is not a resubmission).
+Internal and private IPs (proxies, 127.0.0.1) never count as shared.
 
 Matches are stored on the new application (prior_flag / prior_matches) so the
 editor dashboard can flag it and show the details.
@@ -37,11 +40,20 @@ def _opening(story):
     return similarity._distinctive(similarity.shingles(text), idx)
 
 
+def _public(ip):
+    import ipaddress
+    try:
+        a = ipaddress.ip_address(ip)
+    except ValueError:
+        return False
+    return not (a.is_private or a.is_loopback or a.is_link_local or a.is_reserved or a.is_unspecified)
+
+
 def _ips(user, extra=None):
     ips = set(IPLog.objects.filter(user=user).values_list('ip', flat=True))
     if extra:
         ips.add(extra)
-    return ips
+    return {ip for ip in ips if _public(ip)}
 
 
 def senior_of(editor):
@@ -67,15 +79,15 @@ def find_prior(app):
     current_se = senior_of(story.editor)
     out = []
     for old in earlier:
-        reasons = []
+        reasons, supporting = [], []
         if old.story_id == story.pk:
             reasons.append({'kind': 'same_book', 'label': 'Same book'})
         elif old.story.author_id == author.pk:
-            reasons.append({'kind': 'same_author', 'label': 'Same author account'})
+            supporting.append({'kind': 'same_author', 'label': 'Same author account'})
         else:
             shared = my_ips & _ips(old.story.author, old.submitted_ip)
             if shared:
-                reasons.append({'kind': 'shared_ip', 'label': f'Shared IP address ({", ".join(sorted(shared)[:3])})'})
+                supporting.append({'kind': 'shared_ip', 'label': f'Shared IP address ({", ".join(sorted(shared)[:3])})'})
         if old.story_id != story.pk:
             if my_title and _norm_title(old.story.title) == my_title:
                 reasons.append({'kind': 'same_title', 'label': 'Same title'})
@@ -87,7 +99,8 @@ def find_prior(app):
                 if pct >= TEXT_MATCH_PCT:
                     reasons.append({'kind': 'similar_text', 'label': f'Opening chapters {pct}% the same', 'pct': pct})
         if not reasons:
-            continue
+            continue  # same account or IP alone: a different book, not a resubmission
+        reasons += supporting
         rejecter = old.rejected_by or old.se
         old_se = senior_of(rejecter)
         out.append({

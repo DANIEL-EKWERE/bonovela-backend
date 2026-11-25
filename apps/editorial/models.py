@@ -42,6 +42,7 @@ class ContractApplication(models.Model):
     STATUS_REVISION = 'revision'  # sent back to the author
     STATUS_SE_APPROVED = 'se_approved'  # waiting for the CE to send the contract
     STATUS_CONTRACT_SENT = 'contract_sent'  # waiting for the author's signature
+    STATUS_AUTHOR_SIGNED = 'author_signed'  # author signed; waiting for Bonovela's signature
     STATUS_SIGNED = 'signed'
     STATUS_REJECTED = 'rejected'
     STATUS_CHOICES = [
@@ -49,10 +50,11 @@ class ContractApplication(models.Model):
         (STATUS_REVISION, 'Needs revision'),
         (STATUS_SE_APPROVED, 'Approved'),
         (STATUS_CONTRACT_SENT, 'Contract sent'),
+        (STATUS_AUTHOR_SIGNED, 'Signed by author'),
         (STATUS_SIGNED, 'Signed'),
         (STATUS_REJECTED, 'Rejected'),
     ]
-    OPEN_STATUSES = (STATUS_PENDING, STATUS_SE_APPROVED, STATUS_CONTRACT_SENT)
+    OPEN_STATUSES = (STATUS_PENDING, STATUS_SE_APPROVED, STATUS_CONTRACT_SENT, STATUS_AUTHOR_SIGNED)
 
     CONTRACT_CHOICES = [('exclusive', 'Exclusive'), ('non_exclusive', 'Non-exclusive')]
 
@@ -101,6 +103,18 @@ class ContractApplication(models.Model):
     character_details = models.TextField(blank=True)
     outline = models.TextField(blank=True)
 
+    # Step 1: the editor's confirmation email ([Info] button).
+    info_sent_at = models.DateTimeField(null=True, blank=True)
+    info_sent_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    # Step 3: electronic signatures — the author's, then Bonovela's.
+    author_signature_name = models.CharField(max_length=180, blank=True)
+    author_signature_image = models.TextField(blank=True, help_text='Drawn signature (PNG data URL)')
+    author_signed_at = models.DateTimeField(null=True, blank=True)
+    author_signed_ip = models.GenericIPAddressField(null=True, blank=True)
+    platform_signature_name = models.CharField(max_length=180, blank=True)
+    platform_signed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    platform_signed_at = models.DateTimeField(null=True, blank=True)
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -109,6 +123,17 @@ class ContractApplication(models.Model):
 
     def __str__(self):
         return f'{self.story} · {self.get_status_display()}'
+
+    @property
+    def signer_name(self):
+        """The real name the author must sign with."""
+        author = self.story.author
+        return self.legal_name or author.get_full_name() or author.display_name
+
+    def contract_parts(self):
+        """The contract as [(kind, text)] where kind is 'text', 'author' or
+        'bonovela' (a signature place, filled once signed)."""
+        return ContractTemplate.current().parts(self)
 
     @property
     def legal_name(self):
@@ -120,12 +145,10 @@ class ContractApplication(models.Model):
 
     # Shown to the author when an editor rejects without writing a reason.
     AUTO_REJECTION = (
-        'Unfortunately, your book has not been approved at this time.\n\n'
-        'We are looking for stories with compelling pacing, exciting plot twists, captivating cliffhangers, '
-        'fascinating characters, meaningful conflicts, and originality.\n\n'
-        'Please revise your manuscript and feel free to reapply for a contract once the necessary improvements '
-        'have been made.\n\n'
-        'Thank you for your interest in Bonovela!'
+        'Thank you for submitting your manuscript to Bonovela. Unfortunately, it does not meet our publishing '
+        'standards at this time. We encourage you to improve its pacing, plot development, characterisation, '
+        'conflicts, and originality before resubmitting. We appreciate your interest and look forward to reviewing '
+        'your revised manuscript.'
     )
     REAPPLY_AFTER = timedelta(hours=24)
     UNDER_REVIEW = ('Your book is under review. If you did not receive the feedback in 30 business days, '
@@ -148,9 +171,11 @@ class ContractApplication(models.Model):
             return {'kind': 'revision', 'label': 'Needs revision', 'title': 'Revision requested:',
                     'message': self.feedback or 'Please revise your book and apply again.'}
         if self.status == self.STATUS_CONTRACT_SENT:
-            return {'kind': 'contract_sent', 'label': 'Contract Approved', 'title': 'Contract Sent to Your email',
-                    'message': 'Congratulations, your contract has been approved! Review and sign it to publish '
-                               'your book on Bonovela.'}
+            return {'kind': 'contract_sent', 'label': 'Contract Approved', 'title': 'Contract sent to your email',
+                    'message': ''}
+        if self.status == self.STATUS_AUTHOR_SIGNED:
+            return {'kind': 'author_signed', 'label': 'Contract Approved', 'title': 'You signed the contract',
+                    'message': 'Bonovela will add its signature shortly.'}
         if self.status == self.STATUS_SIGNED:
             return {'kind': 'signed', 'label': 'Signed', 'title': 'Signed', 'message': ''}
         return {'kind': 'rejected', 'label': 'Rejected', 'title': 'Application Closed:',
@@ -485,7 +510,9 @@ class PayToReadApplication(models.Model):
 class ContractTemplate(models.Model):
     """The publishing contract authors sign. Only the Chief Editor and
     admins change it; every save is a new version (the old ones are kept).
-    Placeholders: {book_title} {author_name} {pen_name} {contract_type} {date}."""
+    Placeholders: {book_title} {author_name} {pen_name} {contract_type} {date}
+    and the signature places {author_signature} {bonovela_signature}
+    {author_signed_date} {bonovela_signed_date} {bonovela_signer}."""
 
     body = models.TextField()
     version = models.PositiveIntegerField(default=1)
@@ -503,6 +530,12 @@ class ContractTemplate(models.Model):
         '3. Updates. Ongoing works should be updated regularly.\n\n'
         '4. Content. The work is original and follows the Bonovela Author Policy.\n\n'
         '5. Pay-to-Read. Chapters become paid only after the Author applies and an editor approves them.'
+        + '{signatures}'
+    )
+    SIGNATURES = (
+        '\n\nSIGNATURES\n\n'
+        'Signed by the Author:\n{author_signature}\nName: {author_name}\nDate: {author_signed_date}\n\n'
+        'Signed for Bonovela:\n{bonovela_signature}\nName: {bonovela_signer}\nDate: {bonovela_signed_date}'
     )
 
     class Meta:
@@ -512,16 +545,48 @@ class ContractTemplate(models.Model):
     def current(cls):
         return cls.objects.first() or cls.objects.create(body=cls.DEFAULT)
 
-    def render(self, story, contract_type='Non-exclusive'):
+    def _values(self, story, contract_type, app=None):
         from django.utils import timezone as tz
         author = story.author
-        values = {'book_title': story.display_title, 'author_name': author.get_full_name() or author.display_name,
-                  'pen_name': author.pen_name or author.display_name, 'contract_type': contract_type.lower(),
-                  'date': tz.localdate().strftime('%d %B %Y')}
-        text = self.body
-        for k, v in values.items():
+        day = lambda d: tz.localtime(d).strftime('%d %B %Y') if d else '________________'  # noqa: E731
+        return {'book_title': story.display_title,
+                'author_name': app.signer_name if app else (author.get_full_name() or author.display_name),
+                'pen_name': author.pen_name or author.display_name, 'contract_type': contract_type.lower(),
+                'date': tz.localdate().strftime('%d %B %Y'),
+                'author_signed_date': day(app and app.author_signed_at),
+                'bonovela_signed_date': day(app and app.platform_signed_at),
+                'bonovela_signer': (app and app.platform_signature_name) or 'Bonovela Editorial'}
+
+    def _body(self):
+        body = self.body.replace('{signatures}', self.SIGNATURES)
+        if '{author_signature}' not in body:  # older templates: add the signature block
+            body += self.SIGNATURES
+        return body
+
+    def render(self, story, contract_type='Non-exclusive', app=None):
+        """Plain text; signature places read [Signed: Name] once signed."""
+        text = self._body()
+        for k, v in self._values(story, contract_type, app).items():
             text = text.replace('{' + k + '}', v)
-        return text
+        author = (app and app.author_signed_at and f'[Signed electronically: {app.author_signature_name}]')
+        bonovela = (app and app.platform_signed_at and f'[Signed electronically: {app.platform_signature_name}]')
+        return (text.replace('{author_signature}', author or '________________')
+                .replace('{bonovela_signature}', bonovela or '________________'))
+
+    def parts(self, app):
+        import re
+        values = self._values(app.story, app.get_contract_type_display(), app)
+        out = []
+        for piece in re.split(r'(\{author_signature\}|\{bonovela_signature\})', self._body()):
+            if piece == '{author_signature}':
+                out.append(('author', ''))
+            elif piece == '{bonovela_signature}':
+                out.append(('bonovela', ''))
+            elif piece:
+                for k, v in values.items():
+                    piece = piece.replace('{' + k + '}', v)
+                out.append(('text', piece))
+        return out
 
 
 class AuthorAppeal(models.Model):

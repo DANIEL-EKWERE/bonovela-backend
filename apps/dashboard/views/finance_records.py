@@ -20,6 +20,7 @@ from apps.engagement.models import InboxMessage
 from apps.finance import ledger
 from apps.finance.models import AuditEntry, FinanceSettings, VerifiedBalance
 from apps.finance.services import audit, money, require
+from apps.users.ids import user_q
 from apps.users.models import User
 from apps.wallet.models import AuthorEarning, Payout, PayoutEvent, PayoutMethod, Transaction
 
@@ -109,11 +110,9 @@ def _filtered(request, qs, kinds=None):
         qs = qs.filter(status=status)
     if q:
         code = q.upper()
-        cond = Q(reference__icontains=q) | Q(title__icontains=q) | Q(user__email__iexact=q)
+        cond = Q(reference__icontains=q) | Q(title__icontains=q) | user_q(q, 'user__')
         if code.startswith('TXN-') and code[4:].isdigit():
             cond |= Q(pk=int(code[4:]))
-        if code.startswith('RD-') and code[3:].isdigit():
-            cond |= Q(user_id=int(code[3:]) - 100000)
         qs = qs.filter(cond)
     return qs, {'category': cat, 'status': status, 'q': q}
 
@@ -186,11 +185,7 @@ def readers(request):
     qs = _readers_qs()
     q = request.GET.get('q', '').strip()
     if q:
-        code = q.upper()
-        cond = Q(email__icontains=q) | Q(username__icontains=q)
-        if code.startswith('RD-') and code[3:].isdigit():
-            cond |= Q(pk=int(code[3:]) - 100000)
-        qs = qs.filter(cond)
+        qs = qs.filter(user_q(q))
     page = Paginator(qs.order_by('-spent', '-last'), 25).get_page(request.GET.get('page'))
     for u in page:
         u.code = reader_code(u)
@@ -246,11 +241,7 @@ def authors(request):
     qs = User.objects.filter(Q(role=User.ROLE_AUTHOR) | Q(earnings__isnull=False)).exclude(
         role__in=ledger.STAFF_ROLES).distinct()
     if q:
-        code = q.upper()
-        cond = Q(email__icontains=q) | Q(pen_name__icontains=q)
-        if code.startswith('AUT-') and code[4:].isdigit():
-            cond |= Q(pk=int(code[4:]))
-        qs = qs.filter(cond)
+        qs = qs.filter(user_q(q))
     qs = qs.annotate(books=Count('stories', filter=Q(stories__is_removed=False), distinct=True))
     page = Paginator(qs.order_by('pen_name', 'email'), 25).get_page(request.GET.get('page'))
     rows = []

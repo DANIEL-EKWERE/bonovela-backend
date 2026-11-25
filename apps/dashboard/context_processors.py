@@ -25,6 +25,7 @@ EDITORIAL_NAV = [
     ('dashboard:editorial_recruitment', 'user-plus', 'Recruitment', {}),
     ('dashboard:editorial_shelves', 'books', 'App Shelves', {'levels': 'se ce', 'hint': 'Curated shelves in the app and Short Stories', 'short': 'Shelves'}),
     ('dashboard:editorial_promotions', 'megaphone', 'Promotions', {'levels': 'se ce'}),
+    ('dashboard:editorial_chapter_edits', 'note-pencil', 'Chapter edits', {'levels': 'se ce', 'hint': 'Edits to signed books'}),
     ('dashboard:editorial_pay_to_read', 'lock-key', 'Pay-to-Read', {'levels': 'se ce', 'hint': 'Applications to lock chapters'}),
     ('dashboard:editorial_commission', 'coins', 'Commission', {}),
     ('dashboard:editorial_escalations', 'warning-octagon', 'Escalations', {}),

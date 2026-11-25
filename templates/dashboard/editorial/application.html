@@ -25,6 +25,12 @@
 
     {% if can_act %}
     <form class="card" method="post">{% csrf_token %}
+      <div class="row between"><h3>Step 1 · Confirmation email</h3>
+        <button class="btn sm outline" name="action" value="info" onclick="return confirm('Email the confirmation questions to {{ story.author.display_name|escapejs }}?')"><i class="ph ph-info"></i> Info</button></div>
+      <p class="hint" style="margin-top:6px">{% if app.info_sent_at %}Sent {{ app.info_sent_at|date:"M d, Y H:i" }} by {{ app.info_sent_by.display_name|default:'an editor' }}. You can send it again.{% else %}Emails the author the confirmation questions from noreply@bonovela.com in your name; their replies come to {{ request.user.email|default:'your email' }}.{% endif %}</p>
+      <details style="margin-top:6px"><summary class="small pink" style="cursor:pointer">Preview the email</summary><div class="small" style="white-space:pre-line;background:var(--surface);border-radius:10px;padding:12px;margin-top:6px">{{ info_message }}</div></details>
+    </form>
+    <form class="card" method="post">{% csrf_token %}
       <h3 style="margin-bottom:10px">Decision</h3>
       <label class="field"><span class="label">Feedback to the author</span><textarea name="feedback" rows="3" placeholder="What works, what to change…">{{ app.feedback }}</textarea></label>
       {% if app.status == 'pending' %}

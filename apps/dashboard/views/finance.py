@@ -20,6 +20,7 @@ from django.views.decorators.http import require_POST
 
 from apps.finance.models import AuditEntry, Expense, FinanceMember, FinanceSettings
 from apps.finance.services import audit, member_for, money, require
+from apps.users.ids import user_q
 from apps.users.models import User
 from apps.wallet.models import AuthorEarning, Payout, PayoutMethod, Transaction
 
@@ -445,7 +446,7 @@ def search(request):
             cents = None
         want = lambda t: kind in ('', t)  # noqa: E731
         if want('Transaction'):
-            tq = Q(title__icontains=q) | Q(user__email__icontains=q)
+            tq = Q(title__icontains=q) | user_q(q, 'user__')
             if _id_of(q, 'TX'):
                 tq |= Q(pk=_id_of(q, 'TX'))
             if cents:
@@ -454,7 +455,7 @@ def search(request):
                 results.append({'type': 'Transaction', 'title': t.title, 'when': t.created_at, 'cents': t.price_cents,
                                 'meta': f'TX-{t.pk} · {t.user.email} · {t.get_kind_display()}'})
         if want('Author') or want('Reader'):
-            uq = Q(email__icontains=q) | Q(pen_name__icontains=q) | Q(username__icontains=q)
+            uq = user_q(q)
             if _id_of(q, 'AU') or _id_of(q, 'R'):
                 uq |= Q(pk=_id_of(q, 'AU') or _id_of(q, 'R'))
             roles = [r for r, t in ((User.ROLE_AUTHOR, 'Author'), (User.ROLE_READER, 'Reader')) if want(t)]
@@ -468,7 +469,7 @@ def search(request):
                     results.append({'type': 'Reader', 'title': u.email, 'when': u.date_joined, 'cents': _cents(paid),
                                     'meta': f'R-{u.pk} · lifetime spend · {paid.count()} purchases'})
         if want('Payout'):
-            pq = Q(author__email__icontains=q) | Q(author__pen_name__icontains=q) | Q(reference__icontains=q)
+            pq = user_q(q, 'author__') | Q(reference__icontains=q)
             if _id_of(q, 'PO'):
                 pq |= Q(pk=_id_of(q, 'PO'))
             if cents:

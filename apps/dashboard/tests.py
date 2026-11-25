@@ -342,6 +342,19 @@ class EditorialDashboardTests(TestCase):
         self.client.post(url, {'action': 'ce_contract'})  # only the CE sends contracts
         self.app.refresh_from_db()
         self.assertEqual(self.app.status, ContractApplication.STATUS_PENDING)
+        # Step 1: the editor's [Info] email, in their name, replies to their email.
+        from django.core import mail
+        self.client.post(url, {'action': 'info'})
+        self.app.refresh_from_db()
+        self.assertEqual(self.app.info_sent_by, self.se)
+        info = mail.outbox[-1]
+        self.assertIn('via Bonovela <noreply@bonovela.com>', info.from_email)
+        self.assertEqual(info.reply_to, [self.se.email])
+        self.assertIn(f"I'm {self.se.get_full_name() or self.se.display_name}, your editor on Bonovela.", info.body)
+        self.assertIn('over 60k in a month', info.body)
+        from apps.engagement.models import InboxMessage
+        self.assertTrue(InboxMessage.objects.filter(user=self.story.author,
+                                                    title__startswith='About your Bonovela application').exists())
         self.client.post(url, {'action': 'se_approve', 'feedback': 'Strong hook'})
         self.app.refresh_from_db()
         self.assertEqual((self.app.status, self.app.se), (ContractApplication.STATUS_SE_APPROVED, self.se))
@@ -351,9 +364,31 @@ class EditorialDashboardTests(TestCase):
         self.assertEqual(self.app.signing_bonus_cents, 0)  # no signing bonus any more
         self.client.logout()
         self.client.force_login(self.story.author)
-        self.client.post(f'/author/stories/{self.story.pk}/signing/', {'action': 'sign', 'agree': 'on'})
+        url = f'/author/stories/{self.story.pk}/signing/'
+        self.assertContains(self.client.get(url), 'sig-slot sig-author')
+        self.client.post(url, {'action': 'sign', 'agree': 'on', 'signature_name': 'Somebody Else'})
+        self.app.refresh_from_db()
+        self.assertEqual(self.app.status, ContractApplication.STATUS_CONTRACT_SENT)  # must be the real name
+        name = self.app.signer_name
+        self.client.post(url, {'action': 'sign', 'agree': 'on', 'signature_name': f'  {name.upper()} ',
+                               'signature_image': 'data:image/png;base64,iVBORw0KGgo='})
+        self.app.refresh_from_db()
+        self.assertEqual((self.app.status, self.app.author_signature_name), (ContractApplication.STATUS_AUTHOR_SIGNED,
+                                                                             name.upper()))
+        self.story.refresh_from_db()
+        self.assertFalse(self.story.is_signed)  # waits for Bonovela's signature
+        self.assertFalse(self.story.can_delete)
+        ce = self.as_role('ce')
+        self.assertContains(self.client.get('/editorial/contracts/?tab=countersign'), self.story.display_title)
+        self.client.post('/editorial/contracts/', {'action': 'countersign', 'application': self.app.pk})
+        self.app.refresh_from_db()
         self.story.refresh_from_db()
         self.assertTrue(self.story.is_signed)
+        self.assertEqual(self.app.platform_signed_by, ce)
+        from apps.editorial.models import ContractTemplate
+        text = ContractTemplate.current().render(self.story, 'Exclusive', self.app)
+        self.assertIn(f'[Signed electronically: {name.upper()}]', text)
+        self.assertIn(f'[Signed electronically: {self.app.platform_signature_name}]', text)
 
     def test_assign_take_transfer_and_suspend_rules(self):
         from apps.editorial.models import Recommendation
@@ -532,6 +567,8 @@ class ResubmissionFlagTests(TestCase):
         c.post('/api/auth/register/', {'email': 'ipt@x.com', 'password': 'pink_reads27', 'name': 'Ip'}, format='json')
         u = User.objects.get(email='ipt@x.com')
         self.assertEqual(IPLog.objects.get(user=u).first_event, 'signup')
+        u.email_verified = True
+        u.save(update_fields=['email_verified'])
         APIClient(REMOTE_ADDR='41.58.10.21').post('/api/auth/token/', {'email': 'ipt@x.com', 'password': 'pink_reads27'},
                                                   format='json')
         self.assertEqual(set(IPLog.objects.filter(user=u).values_list('ip', flat=True)), {'41.58.10.20', '41.58.10.21'})
@@ -560,12 +597,12 @@ class ResubmissionFlagTests(TestCase):
         again = history.submit(story, message='Second try')
         self.assertEqual(again.prior_flag, ContractApplication.FLAG_REJECTED)
         self.assertEqual(again.prior_matches[0]['reasons'][0]['kind'], 'same_book')
-        # A new account on the same IP sends a different book to se's team: flagged as another team.
+        # A new account on the same IP resubmits the book (same title) to se's team: flagged as another team.
         other = User.objects.create_user(email='newpen@x.com', username='newpen', password=PASSWORD,
                                          role=User.ROLE_AUTHOR)
         IPLog.objects.create(user=other, ip='197.210.5.9', first_event='signup', last_event='signup')
         other_story = Story.objects.filter(editor=se).exclude(author=story.author).first()
-        Story.objects.filter(pk=other_story.pk).update(author=other)
+        Story.objects.filter(pk=other_story.pk).update(author=other, title=story.title)
         other_story.refresh_from_db()
         fresh = history.submit(other_story)
         m = fresh.prior_matches[0]
@@ -1023,6 +1060,8 @@ class NewDashboardTests(TestCase):
         # A Plus reader opening a paid short-story chapter is a subscriber read.
         story = Story.objects.visible_in_app().filter(is_short=True).first()
         chapter = story.chapters.filter(status=Chapter.STATUS_PUBLISHED).order_by('number').last()
+        story.paid_from_chapter = chapter.number  # Pay-to-Read approved from this chapter
+        story.save(update_fields=['paid_from_chapter'])
         self.assertFalse(chapter.is_free, 'seed short story needs a paid chapter')
         api = APIClient()
         api.force_authenticate(reader)
@@ -1269,7 +1308,7 @@ class NewDashboardTests(TestCase):
         self.client.force_login(story.author)
         page = self.client.get('/author/')
         self.assertContains(page, 'Rejected')
-        self.assertContains(page, 'compelling pacing')
+        self.assertContains(page, 'improve its pacing')
         ContractApplication.objects.filter(pk=app.pk).update(rejected_at=timezone.now() - td(hours=25))
         self.assertIsNone(story.contract_cooldown_until)
         # Applied → "under review"; contract sent → email with the book details.
@@ -1283,8 +1322,8 @@ class NewDashboardTests(TestCase):
         html = mail.outbox[0].alternatives[0][0]
         self.assertIn(story.display_title, html)
         self.assertIn('bonovela-logo', html)
-        self.assertEqual(app2.author_view()['title'], 'Contract Sent to Your email')
-        self.assertContains(self.client.get('/author/'), 'Contract Sent to Your email')
+        self.assertEqual(app2.author_view()['title'], 'Contract sent to your email')
+        self.assertContains(self.client.get('/author/'), 'Contract sent to your email')
 
     def test_chapter_formatting_keeps_every_word(self):
         story = Story.objects.first()
@@ -1439,7 +1478,10 @@ class NewDashboardTests(TestCase):
         self.assertEqual(app.status, 'contract_sent')
         self.client.force_login(story.author)
         self.assertContains(self.client.get(f'/author/stories/{story.pk}/signing/'), f'NEW TERMS for {story.display_title}')
-        self.client.post(f'/author/stories/{story.pk}/signing/', {'action': 'sign', 'agree': '1'})
+        self.client.post(f'/author/stories/{story.pk}/signing/', {'action': 'sign', 'agree': '1',
+                                                                 'signature_name': app.signer_name})
+        self.as_role('ce')
+        self.client.post('/editorial/contracts/', {'action': 'countersign', 'application': app.pk})
         story.refresh_from_db()
         self.assertTrue(story.is_signed)
         self.assertFalse(story.in_app)  # signed books wait for the CE
@@ -1535,4 +1577,56 @@ class NewDashboardTests(TestCase):
             r = self.client.get(url)
             self.assertEqual(r.status_code, 302, url)
             self.assertIn('/login/', r.url, url)
+
+    def test_rejected_before_flag_same_book_only(self):
+        from datetime import timedelta as td
+        from apps.editorial import services as editorial
+        from apps.editorial.history import submit
+        from apps.editorial.models import ContractApplication
+        se = User.objects.get(email='se@bonovela.app')
+        author = User.objects.create_user(email='flagme@x.com', username='flagme', password=PASSWORD,
+                                          role=User.ROLE_AUTHOR)
+        genre = Genre.objects.first()
+        book = Story.objects.create(author=author, title='The Wolf Queen', genre=genre, status=Story.STATUS_ONGOING)
+        other = Story.objects.create(author=author, title='Desert Rain Diaries', genre=genre, status=Story.STATUS_ONGOING)
+        Chapter.objects.create(story=book, number=1, content='moonlight pack alpha howl ' * 300, status='published')
+        Chapter.objects.create(story=other, number=1, content='camel sand oasis market trader ' * 300, status='published')
+        # Rejected twice; the third application of the same book is flagged.
+        for _ in range(2):
+            app = submit(book)
+            editorial.se_decide(app, se, 'reject')
+            ContractApplication.objects.filter(pk=app.pk).update(rejected_at=timezone.now() - td(days=2))
+        third = submit(book)
+        self.assertEqual(third.prior_flag, ContractApplication.FLAG_REJECTED)
+        self.assertEqual(sum(1 for m in third.prior_matches if m['reasons'][0]['kind'] == 'same_book'), 2)
+        # A different book from the same author is not "rejected before".
+        new = submit(other)
+        self.assertEqual(new.prior_flag, '')
+        # A local proxy IP never counts as shared.
+        from apps.editorial.history import _public
+        self.assertFalse(_public('127.0.0.1'))
+        self.assertTrue(_public('102.89.34.17'))
+
+    def test_ids_are_searchable_everywhere(self):
+        from rest_framework.test import APIClient as Api
+        reader = User.objects.get(email='reader@bonovela.app')
+        rd = f'RD-{100000 + reader.pk}'
+        self.as_role('finance')
+        for q in (rd, rd.lower(), str(100000 + reader.pk), str(reader.pk), reader.email):
+            self.assertContains(self.client.get(f'/finance/readers/?q={q}'), reader.email, msg_prefix=q)
+        self.assertContains(self.client.get(f'/finance/search/?q={rd}'), reader.email)
+        self.as_role('marketing')
+        self.assertContains(self.client.get(f'/marketing/readers/?q={rd}'), rd)
+        story = Story.objects.visible_in_app().first()
+        self.as_role('ce')
+        found = self.client.get(f'/editorial/authors/?q=AUT-{story.author_id}').context['authors']
+        self.assertEqual([a.pk for a in found], [story.author_id])
+        api = Api()
+        api.force_authenticate(reader)
+        me = api.get('/api/auth/me/').json()
+        self.assertEqual(me['reader_id'], rd)
+        ids = [b['id'] for b in api.get(f'/api/books/?q=AUT-{story.author_id}').json()['results']]
+        self.assertIn(story.pk, ids)
+        ids = [b['id'] for b in api.get(f'/api/books/?q={story.book_code}').json()['results']]
+        self.assertEqual(ids, [story.pk])
 

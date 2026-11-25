@@ -13,6 +13,7 @@ from django.views.decorators.http import require_POST
 
 from apps.catalog.models import Chapter, Story
 from apps.engagement.models import Report, Review
+from apps.users.ids import user_q
 from apps.users.models import User
 from apps.wallet.models import (AuthorEarning, CoinPackage, GiftItem, RedeemCode, Subscription,
                                 SubscriptionPlan, Transaction)
@@ -77,7 +78,7 @@ def users(request):
         qs = qs.filter(is_suspended=True)
     q = request.GET.get('q', '').strip()
     if q:
-        qs = qs.filter(Q(email__icontains=q) | Q(pen_name__icontains=q) | Q(first_name__icontains=q))
+        qs = qs.filter(user_q(q) | Q(first_name__icontains=q))
     qs = qs.annotate(n_stories=Count('stories', distinct=True)).select_related('wallet')
     return render(request, 'dashboard/admin/users.html', {
         'users': qs[:200], 'role': role, 'q': q, 'roles': User.ROLE_CHOICES,
@@ -121,7 +122,7 @@ def books(request):
         qs = qs.filter(filters[f])
     q = request.GET.get('q', '').strip()
     if q:
-        qs = qs.filter(Q(title__icontains=q) | Q(author__pen_name__icontains=q) | Q(author__email__icontains=q))
+        qs = qs.filter(Q(title__icontains=q) | user_q(q, 'author__'))
     return render(request, 'dashboard/admin/books.html', {'books': qs[:200], 'f': f, 'q': q})
 
 

@@ -14,7 +14,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
-from apps.catalog.models import Chapter, Genre, Story, Tag, word_count
+from apps.catalog.models import Chapter, Genre, Story, Tag, submit_chapter_edit, word_count
 from apps.editorial import services as editorial
 from apps.editorial.models import ContractApplication
 from apps.engagement.models import Review, ReviewReply
@@ -97,6 +97,9 @@ def stories(request):
 @require_POST
 def delete_story(request, pk):
     story = _story(request, pk)
+    if not story.can_delete:
+        messages.error(request, story.lock_reason)
+        return redirect('dashboard:author_stories')
     name = story.display_title
     story.delete()
     messages.success(request, f'Deleted "{name}".')
@@ -112,6 +115,9 @@ def story_info(request, pk=None):
         return redirect('dashboard:author_story_new')
 
     form = None
+    if request.method == 'POST' and story.pk and story.under_review:
+        messages.error(request, story.lock_reason)
+        return redirect('dashboard:author_stories')
     if request.method == 'POST':
         action = request.POST.get('action', 'next')
         if step == 1:
@@ -202,6 +208,10 @@ def chapters(request, pk):
 def chapter_action(request, pk, chapter_id, action):
     story = _story(request, pk)
     chapter = get_object_or_404(Chapter, pk=chapter_id, story=story)
+    if action in ('trash', 'delete') and (story.under_review or (story.is_signed and chapter.status in (
+            Chapter.STATUS_PUBLISHED, Chapter.STATUS_TRASH))):
+        messages.error(request, story.lock_reason)
+        return redirect(request.POST.get('next') or _url('dashboard:author_chapters', story.pk))
     if action == 'publish':
         if not story.is_info_complete:
             messages.error(request, 'Complete your book information before publishing.')
@@ -248,6 +258,18 @@ def chapter_editor(request, pk, chapter_id=None):
                 chapter.note = ''
             action = request.POST.get('action', 'save')
             is_empty = not chapter.title.strip() and not chapter.content.strip()
+            if chapter.pk and (story.under_review or (story.is_signed and chapter.status == Chapter.STATUS_PUBLISHED)):
+                # Existing chapters of a book under review can't change; a
+                # published chapter of a signed book goes to the editor.
+                original = Chapter.objects.get(pk=chapter.pk)
+                try:
+                    result = submit_chapter_edit(original, chapter.title, chapter.content, chapter.note)
+                except ValidationError as e:
+                    messages.error(request, e.messages[0])
+                    return redirect('dashboard:author_chapters', story.pk)
+                messages.success(request, 'Your edit was sent to your editor. It goes live once approved.'
+                                 if result == 'review' else 'Chapter updated.')
+                return redirect('dashboard:author_chapters', story.pk)
             if action == 'save':
                 if not is_empty:
                     chapter.save()
@@ -328,20 +350,24 @@ def signing(request, pk):
             from apps.editorial.models import CompletionApplication as Completion
             open_ = story.completion_applications.filter(
                 status__in=[Completion.STATUS_PENDING, Completion.STATUS_RECOMMENDED]).exists()
-            if story.status != Story.STATUS_COMPLETED or not story.is_signed:
-                messages.error(request, 'Only signed, completed books can apply.')
+            if not story.is_signed or (not story.is_short and story.status != Story.STATUS_COMPLETED):
+                messages.error(request, 'Only signed books can apply (long stories once marked Completed).')
             elif open_:
                 messages.error(request, 'This book already has a completion review in progress.')
             else:
                 Completion.objects.create(story=story, message=request.POST.get('message', '')[:2000])
                 messages.success(request, 'Applied! Your editor will review the full manuscript.')
         elif action == 'sign' and app and app.status == ContractApplication.STATUS_CONTRACT_SENT:
+            from apps.users.ip import client_ip
             if not request.POST.get('agree'):
                 messages.error(request, 'Tick the box to accept the contract terms.')
             else:
-                editorial.sign(app)
-                messages.success(request, f'"{story.display_title}" is signed 🎉 The Chief Editor will publish it to '
-                                          'the app.')
+                try:
+                    editorial.author_sign(app, request.POST.get('signature_name', ''),
+                                          request.POST.get('signature_image', ''), ip=client_ip(request))
+                    messages.success(request, 'Contract signed ✍️ Bonovela will add its signature shortly.')
+                except ValidationError as e:
+                    messages.error(request, e.messages[0])
         return redirect('dashboard:author_signing', story.pk)
     completion = story.completion_applications.first()
     from apps.editorial.models import ContractTemplate
@@ -349,8 +375,14 @@ def signing(request, pk):
     return render(request, 'dashboard/author/signing.html', {
         'story': story, 'app': app, 'published': published,
         'contract_text': ContractTemplate.current().render(story, app.get_contract_type_display() if app else ''),
+        'contract_parts': app.contract_parts() if app and app.status in (
+            ContractApplication.STATUS_CONTRACT_SENT, ContractApplication.STATUS_AUTHOR_SIGNED,
+            ContractApplication.STATUS_SIGNED) else [],
         'completion': completion,
         'completion_open': completion and completion.status in ('pending', 'recommended'),
+        # Short stories can request completion once signed; long stories once marked Completed.
+        'can_complete': story.is_signed and not (completion and completion.status in ('pending', 'recommended'))
+        and (story.is_short or story.status == Story.STATUS_COMPLETED),
         'min_words': settings.BONOVELA['CONTRACT_MIN_WORDS'],
     })
 
@@ -575,7 +607,7 @@ def pay_to_read(request, pk):
     return render(request, 'dashboard/author/pay_to_read.html', {
         'story': story, 'apps': PayToReadApplication.objects.filter(story=story).select_related('decided_by'),
         'chapters': story.published_chapters().order_by('number').values_list('number', 'title'),
-        'min_words': settings.BONOVELA['PAY_TO_READ_MIN_WORDS'],
+        'min_words': story.pay_to_read_min_words,
     })
 
 

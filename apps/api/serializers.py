@@ -20,14 +20,27 @@ class UserSerializer(serializers.ModelSerializer):
     following = serializers.SerializerMethodField()
     is_author = serializers.BooleanField(read_only=True)
     is_plus = serializers.SerializerMethodField()
+    # The IDs staff dashboards search by (Reader ID for everyone; Author ID
+    # for authors).
+    reader_id = serializers.SerializerMethodField()
+    author_id = serializers.SerializerMethodField()
 
     class Meta:
         model = User
         fields = [
             'id', 'email', 'username', 'name', 'pen_name', 'about', 'avatar', 'role', 'is_author', 'provider',
-            'email_verified', 'reader_type', 'language', 'followers', 'following', 'is_plus',
+            'email_verified', 'reader_type', 'language', 'followers', 'following', 'is_plus', 'reader_id',
+            'author_id',
         ]
         read_only_fields = ['id', 'email', 'role', 'provider', 'email_verified']
+
+    def get_reader_id(self, obj):
+        from apps.users.ids import reader_id
+        return reader_id(obj)
+
+    def get_author_id(self, obj):
+        from apps.users.ids import author_id
+        return author_id(obj) if obj.is_author else ''
 
     def get_followers(self, obj):
         return obj.follower_set.count()
@@ -272,6 +285,9 @@ class AuthorStorySerializer(serializers.ModelSerializer):
     application_status = serializers.SerializerMethodField()
     application = serializers.SerializerMethodField()
     can_apply_pay_to_read = serializers.BooleanField(read_only=True)
+    under_review = serializers.BooleanField(read_only=True)
+    can_delete = serializers.BooleanField(read_only=True)
+    lock_reason = serializers.CharField(read_only=True)
     pay_to_read_status = serializers.SerializerMethodField()
 
     class Meta:
@@ -280,7 +296,8 @@ class AuthorStorySerializer(serializers.ModelSerializer):
             'id', 'title', 'synopsis', 'cover', 'cover_index', 'language', 'audience', 'content_rating',
             'novel_type', 'genre', 'tags', 'status', 'is_short', 'is_signed', 'is_info_complete',
             'can_apply_for_contract', 'chapter_count', 'word_count', 'application_status', 'application', 'views',
-            'paid_from_chapter', 'can_apply_pay_to_read', 'pay_to_read_status', 'created_at', 'updated_at',
+            'paid_from_chapter', 'can_apply_pay_to_read', 'pay_to_read_status', 'under_review', 'can_delete',
+            'lock_reason', 'created_at', 'updated_at',
         ]
         read_only_fields = ['is_signed', 'views', 'paid_from_chapter', 'created_at', 'updated_at']
 
@@ -355,12 +372,18 @@ class ApplicationSerializer(serializers.ModelSerializer):
     class Meta:
         model = ContractApplication
         fields = ['id', 'story', 'status', 'status_label', 'message', 'contract_type', 'feedback', 'legal_name',
-                  'chosen_editor', 'contract_text', 'created_at', 'updated_at']
-        read_only_fields = ['story', 'status', 'contract_type', 'feedback', 'chosen_editor', 'created_at', 'updated_at']
+                  'chosen_editor', 'contract_text', 'signer_name', 'author_signature_name', 'author_signed_at',
+                  'platform_signature_name', 'platform_signed_at', 'created_at', 'updated_at']
+        read_only_fields = ['story', 'status', 'contract_type', 'feedback', 'chosen_editor', 'author_signature_name',
+                            'author_signed_at', 'platform_signature_name', 'platform_signed_at', 'created_at',
+                            'updated_at']
+
+    signer_name = serializers.CharField(read_only=True)
 
     def get_contract_text(self, obj):
         """The contract to sign (Chief Editor's template), once it's sent."""
-        if obj.status not in (ContractApplication.STATUS_CONTRACT_SENT, ContractApplication.STATUS_SIGNED):
+        if obj.status not in (ContractApplication.STATUS_CONTRACT_SENT, ContractApplication.STATUS_AUTHOR_SIGNED,
+                              ContractApplication.STATUS_SIGNED):
             return ''
         from apps.editorial.models import ContractTemplate
-        return ContractTemplate.current().render(obj.story, obj.get_contract_type_display())
+        return ContractTemplate.current().render(obj.story, obj.get_contract_type_display(), obj)

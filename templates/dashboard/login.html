@@ -16,7 +16,7 @@
     </label>
     <input type="hidden" name="next" value="{{ next }}">
     <button class="btn block lg">Sign in</button>
-    <p class="hint" style="text-align:center;margin-top:16px">Use the same email and password as the Bonovela app.</p>
+    <p class="hint" style="text-align:center;margin-top:16px">Use the same email and password as the Bonovela app. <a class="pink" href="{% url 'dashboard:password_reset' %}">Forgot password?</a></p>
   </form>
 </div>
 {% endblock %}

@@ -22,6 +22,7 @@ from apps.editorial.models import BookTransfer, ContractApplication as App
 from apps.editorial.models import EditorialNote, Promotion, PromotionRequest, Recommendation, TeamMessage
 from apps.editorial.models import Shelf, ShelfBook, ShelfCategory
 from apps.engagement.models import InboxMessage
+from apps.users.ids import user_q
 from apps.users.models import User
 
 # Which contract-application statuses each level acts on.
@@ -172,7 +173,7 @@ def books(request):
         qs = qs.filter(editor_id=editor_id)
     q = request.GET.get('q', '').strip()
     if q:
-        qs = qs.filter(Q(title__icontains=q) | Q(author__pen_name__icontains=q) | Q(author__email__icontains=q))
+        qs = qs.filter(Q(title__icontains=q) | user_q(q, 'author__'))
     rows = list(team.annotate_books(qs).order_by('-updated_at')[:300])
     for b in rows:
         b.risk = team.risk_of(b.last_update, b.status)
@@ -331,6 +332,9 @@ def application(request, pk):
             run(request, services.se_decide, app, request.user, action.split('_')[1], feedback=feedback,
                 ok={'se_approve': 'Recommended — the Chief Editor will send the contract.',
                     'se_revise': 'Sent back to the author.', 'se_reject': 'Rejected.'}[action])
+        elif action == 'info':
+            run(request, services.send_info_email, app, request.user,
+                ok=f'Confirmation email sent to {story.author.email or "the author"} — replies come to your email.')
         elif action == 'ce_contract':
             run(request, services.ce_send_contract, app, request.user,
                 contract_type=request.POST.get('contract_type', 'non_exclusive'), ok='Contract sent to the author.')
@@ -347,6 +351,7 @@ def application(request, pk):
         'chapters': chapters, 'reading': reading or chapters.first(),
         'notes': story.editorial_notes.select_related('editor')[:30],
         'can_act': app.status in ACTIONABLE[lv],
+        'info_message': services.info_message(request.user),
     })
 
 
@@ -462,4 +467,38 @@ def pay_to_read(request):
     return render(request, 'dashboard/editorial/pay_to_read.html', {
         'rows': rows, 'tab': tab, 'statuses': PayToReadApplication.STATUS_CHOICES,
         'counts': {k: qs.filter(status=k).count() for k, _ in PayToReadApplication.STATUS_CHOICES},
+    })
+
+
+@editor_area
+def chapter_edits(request):
+    """Edits to published chapters of signed books, waiting for the book's
+    Senior Editor (CE: all books). Approve to put the new text live."""
+    from apps.catalog.models import ChapterRevision
+    qs = ChapterRevision.objects.filter(chapter__story__in=team.scope_books(request.user)).select_related(
+        'chapter', 'chapter__story', 'chapter__story__author', 'decided_by')
+    if request.method == 'POST':
+        rev = get_object_or_404(qs, pk=request.POST.get('revision'), status=ChapterRevision.STATUS_PENDING)
+        ch = rev.chapter
+        rev.decided_by, rev.decided_at = request.user, timezone.now()
+        if request.POST.get('action') == 'approve':
+            ch.title, ch.content, ch.note = rev.title, rev.content, rev.note
+            ch.save()
+            rev.status = ChapterRevision.STATUS_APPROVED
+            InboxMessage.objects.create(user=ch.story.author, story=ch.story, title='Chapter edit approved',
+                                        body=f'Your edit to chapter {ch.number} of "{ch.story.display_title}" is live.')
+            messages.success(request, 'Approved — the new text is live.')
+        else:
+            rev.status, rev.reason = ChapterRevision.STATUS_REJECTED, request.POST.get('reason', '').strip()[:300]
+            InboxMessage.objects.create(user=ch.story.author, story=ch.story, title='Chapter edit not approved',
+                                        body=rev.reason or f'Your edit to chapter {ch.number} of '
+                                                           f'"{ch.story.display_title}" was not approved.')
+            messages.success(request, 'Rejected — the author was notified.')
+        rev.save(update_fields=['status', 'reason', 'decided_by', 'decided_at'])
+        return redirect(request.get_full_path())
+    tab = request.GET.get('tab', 'pending')
+    return render(request, 'dashboard/editorial/chapter_edits.html', {
+        'tab': tab, 'rows': qs.filter(status=tab)[:100] if tab in dict(ChapterRevision.STATUS_CHOICES) else qs[:100],
+        'statuses': ChapterRevision.STATUS_CHOICES,
+        'counts': {k: qs.filter(status=k).count() for k, _ in ChapterRevision.STATUS_CHOICES},
     })

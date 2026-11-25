@@ -3,6 +3,7 @@
 from datetime import datetime
 
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.db.models import Max
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -10,7 +11,7 @@ from rest_framework import generics, permissions
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 
-from apps.catalog.models import Chapter, Contest, Story
+from apps.catalog.models import Chapter, Contest, Story, submit_chapter_edit
 from apps.editorial.models import ContractApplication
 from apps.engagement.models import Review, ReviewReply
 from apps.wallet.models import AuthorEarning
@@ -47,6 +48,18 @@ class StoryDetail(generics.RetrieveUpdateDestroyAPIView):
 
     def get_queryset(self):
         return Story.objects.filter(author=self.request.user)
+
+    def update(self, request, *args, **kwargs):
+        story = self.get_object()
+        if story.under_review:
+            return Response({'detail': story.lock_reason, 'code': 'locked'}, status=400)
+        return super().update(request, *args, **kwargs)
+
+    def destroy(self, request, *args, **kwargs):
+        story = self.get_object()
+        if not story.can_delete:
+            return Response({'detail': story.lock_reason, 'code': 'locked'}, status=400)
+        return super().destroy(request, *args, **kwargs)
 
 
 def _own_story(request, pk):
@@ -85,12 +98,40 @@ class ChapterDetail(generics.RetrieveUpdateDestroyAPIView):
     def get_object(self):
         return get_object_or_404(self.get_queryset(), pk=self.kwargs['chapter_id'])
 
+    def update(self, request, *args, **kwargs):
+        """Under contract review: no changes. Signed book, published chapter:
+        the edit goes to the editor (202) and the live text stays."""
+        chapter = self.get_object()
+        story = chapter.story
+        if story.under_review or (story.is_signed and chapter.status == Chapter.STATUS_PUBLISHED):
+            try:
+                result = submit_chapter_edit(chapter, request.data.get('title', chapter.title),
+                                             request.data.get('content', chapter.content),
+                                             request.data.get('note', chapter.note))
+            except ValidationError as e:
+                return Response({'detail': e.messages[0], 'code': 'locked'}, status=400)
+            if result == 'review':
+                return Response({**s.AuthorChapterSerializer(chapter).data, 'pending_review': True,
+                                 'detail': 'Your edit was sent to your editor. It goes live once approved.'},
+                                status=202)
+        return super().update(request, *args, **kwargs)
+
+    def destroy(self, request, *args, **kwargs):
+        chapter = self.get_object()
+        story = chapter.story
+        if story.under_review or (story.is_signed and chapter.status != Chapter.STATUS_DRAFT):
+            return Response({'detail': story.lock_reason, 'code': 'locked'}, status=400)
+        return super().destroy(request, *args, **kwargs)
+
 
 @api_view(['POST'])
 @permission_classes(Author)
 def chapter_action(request, pk, chapter_id, action):
     """publish | schedule | trash | restore"""
     chapter = get_object_or_404(Chapter, pk=chapter_id, story_id=pk, story__author=request.user)
+    story = chapter.story
+    if action == 'trash' and (story.under_review or (story.is_signed and chapter.status == Chapter.STATUS_PUBLISHED)):
+        return Response({'detail': story.lock_reason, 'code': 'locked'}, status=400)
     if action in ('publish', 'schedule'):
         if not chapter.story.is_info_complete:
             return Response({'detail': 'Complete your book information before publishing.'}, status=400)
@@ -164,8 +205,13 @@ def sign_contract(request, pk):
     app = story.applications.filter(status=ContractApplication.STATUS_CONTRACT_SENT).first()
     if not app:
         return Response({'detail': 'No contract waiting for your signature.'}, status=400)
-    from apps.editorial.services import sign
-    sign(app)
+    from apps.editorial.services import author_sign
+    from apps.users.ip import client_ip
+    try:
+        author_sign(app, request.data.get('signature_name', ''), request.data.get('signature_image', ''),
+                    ip=client_ip(request))
+    except ValidationError as e:
+        return Response({'detail': e.messages[0], 'code': 'signature'}, status=400)
     return Response(s.ApplicationSerializer(app).data)
 
 
@@ -218,8 +264,6 @@ def reply(request, review_id):
 def pay_to_read(request, pk):
     """GET: Pay-to-Read status and chapters. POST {from_chapter, message}:
     apply (signed books with 30,000 published words)."""
-    from django.core.exceptions import ValidationError
-
     from apps.editorial import services as editorial
     story = _own_story(request, pk)
     if request.method == 'POST':
@@ -233,7 +277,7 @@ def pay_to_read(request, pk):
     app = story.pay_to_read_applications.first()
     return Response({
         'can_apply': story.can_apply_pay_to_read, 'paid_from_chapter': story.paid_from_chapter,
-        'min_words': settings.BONOVELA['PAY_TO_READ_MIN_WORDS'], 'words': story.total_words,
+        'min_words': story.pay_to_read_min_words, 'words': story.total_words,
         'chapters': list(story.published_chapters().order_by('number').values_list('number', flat=True)),
         'application': {'status': app.status, 'label': app.get_status_display(), 'requested_from': app.requested_from,
                         'approved_from': app.approved_from, 'note': app.note} if app else None,

@@ -39,6 +39,13 @@ class RegisterView(APIView):
         ser.is_valid(raise_exception=True)
         user = ser.save()
         record_ip(user, request, 'signup')
+        # The account activates from the link emailed by noreply@bonovela.com.
+        from apps.users.emails import needs_verification, send_verification
+        if needs_verification(user):
+            send_verification(user)
+            return Response({'verify_email': True, 'email': user.email,
+                             'detail': 'We sent you an email. Tap the link in it to activate your account.'},
+                            status=status.HTTP_201_CREATED)
         return Response(tokens_for(user), status=status.HTTP_201_CREATED)
 
 
@@ -50,8 +57,36 @@ class TokenView(TokenObtainPairView):
         if response.status_code == 200:
             user = User.objects.filter(email__iexact=request.data.get('email', '')).first()
             if user:
+                from apps.users.emails import needs_verification, send_verification
+                if needs_verification(user):
+                    send_verification(user)
+                    return Response({'detail': 'Please confirm your email first. We sent you a new activation link.',
+                                     'code': 'unverified'}, status=403)
                 record_ip(user, request, 'login')
         return response
+
+
+@api_view(['POST'])
+@permission_classes([permissions.AllowAny])
+def resend_verification(request):
+    """Send the activation link again (same answer whether or not the
+    email has an account)."""
+    from apps.users.emails import needs_verification, send_verification
+    user = User.objects.filter(email__iexact=(request.data.get('email') or '').strip()).first()
+    if user and needs_verification(user):
+        send_verification(user)
+    return Response({'detail': 'If that account needs activating, we sent a new link.'})
+
+
+@api_view(['POST'])
+@permission_classes([permissions.AllowAny])
+def password_reset(request):
+    """Forgot password: email a link to choose a new one."""
+    from apps.users.emails import send_password_reset
+    user = User.objects.filter(email__iexact=(request.data.get('email') or '').strip(), is_active=True).first()
+    if user:
+        send_password_reset(user)
+    return Response({'detail': 'If that email has a Bonovela account, we sent a link to reset the password.'})
 
 
 @api_view(['POST'])
@@ -60,7 +95,8 @@ def email_status(request):
     """'Sign in or sign up' step: does this email already have an account?"""
     email = (request.data.get('email') or '').strip().lower()
     user = User.objects.filter(email=email).first()
-    return Response({'exists': bool(user), 'verified': bool(user and user.email_verified)})
+    from apps.users.emails import needs_verification
+    return Response({'exists': bool(user), 'verified': bool(user and not needs_verification(user))})
 
 
 class MeView(generics.RetrieveUpdateAPIView):
@@ -147,11 +183,16 @@ class BookListView(generics.ListAPIView):
         if p.get('audience') in ('female', 'male'):
             qs = qs.filter(audience=p['audience'])
         if p.get('q'):
-            q = p['q']
-            qs = qs.filter(
-                Q(title__icontains=q) | Q(author__pen_name__icontains=q) | Q(genre__name__icontains=q)
-                | Q(tags__name__icontains=q)
-            ).distinct()
+            q = p['q'].strip()
+            code = q.upper().replace(' ', '')
+            cond = (Q(title__icontains=q) | Q(author__pen_name__icontains=q) | Q(genre__name__icontains=q)
+                    | Q(tags__name__icontains=q))
+            # Readers can find an author's books by Author ID, and a book by Book ID.
+            if code.startswith('AUT-') and code[4:].isdigit():
+                cond |= Q(author_id=int(code[4:]))
+            if code.startswith('BV-') and code[3:].isdigit():
+                cond |= Q(pk=int(code[3:]) - 1000)
+            qs = qs.filter(cond).distinct()
         order = {'popular': '-views', 'new': '-updated_at', 'rating': '-avg_stars'}.get(p.get('order'), '-views')
         return qs.order_by(order)
 

@@ -18,6 +18,7 @@ from django.utils import timezone
 from apps.engagement.models import ReadingProgress
 from apps.marketing import analytics, segments, services
 from apps.marketing.models import PLATFORM_CHOICES, AdCampaign, Integration, MarketingMember
+from apps.users.ids import user_q
 from apps.wallet.models import Subscription, Transaction
 
 RANGES = [(7, 'Last 7 days'), (30, 'Last 30 days'), (90, 'Last 90 days')]
@@ -191,9 +192,7 @@ def _readers_page(request, *, template, base_key=None, tabs=None, extra=None):
     qs = segments.segment(seg, cfg=cfg) if seg else (segments.segment(base_key, cfg=cfg) if base_key else segments.readers())
     q = request.GET.get('q', '').strip()
     if q:
-        code = q.upper().removeprefix('RD-')
-        qs = qs.filter(Q(username__icontains=q) | Q(email__icontains=q) | Q(pen_name__icontains=q) |
-                       (Q(pk=int(code) - 100000) if code.isdigit() else Q()))
+        qs = qs.filter(user_q(q))
     source = request.GET.get('source', '')
     if source:
         qs = qs.filter(reader_profile__source=source) if source != 'organic' else \

@@ -14,19 +14,55 @@
 </div>
 
 {% if story.is_signed %}
-  <div class="notice ok" style="margin-top:12px">This book is signed. {% if story.in_app %}It is published in the app.{% else %}The Chief Editor will publish it to the app.{% endif %} You earn a share of every unlocked chapter and gift.</div>
+  {% if contract_parts and app.author_signed_at %}<details class="card"><summary style="cursor:pointer"><b>Your signed contract</b> <span class="hint" style="display:inline">· signed by you {{ app.author_signed_at|date:"M d, Y" }} and Bonovela {{ app.platform_signed_at|date:"M d, Y" }}</span></summary>
+    <div style="margin-top:12px">{% include 'dashboard/_contract.html' with parts=contract_parts %}</div></details>{% endif %}
+
+{% elif app and app.status == 'author_signed' %}
+  <div class="card">
+    <h2>You signed the contract ✍️</h2>
+    <p class="muted small" style="margin:6px 0 14px">Signed {{ app.author_signed_at|date:"M d, Y H:i" }} as {{ app.author_signature_name }}. Bonovela will add its signature shortly; your book is signed once both signatures are in.</p>
+    {% include 'dashboard/_contract.html' with parts=contract_parts %}
+  </div>
 
 {% elif app and app.status == 'contract_sent' %}
-  <form class="card" method="post">{% csrf_token %}
+  <form class="card" method="post" id="signForm">{% csrf_token %}
     <h2>Your contract</h2>
-    <p class="muted small" style="margin:6px 0 14px">{{ app.get_contract_type_display }} contract{% if app.signing_bonus_cents %} · signing bonus {{ app.signing_bonus_cents|money }}{% endif %}</p>
-    <div style="background:var(--surface);border-radius:10px;padding:14px;max-height:360px;overflow:auto" class="small">
-      <div style="text-align:center;margin-bottom:10px"><img src="{% static 'img/bonovela-logo.jpg' %}" alt="Bonovela" style="max-width:220px;width:65%"></div>
-      <div style="white-space:pre-line;line-height:1.6">{{ contract_text }}</div>
-    </div>
-    <label class="check-row" style="margin-top:12px"><input type="checkbox" name="agree" value="1">I have read and accept the contract terms.</label>
+    <p class="muted small" style="margin:6px 0 14px">{{ app.get_contract_type_display }} contract{% if app.signing_bonus_cents %} · signing bonus {{ app.signing_bonus_cents|money }}{% endif %} · read it, then sign at the bottom.</p>
+    {% include 'dashboard/_contract.html' with parts=contract_parts %}
+    <h3 style="margin-top:16px">Sign electronically</h3>
+    <label class="field" style="margin-top:8px"><span class="label">Your full legal name</span>
+      <input type="text" name="signature_name" id="sigName" required autocomplete="name" placeholder="{{ app.signer_name }}">
+      <span class="hint">Type your real name exactly as on your application: <b>{{ app.signer_name }}</b></span></label>
+    <div class="field"><span class="label">Draw your signature <span class="hint" style="display:inline">(optional — your typed name is used otherwise)</span></span>
+      <canvas class="sig-pad" id="sigPad"></canvas>
+      <div style="text-align:right"><button type="button" class="btn sm outline" id="sigClear">Clear</button></div></div>
+    <input type="hidden" name="signature_image" id="sigImage">
+    <label class="check-row" style="margin-top:12px"><input type="checkbox" name="agree" value="1" required>I have read and accept the contract terms, and agree that my electronic signature is legally binding.</label>
     <button class="btn block lg" name="action" value="sign" style="margin-top:8px">Sign contract</button>
   </form>
+  <script>
+  (() => {
+    const pad = document.getElementById('sigPad'), ctx = pad.getContext('2d'), out = document.getElementById('sigImage');
+    const name = document.getElementById('sigName');
+    const slots = document.querySelectorAll('.sig-author');
+    let drawn = false, down = false;
+    const fit = () => { const r = pad.getBoundingClientRect(); pad.width = r.width * 2; pad.height = r.height * 2;
+      ctx.scale(2, 2); ctx.lineWidth = 2.2; ctx.lineCap = 'round'; ctx.strokeStyle = '#1E2A78'; };
+    fit();
+    // Every signature place shows the drawing, or the typed name in script.
+    const fill = () => slots.forEach((s) => {
+      s.innerHTML = '';
+      if (drawn) { const i = new Image(); i.src = out.value; s.appendChild(i); }
+      else if (name.value.trim()) { const t = document.createElement('span'); t.className = 'sig-script'; t.textContent = name.value.trim(); s.appendChild(t); }
+    });
+    const at = (e) => { const r = pad.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+    pad.addEventListener('pointerdown', (e) => { down = true; pad.setPointerCapture(e.pointerId); ctx.beginPath(); ctx.moveTo(...at(e)); });
+    pad.addEventListener('pointermove', (e) => { if (!down) return; ctx.lineTo(...at(e)); ctx.stroke(); drawn = true; });
+    pad.addEventListener('pointerup', () => { down = false; if (drawn) { out.value = pad.toDataURL('image/png'); fill(); } });
+    document.getElementById('sigClear').addEventListener('click', () => { ctx.clearRect(0, 0, pad.width, pad.height); drawn = false; out.value = ''; fill(); });
+    name.addEventListener('input', fill);
+  })();
+  </script>
 
 {% elif app and app.is_open %}
   <div class="card">
@@ -66,13 +102,13 @@
     <p class="small" style="margin-top:6px">Status: <span class="chip gold">{{ completion.get_status_display }}</span>{% if completion.bonus_cents %} · Bonus {{ completion.bonus_cents|money }}{% endif %}</p>
     {% if completion.status == 'changes' and completion.reviewer_note %}<p class="small muted" style="margin-top:6px">Editor: {{ completion.reviewer_note }}</p>{% endif %}
   {% endif %}
-  {% if story.status == 'completed' and story.is_signed and not completion_open %}
+  {% if can_complete %}
     <p class="hint" style="margin:6px 0 10px">Finished your book? Apply for a completion review.</p>
     <form method="post">{% csrf_token %}<input type="hidden" name="action" value="completion">
       <textarea name="message" rows="2" placeholder="Anything the editors should know (optional)"></textarea>
       <button class="btn block" style="margin-top:8px">Apply for completion review</button></form>
   {% elif not completion %}
-    <p class="hint" style="margin-top:6px">Available once your book is signed and marked Completed.</p>
+    <p class="hint" style="margin-top:6px">{% if story.is_short %}Available once your short story is signed.{% else %}Available once your book is signed and marked Completed.{% endif %}</p>
   {% endif %}
 </div>
 {% endblock %}

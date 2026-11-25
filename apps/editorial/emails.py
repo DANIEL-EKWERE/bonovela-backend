@@ -32,7 +32,7 @@ def send_contract_approved(app):
     }
     text = (f'Congratulations! Your contract has been approved.\n\n'
             f'Book: {ctx["title"]}\nAuthor: {ctx["author"]}\nContract: {ctx["contract"]}\nEditor: {ctx["editor"]}\n\n'
-            f'Review and sign your contract: {ctx["contract_url"]}\n\nBonovela — Stories that stay with you')
+            f'Sign your contract: {ctx["contract_url"]}\n\nBonovela — Stories that stay with you')
     msg = EmailMultiAlternatives('Congratulations! Your Bonovela contract has been approved', text,
                                  settings.DEFAULT_FROM_EMAIL, [author.email])
     msg.attach_alternative(render_to_string('emails/contract_approved.html', ctx), 'text/html')

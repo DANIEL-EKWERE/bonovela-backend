@@ -13,6 +13,8 @@ urlpatterns = [
     # Auth
     path('auth/register/', v.RegisterView.as_view()),
     path('auth/email-status/', v.email_status),
+    path('auth/resend-verification/', v.resend_verification),
+    path('auth/password-reset/', v.password_reset),
     path('auth/token/', v.TokenView.as_view()),
     path('auth/token/refresh/', TokenRefreshView.as_view()),
     path('auth/me/', v.MeView.as_view()),

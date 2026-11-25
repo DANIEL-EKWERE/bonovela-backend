@@ -1,0 +1,5 @@
+{% load static %}<link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600&display=swap" rel="stylesheet">
+<div class="contract-doc small">
+  <div style="text-align:center;margin-bottom:10px"><img src="{% static 'img/bonovela-logo.jpg' %}" alt="Bonovela" style="max-width:220px;width:65%"></div>
+  <div style="white-space:pre-line;line-height:1.6">{% for kind, text in parts %}{% if kind == 'text' %}{{ text }}{% elif kind == 'author' %}<span class="sig-slot sig-author">{% if app.author_signed_at %}{% if app.author_signature_image %}<img src="{{ app.author_signature_image }}" alt="{{ app.author_signature_name }}">{% else %}<span class="sig-script">{{ app.author_signature_name }}</span>{% endif %}{% endif %}</span>{% else %}<span class="sig-slot">{% if app.platform_signed_at %}<span class="sig-script">{{ app.platform_signature_name }}</span> <span class="hint" style="display:inline">for Bonovela</span>{% endif %}</span>{% endif %}{% endfor %}</div>
+</div>

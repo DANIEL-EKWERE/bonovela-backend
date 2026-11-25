@@ -186,12 +186,40 @@ class Story(models.Model):
     def total_words(self):
         return sum(c.word_count for c in self.published_chapters())
 
+    # ── What the author may change ──────────────────────────────────────────
+    @property
+    def under_review(self):
+        """A contract application is open (applied → contract sent): the book
+        and its existing chapters can't be deleted or changed meanwhile."""
+        app = self.applications.first()
+        return bool(app and app.is_open)
+
+    @property
+    def can_delete(self):
+        """Signed books are never deleted; books under review neither.
+        Rejected books (or books that never applied) can be."""
+        return not self.is_signed and not self.under_review
+
+    @property
+    def lock_reason(self):
+        if self.under_review:
+            return ('Your book is under contract review. You can add new chapters, but you can\'t delete it or '
+                    'change it until the review is finished.')
+        if self.is_signed:
+            return 'Signed books can\'t be deleted. Edits to published chapters go to your editor for approval.'
+        return ''
+
+    @property
+    def pay_to_read_min_words(self):
+        rules = settings.BONOVELA
+        return rules['SHORT_PAY_TO_READ_MIN_WORDS'] if self.is_short else rules['PAY_TO_READ_MIN_WORDS']
+
     @property
     def can_apply_pay_to_read(self):
-        """Signed novels with enough published words and no Pay-to-Read yet."""
-        if self.is_short or not self.is_signed or self.paid_from_chapter:
+        """Signed books with enough published words and no Pay-to-Read yet."""
+        if not self.is_signed or self.paid_from_chapter:
             return False
-        if self.total_words < settings.BONOVELA['PAY_TO_READ_MIN_WORDS']:
+        if self.total_words < self.pay_to_read_min_words:
             return False
         return not self.pay_to_read_applications.filter(status='pending').exists()
 
@@ -268,10 +296,9 @@ class Chapter(models.Model):
 
     @property
     def is_free(self):
+        # Free until Pay-to-Read is approved; then locked from that chapter on
+        # (Plus members still read locked short-story chapters).
         story = self.story
-        if story.is_short:  # short stories: first chapters free, the rest with coins or Plus
-            return self.number <= settings.BONOVELA['FREE_SHORT_CHAPTERS']
-        # Novels are free until Pay-to-Read is approved; then locked from that chapter on.
         return story.paid_from_chapter is None or self.number < story.paid_from_chapter
 
     @property
@@ -309,3 +336,53 @@ class Chapter(models.Model):
     def restore(self):
         self.status = self.previous_status if self.previous_status != self.STATUS_TRASH else self.STATUS_DRAFT
         self.save()
+
+
+class ChapterRevision(models.Model):
+    """An edit to a published chapter of a signed book. The live chapter
+    keeps its text until the book's Senior Editor approves the edit."""
+
+    STATUS_PENDING, STATUS_APPROVED, STATUS_REJECTED = 'pending', 'approved', 'rejected'
+    STATUS_CHOICES = [(STATUS_PENDING, 'Pending review'), (STATUS_APPROVED, 'Approved'), (STATUS_REJECTED, 'Rejected')]
+
+    chapter = models.ForeignKey(Chapter, on_delete=models.CASCADE, related_name='revisions')
+    title = models.CharField(max_length=120, blank=True)
+    content = models.TextField()
+    note = models.TextField(blank=True)
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=STATUS_PENDING, db_index=True)
+    reason = models.CharField(max_length=300, blank=True, help_text="Editor's reason when rejecting")
+    decided_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                                   related_name='+')
+    decided_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def save(self, *args, **kwargs):
+        from .formatting import format_chapter
+        self.content = format_chapter(self.content)
+        super().save(*args, **kwargs)
+
+    @property
+    def word_count(self):
+        return word_count(self.content)
+
+
+def submit_chapter_edit(chapter, title, content, note=''):
+    """Edit a chapter, following the book's rules: blocked while the book is
+    under contract review; a published chapter of a signed book becomes a
+    pending revision for the editor. Returns 'saved' or 'review'."""
+    from django.core.exceptions import ValidationError
+    story = chapter.story
+    if chapter.pk and story.under_review:
+        raise ValidationError(story.lock_reason)
+    if chapter.pk and story.is_signed and chapter.status == Chapter.STATUS_PUBLISHED:
+        ChapterRevision.objects.filter(chapter=chapter, status=ChapterRevision.STATUS_PENDING).update(
+            status=ChapterRevision.STATUS_REJECTED, reason='Replaced by a newer edit')
+        ChapterRevision.objects.create(chapter=chapter, title=title, content=content, note=note)
+        return 'review'
+    chapter.title, chapter.content, chapter.note = title, content, note
+    chapter.save()
+    return 'saved'
+

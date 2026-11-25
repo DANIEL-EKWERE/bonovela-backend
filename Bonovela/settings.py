@@ -183,7 +183,7 @@ EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
 EMAIL_USE_TLS = config('EMAIL_USE_TLS', default=True, cast=bool)
 EMAIL_BACKEND = ('django.core.mail.backends.smtp.EmailBackend' if EMAIL_HOST
                  else 'django.core.mail.backends.console.EmailBackend')
-DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='Bonovela <no-reply@bonovela.com>')
+DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='Bonovela <noreply@bonovela.com>')
 # Public address of this site, for links and images in emails.
 SITE_URL = config('SITE_URL', default=f'https://{RENDER_HOST}' if RENDER_HOST else 'http://localhost:8000')
 
@@ -201,8 +201,9 @@ BONOVELA = {
     'SYNOPSIS_WORDS': (50, 300),
     'CHAPTER_WORDS': (600, 2000),  # a chapter must be in this range to publish
     'CONTRACT_MIN_WORDS': 5000,
+    'SHORT_PAY_TO_READ_MIN_WORDS': 5000,  # short stories (ideal length 5,000–50,000 words)
     'PAY_TO_READ_MIN_WORDS': 30000,  # the Pay-to-Read Application opens at this many published words  # published words before an author can apply for a contract
-    'MIN_LIVE_CHAPTERS': 20,  # signed novels go live in the app from this many published chapters
+    'MIN_LIVE_CHAPTERS': 1,  # books show in the app once they have a published chapter (the 20-chapter rule is gone)
     'PAYOUT_MINIMUM_CENTS': 1000,  # Finance pays balances of $10 or more
     # Editorial commission: share of a book's coin revenue (1 coin ≈ 1¢).
     # Set by the platform admin; editors cannot change it.

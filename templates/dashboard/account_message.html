@@ -1,0 +1,5 @@
+{% load static %}<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ title }} · Bonovela</title><link rel="icon" href="{% static 'img/app_icon.png' %}"><link rel="stylesheet" href="{% static 'css/bonovela.css' %}"></head>
+<body style="background:var(--surface)"><div style="max-width:420px;margin:60px auto;padding:0 16px"><div class="card" style="text-align:center;padding:28px 20px">
+<img src="{% static 'img/bonovela-logo.jpg' %}" alt="Bonovela" style="max-width:220px;width:70%"><h2 style="margin:18px 0 8px">{{ title }}</h2><p class="muted">{{ message }}</p>
+<p style="margin-top:18px"><a class="btn" href="{% url 'dashboard:login' %}">Go to sign in</a></p></div></div></body></html>

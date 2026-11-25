@@ -18,17 +18,22 @@
 {% if versions|length > 1 %}<div class="section-title"><h2>Versions</h2></div><div class="card flush">{% for v in versions %}<div class="list-item"><b>Version {{ v.version }}</b><span class="grow hint">{{ v.updated_by.display_name|default:'Default' }} · {{ v.created_at|date:"M d, Y H:i" }}</span></div>{% endfor %}</div>{% endif %}
 
 {% else %}
+{% if tab == 'countersign' %}<div class="notice" style="margin-bottom:12px">The author signed electronically. Your signature completes the contract and marks the book <b>Signed</b>.</div>{% endif %}
 {% if tab == 'send' %}<div class="notice" style="margin-bottom:12px">Books the Senior Editors approved — and books still in review, if you want to help a busy editor. Sending emails the author and sets the status to <b>Contract sent · awaiting author signature</b>.</div>{% endif %}
 <div class="card flush">
   {% for a in rows %}<div class="list-item" style="align-items:flex-start;gap:12px">
     {% cover a.story 48 %}
     <div class="grow"><b>{{ a.story.display_title }}</b> <span class="hint" style="display:inline">{{ a.story.book_code }}</span>
       <div class="hint">by {{ a.story.author.display_name }} · SE {{ a.se.display_name|default:'—' }}{% if a.ce %} · sent by {{ a.ce.display_name }}{% endif %} · {{ a.updated_at|date:"M d, Y" }}</div>
-      <span class="chip {% if a.status == 'signed' %}green{% elif a.status == 'contract_sent' %}gold{% else %}grey{% endif %}">{% if a.status == 'contract_sent' %}Contract sent · awaiting author signature{% else %}{{ a.get_status_display }}{% endif %}</span>
+      <span class="chip {% if a.status == 'signed' %}green{% elif a.status == 'contract_sent' or a.status == 'author_signed' %}gold{% else %}grey{% endif %}">{% if a.status == 'contract_sent' %}Contract sent · awaiting author signature{% elif a.status == 'author_signed' %}Signed by author · awaiting Bonovela{% else %}{{ a.get_status_display }}{% endif %}</span>
+      {% if a.author_signed_at %}<div class="hint">Author signed as <b>{{ a.author_signature_name }}</b> on {{ a.author_signed_at|date:"M d, Y H:i" }}{% if a.author_signed_ip %} · IP {{ a.author_signed_ip }}{% endif %}{% if a.platform_signed_at %} · Bonovela: {{ a.platform_signature_name }}, {{ a.platform_signed_at|date:"M d, Y" }}{% endif %}</div>{% endif %}
+      {% if a.author_signature_image %}<img src="{{ a.author_signature_image }}" alt="Signature" style="max-height:40px;margin-top:4px;background:#fff;border-radius:6px">{% endif %}
       {% if a.status == 'pending' %}<span class="chip grey">Still with the SE</span>{% endif %}</div>
     {% if tab == 'send' %}<form method="post" class="row" style="gap:6px">{% csrf_token %}<input type="hidden" name="action" value="send"><input type="hidden" name="application" value="{{ a.pk }}">
       <select name="contract_type" style="width:auto">{% for k, l in contract_types %}<option value="{{ k }}" {% if k == a.contract_type %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
       <button class="btn sm" onclick="return confirm('Send the contract to {{ a.story.author.display_name|escapejs }}?')">Send contract</button></form>{% endif %}
+    {% if tab == 'countersign' %}<form method="post">{% csrf_token %}<input type="hidden" name="action" value="countersign"><input type="hidden" name="application" value="{{ a.pk }}">
+      <button class="btn sm" onclick="return confirm('Sign this contract for Bonovela as {{ request.user.display_name|escapejs }}? The book becomes signed.')">Sign for Bonovela</button></form>{% endif %}
   </div>{% empty %}<div class="muted" style="padding:24px;text-align:center">Nothing here.</div>{% endfor %}
 </div>
 {% endif %}

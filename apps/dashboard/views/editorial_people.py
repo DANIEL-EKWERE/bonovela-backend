@@ -17,6 +17,7 @@ from apps.editorial import team
 from apps.editorial.models import (BookTransfer, ContractApplication, Escalation, Recommendation, Target,
                                    TeamMessage, month_start)
 from apps.engagement.models import InboxMessage, Report
+from apps.users.ids import user_q
 from apps.users.models import User
 from apps.wallet.models import AuthorEarning, Payout
 
@@ -82,7 +83,7 @@ def authors(request):
     ).select_related('recruited_by')
     q = request.GET.get('q', '').strip()
     if q:
-        qs = qs.filter(Q(pen_name__icontains=q) | Q(email__icontains=q))
+        qs = qs.filter(user_q(q))
     f = request.GET.get('f', 'all')
     if f == 'contracted':
         qs = qs.filter(n_signed__gt=0)
@@ -109,9 +110,9 @@ def author_detail(request, pk):
         action = request.POST.get('action')
         text = request.POST.get('text', '').strip()
         if action == 'message' and text:
-            InboxMessage.objects.create(user=author, title=request.POST.get('title') or 'Message from your editor',
-                                        body=text)
-            messages.success(request, 'Sent to the author\'s inbox.')
+            from apps.editorial.services import email_author
+            email_author(request.user, author, request.POST.get('title') or 'Message from your editor', text)
+            messages.success(request, 'Sent to the author\'s inbox and email — replies come to your email.')
         elif action == 'claim' and not author.recruited_by_id:
             author.recruited_by = request.user
             author.save(update_fields=['recruited_by'])

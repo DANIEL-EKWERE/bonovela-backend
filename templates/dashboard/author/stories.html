@@ -1,9 +1,9 @@
 {% extends 'dashboard/base.html' %}{% load bv %}
 {% block title %}Stories{% endblock %}
 {% block heading %}Author Center{% endblock %}
-{% block actions %}<a class="btn sm" href="{% url 'dashboard:author_story_new' %}"><i class="ph ph-plus"></i><span class="hide-mobile">New story</span></a>{% endblock %}
+{% block actions %}<a class="btn sm orange" href="{% url 'dashboard:author_story_new' %}"><i class="ph ph-plus"></i><span class="hide-mobile">New story</span></a>{% endblock %}
 {% block content %}
-<details class="tips" style="margin-bottom:14px">
+<details class="tips orange" style="margin-bottom:14px">
   <summary style="cursor:pointer">TIPS: Unsigned books cannot be displayed in the app.</summary>
   <p style="margin-top:6px">Once a book is signed, it will automatically be added to the Free Reading Section, where readers can access it for free.</p>
   <p style="margin-top:6px">When a book reaches 30,000 words, the Pay-to-Read Application option will become available. Authors who wish to monetize their books can submit an application for editorial review and approval.</p>
@@ -26,11 +26,11 @@
       <details style="position:relative">
         <summary class="icon-btn" style="list-style:none"><i class="ph ph-dots-three"></i></summary>
         <div class="card" style="position:absolute;right:0;z-index:5;min-width:180px;box-shadow:0 8px 30px rgba(0,0,0,.12)">
-          <a class="side-link" href="{% url 'dashboard:author_story_info' s.pk %}?step=1"><i class="ph ph-pencil-simple"></i>Edit story</a>
+          {% if not s.under_review %}<a class="side-link" href="{% url 'dashboard:author_story_info' s.pk %}?step=1"><i class="ph ph-pencil-simple"></i>Edit story</a>{% endif %}
           <a class="side-link" href="{% url 'dashboard:author_stats' s.pk %}"><i class="ph ph-chart-bar"></i>Statistics</a>
-          <form method="post" action="{% url 'dashboard:author_story_delete' s.pk %}" onsubmit="return confirm('Delete “{{ s.display_title|escapejs }}” and all its chapters?')">{% csrf_token %}
+          {% if s.can_delete %}<form method="post" action="{% url 'dashboard:author_story_delete' s.pk %}" onsubmit="return confirm('Delete “{{ s.display_title|escapejs }}” and all its chapters?')">{% csrf_token %}
             <button class="side-link" style="border:0;background:none;width:100%;cursor:pointer;font:inherit;color:var(--error)"><i class="ph ph-trash"></i>Delete story</button>
-          </form>
+          </form>{% else %}<p class="hint" style="padding:8px 12px;max-width:220px">{{ s.lock_reason }}</p>{% endif %}
         </div>
       </details>
     </div>
@@ -40,8 +40,7 @@
         <h3 class="truncate">{{ s.display_title }}</h3>
         <div class="row wrap" style="gap:6px;margin:6px 0 10px">
           <span class="chip pink">{{ s.get_status_display }}</span>
-          {% if s.is_signed %}<span class="chip green">Signed</span>{% elif c.app_view.kind == 'rejected' %}<span class="chip red">Rejected</span>{% elif c.app_view.kind == 'contract_sent' %}<span class="chip green">Contract Approved</span>{% else %}<span class="chip grey">Unsigned</span>{% endif %}
-          {% if c.not_live %}<span class="chip gold">Not live yet · {{ c.chapters }}/{{ c.min_live }} chapters</span>{% endif %}
+          {% if s.is_signed %}<span class="chip green">Signed</span>{% elif c.app_view.kind == 'rejected' %}<span class="chip red">Rejected</span>{% elif c.app_view.kind == 'contract_sent' or c.app_view.kind == 'author_signed' %}<span class="chip green">Contract Approved</span>{% else %}<span class="chip grey">Unsigned</span>{% endif %}
           {% if c.app_view.kind == 'applied' or c.app_view.kind == 'revision' %}<span class="chip gold">{{ c.app_view.label }}</span>{% endif %}
         </div>
         <div class="row wrap small muted" style="gap:16px">
@@ -56,8 +55,8 @@
     {% if s.is_info_complete %}
       {% with v=c.app_view %}
       <div class="row between">
-        {% if not s.is_signed and c.can_apply and v.kind != 'rejected' and v.kind != 'applied' and v.kind != 'contract_sent' %}<a class="small pink" href="{% url 'dashboard:author_signing' s.pk %}">Apply for Contract ›</a>{% else %}<span></span>{% endif %}
-        <a class="btn sm" href="{% url 'dashboard:author_chapter_new' s.pk %}">Add new chapter</a>
+        {% if not s.is_signed and c.can_apply and v.kind != 'rejected' and v.kind != 'applied' and v.kind != 'contract_sent' and v.kind != 'author_signed' %}<a class="small pink" href="{% url 'dashboard:author_signing' s.pk %}">Apply for Contract ›</a>{% else %}<span></span>{% endif %}
+        <a class="btn sm orange" href="{% url 'dashboard:author_chapter_new' s.pk %}">Add new chapter</a>
       </div>
       {% endwith %}
     {% else %}
@@ -67,21 +66,21 @@
     {% with v=c.app_view %}
       {% if v and not s.is_signed %}
       {% if v.kind == 'rejected' %}
-      <div class="app-panel bad">
+      <div class="app-panel orange">
         <b>{{ v.title }}</b>
         <p>{{ v.message|linebreaksbr }}</p>
-        <div class="row between"><a class="small pink" href="{% url 'dashboard:author_appeal' %}?story={{ s.pk }}">Appeal this decision</a>{% if c.can_apply %}<a class="btn sm blue" href="{% url 'dashboard:author_signing' s.pk %}">Apply for contract</a>{% elif c.reapply_at %}<span class="hint">You can apply again {{ c.reapply_at|timeuntil }} from now.</span>{% endif %}</div>
+        <div class="row" style="justify-content:flex-end">{% if c.can_apply %}<a class="btn sm blue" href="{% url 'dashboard:author_signing' s.pk %}">Apply for contract</a>{% elif c.reapply_at %}<span class="hint">You can apply again {{ c.reapply_at|timeuntil }} from now.</span>{% endif %}</div>
       </div>
       {% elif v.kind == 'contract_sent' %}
-      <div class="app-panel ok"><b>{{ v.title }}</b><p>{{ v.message }}</p><div style="text-align:right"><a class="btn sm" href="{% url 'dashboard:author_signing' s.pk %}">Review &amp; sign</a></div></div>
+      <div class="app-panel ok"><b>{{ v.title }}</b></div>
       {% else %}
       <div class="app-panel"><b>{{ v.title }}</b><p>{{ v.message }}</p></div>
       {% endif %}
     {% endif %}
     {% endwith %}
-    {% if s.is_signed and not s.is_short %}{% if s.paid_from_chapter %}<div class="app-panel ok"><b>Approved – Pay-to-Read</b><p>Chapters from {{ s.paid_from_chapter }} onward are locked.</p></div>{% elif c.ptr_pending %}<div class="app-panel"><b>Pay-to-Read: Pending Review</b><p>Your editor is reviewing your application.</p></div>{% elif s.can_apply_pay_to_read %}<div class="app-panel"><b>Pay-to-Read Application</b><p>Your book has reached 30,000 words. You can now apply to monetize it.</p><div style="text-align:right"><a class="btn sm" href="{% url 'dashboard:author_pay_to_read' s.pk %}">Apply for Pay-to-Read</a></div></div>{% endif %}{% endif %}
+    {% if s.is_signed %}{% if s.paid_from_chapter %}<div class="app-panel ok"><b>Approved – Pay-to-Read</b><p>Chapters from {{ s.paid_from_chapter }} onward are locked.</p></div>{% elif c.ptr_pending %}<div class="app-panel"><b>Pay-to-Read: Pending Review</b><p>Your editor is reviewing your application.</p></div>{% elif s.can_apply_pay_to_read %}<div class="app-panel"><b>Pay-to-Read Application</b><p>Your book has reached {{ s.pay_to_read_min_words|stringformat:'d' }} words. You can now apply to monetize it.</p><div style="text-align:right"><a class="btn sm" href="{% url 'dashboard:author_pay_to_read' s.pk %}">Apply for Pay-to-Read</a></div></div>{% endif %}{% endif %}
   </div>
 {% endwith %}{% endfor %}
 </div>
-<a class="fab hide-desktop" href="{% url 'dashboard:author_story_new' %}" aria-label="New story"><i class="ph ph-plus"></i></a>
+<a class="fab orange hide-desktop" href="{% url 'dashboard:author_story_new' %}" aria-label="New story"><i class="ph ph-plus"></i></a>
 {% endblock %}

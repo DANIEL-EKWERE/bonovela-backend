@@ -12,6 +12,9 @@ urlpatterns = [
     path('', auth.home, name='home'),
     path('login/', auth.LoginView.as_view(), name='login'),
     path('logout/', LogoutView.as_view(next_page='dashboard:login'), name='logout'),
+    path('verify-email/<uidb64>/<token>/', auth.verify_email, name='verify_email'),
+    path('password-reset/', auth.password_reset_request, name='password_reset'),
+    path('reset/<uidb64>/<token>/', auth.password_reset_confirm, name='password_reset_confirm'),
 
     # Author Center
     path('author/become/', author.become_author, name='become_author'),
@@ -63,6 +66,7 @@ urlpatterns = [
     path('editorial/messages/', people.team_messages, name='editorial_messages'),
     path('editorial/reports/', people.reports, name='editorial_reports'),
     path('editorial/pay-to-read/', editorial.pay_to_read, name='editorial_pay_to_read'),
+    path('editorial/chapter-edits/', editorial.chapter_edits, name='editorial_chapter_edits'),
     # Chief Editor workspace
     path('editorial/contracts/', ce.contracts, name='editorial_contracts'),
     path('editorial/publishing/', ce.publishing, name='editorial_publishing'),

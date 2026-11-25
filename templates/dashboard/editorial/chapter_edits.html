@@ -1,0 +1,17 @@
+{% extends 'dashboard/base.html' %}{% load bv %}
+{% block title %}Chapter edits{% endblock %}
+{% block heading %}Chapter edits{% endblock %}
+{% block content %}
+<div class="notice" style="margin-bottom:12px">Authors of signed books can't change published chapters directly. Their edits wait here; the live chapter keeps its old text until you approve.</div>
+<div class="tabs" style="margin-bottom:12px">{% for k, l in statuses %}<a class="{% if k == tab %}active{% endif %} nowrap" href="?tab={{ k }}">{{ l }} ({{ counts|get_item:k }})</a>{% endfor %}</div>
+<div class="stack">{% for r in rows %}<div class="card">
+  <div class="row between"><div><b>{{ r.chapter.story.display_title }} · Chapter {{ r.chapter.number }}</b><div class="hint">{{ r.chapter.story.book_code }} · {{ r.chapter.story.author.display_name }} · {{ r.created_at|date:"M d, Y H:i" }} · {{ r.chapter.word_count }} → {{ r.word_count }} words</div></div>
+    <span class="chip {% if r.status == 'approved' %}green{% elif r.status == 'rejected' %}red{% else %}gold{% endif %}">{{ r.get_status_display }}</span></div>
+  <div class="grid cols-2 stack-sm" style="margin-top:10px;gap:10px">
+    <div><div class="hint">Live now</div><div class="small" style="white-space:pre-line;max-height:260px;overflow:auto;background:var(--surface);padding:10px;border-radius:8px">{{ r.chapter.content|truncatewords:400 }}</div></div>
+    <div><div class="hint">Proposed{% if r.title != r.chapter.title %} · title: {{ r.title|default:'—' }}{% endif %}</div><div class="small" style="white-space:pre-line;max-height:260px;overflow:auto;background:#FFF8E6;padding:10px;border-radius:8px">{{ r.content|truncatewords:400 }}</div></div>
+  </div>
+  {% if r.status == 'pending' %}<form method="post" class="row" style="gap:8px;margin-top:10px">{% csrf_token %}<input type="hidden" name="revision" value="{{ r.pk }}"><input type="text" name="reason" placeholder="Reason if rejecting (optional)" class="grow"><button class="btn sm ghost" name="action" value="reject">Reject</button><button class="btn sm" name="action" value="approve">Approve</button></form>
+  {% else %}<p class="hint" style="margin-top:8px">{{ r.decided_by.display_name }} · {{ r.decided_at|date:"M d, Y" }}{% if r.reason %} — {{ r.reason }}{% endif %}</p>{% endif %}
+</div>{% empty %}<div class="card muted" style="text-align:center;padding:30px">Nothing here.</div>{% endfor %}</div>
+{% endblock %}

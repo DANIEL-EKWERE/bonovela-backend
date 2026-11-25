@@ -1,6 +1,7 @@
 """Editorial workflow transitions. Each step checks the editor's role and
 notifies the author through their inbox."""
 
+import re
 from datetime import timedelta
 
 from django.conf import settings
@@ -80,10 +81,92 @@ def ce_send_contract(app, editor, contract_type: str = 'non_exclusive', signing_
     transaction.on_commit(lambda: send_contract_approved(app))
 
 
+INFO_TEMPLATE = (
+    'Dear Author,\n\n'
+    "I'm {editor}, your editor on Bonovela.\n\n"
+    "I hope this email finds you well. I've received your book application, and before we proceed further, I'd like "
+    'to confirm a few important details with you.\n\n'
+    '1. Have you published this book on any other websites or apps? If yes, please share the links.\n\n'
+    '2. Have you signed any contract with another publishing platform for this book? If yes, please provide the '
+    "relevant contract details or screenshots showing the book's views and readership performance.\n\n"
+    '3. Are you willing to accept a non-exclusive contract? This means your book can be published on other platforms '
+    'while remaining available on Bonovela. However, your benefits and earnings will be subject to the terms of your '
+    'agreement.\n\n'
+    '4. Are you 18 years of age or older?\n'
+    'Authors under 18 will require parental or legal guardian consent before a publishing agreement can be completed. '
+    'The necessary documents and consent arrangements will be provided accordingly.\n\n'
+    '5. There shall be no racial discrimination in the books. Can you understand and accept this?\n'
+    '(If there is a rape detail in the story, please delete it, or change the rape to torture, kidnap, or verbal '
+    'humiliation. Or let the rape fail.)\n\n'
+    '6. Will you be able to make the book over 60k in a month since the date the story is signed?\n\n'
+    'We look forward to your responses!\n'
+    '---\n'
+    'Best Regards,\n'
+    '{editor}'
+)
+
+
+def info_message(editor):
+    return INFO_TEMPLATE.format(editor=editor.get_full_name() or editor.display_name)
+
+
+def email_author(editor, author, subject, body, story=None):
+    """An editor writes to an author: emailed from noreply@bonovela.com as
+    "<Editor> via Bonovela", replies go to the editor's own email, and a copy
+    lands in the author's inbox."""
+    from apps.engagement.models import InboxMessage
+    from apps.users.emails import send
+    InboxMessage.objects.create(user=author, story=story, title=subject, body=body)
+    if not author.email:
+        return False
+    name = editor.get_full_name() or editor.display_name
+    return send(author.email, subject, 'emails/editor_info.html', body, {'message': body},
+                reply_to=[editor.email] if editor.email else None, from_name=name)
+
+
+def send_info_email(app, editor):
+    """Step 1 — the editor's [Info] button: the confirmation questions."""
+    _require(editor, User.ROLE_SE, User.ROLE_CE)
+    _require_status(app, App.STATUS_PENDING, App.STATUS_SE_APPROVED)
+    email_author(editor, app.story.author, f'About your Bonovela application: {app.story.display_title}',
+                 info_message(editor), story=app.story)
+    app.info_sent_at, app.info_sent_by = timezone.now(), editor
+    app.save(update_fields=['info_sent_at', 'info_sent_by', 'updated_at'])
+
+
+def _same_name(a, b):
+    return ' '.join((a or '').lower().split()) == ' '.join((b or '').lower().split())
+
+
+_DRAWN = re.compile(r'^data:image/png;base64,[A-Za-z0-9+/]+=*$')
+
+
 @transaction.atomic
-def sign(app):
-    """Author signs: the story goes live in the app."""
+def author_sign(app, name: str, drawing: str = '', ip=None):
+    """Step 3a — the author signs with their real name (typed, and drawn
+    if they like). Bonovela then countersigns."""
     _require_status(app, App.STATUS_CONTRACT_SENT)
+    name = ' '.join((name or '').split())
+    if not _same_name(name, app.signer_name):
+        raise ValidationError(f'Sign with your full legal name as on your application: {app.signer_name}.')
+    drawing = (drawing or '').strip()
+    if drawing and (len(drawing) > 400_000 or not _DRAWN.match(drawing)):
+        raise ValidationError('The drawn signature could not be read. Clear it and draw again.')
+    app.author_signature_name, app.author_signature_image = name, drawing
+    app.author_signed_at, app.author_signed_ip = timezone.now(), ip
+    app.status = App.STATUS_AUTHOR_SIGNED
+    app.save()
+    _notify(app.story, 'Contract signed ✍️', f'Thanks for signing the contract for "{app.story.display_title}". '
+            'Bonovela will add its signature shortly.')
+
+
+@transaction.atomic
+def countersign(app, editor):
+    """Step 3b — the Chief Editor signs for Bonovela; the book is signed."""
+    _require(editor, User.ROLE_CE)
+    _require_status(app, App.STATUS_AUTHOR_SIGNED)
+    app.platform_signature_name = editor.get_full_name() or editor.display_name
+    app.platform_signed_by, app.platform_signed_at = editor, timezone.now()
     app.status = App.STATUS_SIGNED
     app.save()
     story = app.story
@@ -93,8 +176,7 @@ def sign(app):
     if app.signing_bonus_cents:
         AuthorEarning.objects.create(author=story.author, story=story, type='signing_bonus',
                                      amount_cents=app.signing_bonus_cents, note='Contract signed')
-    _notify(story, 'Welcome aboard 💗', f'"{story.display_title}" is now signed. The Chief Editor will publish it '
-            'to the app; it then appears in the Free Reading Section.')
+    _notify(story, 'Welcome aboard 💗', f'"{story.display_title}" is now signed by you and Bonovela.')
 
 
 # ── App Publishing Control ───────────────────────────────────────────────────
@@ -159,7 +241,7 @@ def decide_payout_change(editor, change, approve: bool, note: str = ''):
 def apply_pay_to_read(story, from_chapter: int, message: str = '') -> PayToReadApplication:
     """Author: ask for chapters [from_chapter] onward to be paid."""
     if not story.can_apply_pay_to_read:
-        need = settings.BONOVELA['PAY_TO_READ_MIN_WORDS']
+        need = story.pay_to_read_min_words
         raise ValidationError(f'Pay-to-Read opens for signed books with {need:,} published words, once per book.')
     last = story.published_chapters().order_by('-number').values_list('number', flat=True).first() or 0
     if not 2 <= from_chapter <= last:

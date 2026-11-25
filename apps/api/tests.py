@@ -1,6 +1,8 @@
+import re
+
 from django.conf import settings
 from django.core.management import call_command
-from django.test import TestCase, override_settings
+from django.test import Client, TestCase, override_settings
 from rest_framework.test import APIClient
 
 from apps.catalog.models import Chapter, Story, Tag
@@ -19,9 +21,9 @@ class BonovelaAPITests(TestCase):
     def setUpTestData(cls):
         call_command('seed_bonovela', chapters=12, verbosity=0)
 
-    def login(self, email='reader@bonovela.app'):
+    def login(self, email='reader@bonovela.app', password='bonovela1'):
         client = APIClient()
-        r = client.post('/api/auth/token/', {'email': email, 'password': 'bonovela1'}, format='json')
+        r = client.post('/api/auth/token/', {'email': email, 'password': password}, format='json')
         self.assertEqual(r.status_code, 200, r.content)
         client.credentials(HTTP_AUTHORIZATION='Bearer ' + r.data['access'])
         return client
@@ -31,10 +33,36 @@ class BonovelaAPITests(TestCase):
         c = APIClient()
         r = c.post('/api/auth/register/', {'email': 'new@x.com', 'password': 'pink_reads27', 'name': 'New'}, format='json')
         self.assertEqual(r.status_code, 201, r.content)
+        self.assertTrue(r.data['verify_email'])
+        self.assertNotIn('access', r.data)
+        # Signing in is blocked until the emailed activation link is opened.
+        r = c.post('/api/auth/token/', {'email': 'new@x.com', 'password': 'pink_reads27'}, format='json')
+        self.assertEqual((r.status_code, r.data['code']), (403, 'unverified'))
+        self.assertFalse(c.post('/api/auth/email-status/', {'email': 'new@x.com'}, format='json').data['verified'])
+        from django.core import mail
+        self.assertEqual(len(mail.outbox), 2)
+        self.assertIn('noreply@bonovela.com', mail.outbox[0].from_email)
+        path = '/' + re.search(r'https?://\S+?/(verify-email/\S+/)', mail.outbox[0].body).group(1)
+        self.assertContains(Client().get(path), 'activated')
+        self.assertTrue(c.post('/api/auth/email-status/', {'email': 'new@x.com'}, format='json').data['verified'])
+        r = c.post('/api/auth/token/', {'email': 'new@x.com', 'password': 'pink_reads27'}, format='json')
         c.credentials(HTTP_AUTHORIZATION='Bearer ' + r.data['access'])
         w = c.get('/api/wallet/').data
         self.assertEqual((w['coins'], w['bonus']), (60, 20))
         self.assertEqual(c.get('/api/inbox/').data['unread'], 1)
+
+    def test_password_reset_link_sets_new_password(self):
+        from django.core import mail
+        r = APIClient().post('/api/auth/password-reset/', {'email': 'reader@bonovela.app'}, format='json')
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(APIClient().post('/api/auth/password-reset/', {'email': 'nobody@x.com'}, format='json').status_code, 200)
+        self.assertEqual(len(mail.outbox), 1)
+        path = '/' + re.search(r'https?://\S+?/(reset/\S+/)', mail.outbox[0].body).group(1)
+        page = Client().get(path, follow=True)
+        self.assertEqual(page.status_code, 200)
+        Client().post(page.redirect_chain[-1][0] if page.redirect_chain else path,
+                      {'new_password1': 'fresh_pages31', 'new_password2': 'fresh_pages31'})
+        self.login('reader@bonovela.app', 'fresh_pages31')
 
     def test_register_enforces_password_rules(self):
         r = APIClient().post('/api/auth/register/', {'email': 'a@x.com', 'password': 'abc-def'}, format='json')
@@ -247,7 +275,16 @@ class BonovelaAPITests(TestCase):
         app = ContractApplication.objects.get(story_id=sid)
         editorial.se_decide(app, User.objects.get(email='se@bonovela.app'), 'approve')
         editorial.ce_send_contract(app, User.objects.get(email='ce@bonovela.app'), signing_bonus_cents=5000)
-        self.assertEqual(c.post(f'/api/author/stories/{sid}/sign/').status_code, 200)
+        r = c.post(f'/api/author/stories/{sid}/sign/', {'signature_name': 'Not Me'}, format='json')
+        self.assertEqual((r.status_code, r.data['code']), (400, 'signature'))
+        signer = c.get(f'/api/author/stories/{sid}/application/').data['signer_name']
+        r = c.post(f'/api/author/stories/{sid}/sign/', {'signature_name': signer}, format='json')
+        self.assertEqual((r.status_code, r.data['status']), (200, 'author_signed'))
+        self.assertIn(f'[Signed electronically: {signer}]', r.data['contract_text'])
+        self.assertFalse(Story.objects.get(pk=sid).is_signed)
+        app.refresh_from_db()
+        editorial.countersign(app, User.objects.get(email='ce@bonovela.app'))
+        self.assertTrue(Story.objects.get(pk=sid).is_signed)
 
         # Signed books reach the app once the Chief Editor publishes them.
         self.assertEqual(APIClient().get(f'/api/books/{sid}/').status_code, 404)

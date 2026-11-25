@@ -18,6 +18,7 @@ from apps.editorial import services, team
 from apps.editorial.models import AuthorAppeal, ContractApplication as App, ContractTemplate, PayToReadApplication
 from apps.editorial.models import Promotion, ShelfBook
 from apps.engagement.models import InboxMessage, ReadingProgress, Report
+from apps.users.ids import user_q
 from apps.users.models import IPLog, User
 from apps.wallet.models import AuthorEarning, PayoutMethod, PayoutMethodChange, Transaction
 
@@ -41,12 +42,17 @@ def contracts(request):
             app = get_object_or_404(App, pk=request.POST.get('application'))
             run(request, services.ce_send_contract, app, request.user, request.POST.get('contract_type', 'non_exclusive'),
                 ok='Contract sent — awaiting the author\'s signature. The author was emailed.')
+        elif action == 'countersign':
+            app = get_object_or_404(App, pk=request.POST.get('application'))
+            run(request, services.countersign, app, request.user,
+                ok='Signed for Bonovela — the book is now signed. Publish it from App Publishing Control.')
         elif action == 'template':
             run(request, services.update_contract_template, request.user, request.POST.get('body', ''),
                 ok='Contract template saved as a new version.')
         return _back(request)
     tabs = [('send', 'To send', App.objects.filter(status__in=[App.STATUS_SE_APPROVED, App.STATUS_PENDING])),
             ('sent', 'Contract sent · awaiting signature', App.objects.filter(status=App.STATUS_CONTRACT_SENT)),
+            ('countersign', 'Signed by author · sign for Bonovela', App.objects.filter(status=App.STATUS_AUTHOR_SIGNED)),
             ('signed', 'Signed', App.objects.filter(status=App.STATUS_SIGNED))]
     rows = next((qs for k, _, qs in tabs if k == tab), None)
     template = ContractTemplate.current()
@@ -163,7 +169,7 @@ def ip_monitoring(request):
     q = request.GET.get('q', '').strip()
     logs = IPLog.objects.select_related('user')
     if q:
-        logs = logs.filter(Q(ip__icontains=q) | Q(user__email__icontains=q) | Q(user__pen_name__icontains=q))
+        logs = logs.filter(Q(ip__icontains=q) | user_q(q, 'user__'))
     shared = {ip for ip in IPLog.objects.values('ip').annotate(n=Count('user', distinct=True))
               .filter(n__gt=1).values_list('ip', flat=True)}
     return render(request, 'dashboard/editorial/ce_ip.html', {'logs': logs[:300], 'q': q, 'shared': shared})
